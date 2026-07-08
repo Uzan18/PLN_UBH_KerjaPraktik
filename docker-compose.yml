@@ -1,43 +1,18 @@
-services:
-  web:
-    build: .
-    container_name: siat-web
-    ports:
-      - "3000:3000"
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/.next
-    environment:
-      - ORACLE_HOST=oracle
-      - ORACLE_PORT=1521
-      - ORACLE_SERVICE=XEPDB1
-      - ORACLE_USER=siat_app
-      - ORACLE_PASSWORD=changeme
-      - NEXTAUTH_SECRET=your-secret-key-min-32-chars
-      - NEXTAUTH_URL=http://localhost:3000
-    depends_on:
-      - oracle
-    networks:
-      - siat_net
+version: '3.8'
 
+services:
   oracle:
     image: gvenzl/oracle-xe:21-slim
     container_name: siat-oracle
-    environment:
-      ORACLE_PASSWORD: changeme
-      APP_USER: siat_app
-      APP_USER_PASSWORD: changeme
+    restart: unless-stopped
     ports:
-      - "1521:1521"
+      - '1521:1521'
+    environment:
+      ORACLE_PASSWORD: siat_secret_2024
+      APP_USER: siat_admin
+      APP_USER_PASSWORD: siat_secret_2024
     volumes:
-      - oracle-data:/opt/oracle/oradata
-    networks:
-      - siat_net
+      - siat_oracledata:/opt/oracle/oradata
 
 volumes:
-  oracle-data:
-
-networks:
-  siat_net:
-    driver: bridge
+  siat_oracledata:

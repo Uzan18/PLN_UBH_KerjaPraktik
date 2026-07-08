@@ -1,27 +1,160 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* ===== SIAT Design Tokens (from Stitch) ===== */
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Primary */
+  --primary: #00286a;
+  --primary-container: #0f3d91;
+  --primary-fixed: #dae2ff;
+  --primary-fixed-dim: #b2c5ff;
+  --on-primary: #ffffff;
+  --on-primary-container: #8eadff;
+  --on-primary-fixed: #001848;
+
+  /* Secondary */
+  --secondary: #7c5800;
+  --secondary-container: #ffbb16;
+  --secondary-fixed: #ffdea6;
+  --on-secondary: #ffffff;
+  --on-secondary-container: #6c4d00;
+
+  /* Tertiary */
+  --tertiary: #511b00;
+  --tertiary-container: #752a00;
+
+  /* Surface */
+  --surface: #f9f9ff;
+  --surface-background: #F8FAFC;
+  --surface-container: #e7eeff;
+  --surface-container-low: #f0f3ff;
+  --surface-container-high: #dee8ff;
+  --surface-container-highest: #d8e3fb;
+  --surface-container-lowest: #ffffff;
+  --surface-border: #E2E8F0;
+  --surface-dim: #cfdaf2;
+
+  /* On-Surface */
+  --on-surface: #111c2d;
+  --on-surface-variant: #434652;
+  --on-background: #111c2d;
+
+  /* Outline */
+  --outline: #747783;
+  --outline-variant: #c4c6d3;
+
+  /* Status Colors */
+  --status-good: #22C55E;
+  --status-fair: #EAB308;
+  --status-poor: #F97316;
+  --status-bad: #EF4444;
+  --status-draft: #94A3B8;
+  --status-submitted: #3B82F6;
+
+  /* Error */
+  --error: #ba1a1a;
+  --error-container: #ffdad6;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-container: var(--primary-container);
+  --color-primary-fixed: var(--primary-fixed);
+  --color-primary-fixed-dim: var(--primary-fixed-dim);
+  --color-on-primary: var(--on-primary);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-on-primary-fixed: var(--on-primary-fixed);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-secondary-fixed: var(--secondary-fixed);
+  --color-on-secondary: var(--on-secondary);
+  --color-on-secondary-container: var(--on-secondary-container);
+
+  --color-surface: var(--surface);
+  --color-surface-background: var(--surface-background);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-border: var(--surface-border);
+
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-on-background: var(--on-background);
+
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+
+  --color-status-good: var(--status-good);
+  --color-status-fair: var(--status-fair);
+  --color-status-poor: var(--status-poor);
+  --color-status-bad: var(--status-bad);
+  --color-status-draft: var(--status-draft);
+  --color-status-submitted: var(--status-submitted);
+
+  --color-error: var(--error);
+  --color-error-container: var(--error-container);
+
+  /* Fonts - using Hanken Grotesk as primary font via Google Fonts link */
+  --font-sans: "Hanken Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
+
+/* ===== Base Styles ===== */
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface-background);
+  color: var(--on-surface);
+  font-family: "Hanken Grotesk", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+/* ===== Custom Scrollbar ===== */
+
+.custom-scrollbar::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #E2E8F0;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #CBD5E1;
+}
+
+/* ===== Material Symbols ===== */
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+}
+
+/* ===== Animations ===== */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
 }
