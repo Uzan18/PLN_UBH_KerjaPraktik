@@ -74,7 +74,7 @@ export default function AssetDetailPage() {
       </div>
 
       {/* Asset Header (Bento Style) */}
-      <div className="grid grid-cols-12 gap-4 mb-8">
+      <div className="grid grid-cols-12 gap-4 mb-8 items-start">
         {/* Left: Asset Info Card */}
         <div className="col-span-12 lg:col-span-8 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col">
           <div>
