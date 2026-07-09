@@ -131,11 +131,7 @@ export default function AssetDetailPage() {
             ].map((item) => (
               <div 
                 key={item.label} 
-                className={`flex flex-col px-3 py-1.5 rounded-lg border text-xs ${
-                  item.highlight 
-                    ? 'bg-primary/5 border-primary/20' 
-                    : 'bg-surface-container-low border-surface-border'
-                }`}
+                className="flex flex-col px-3 py-1.5 rounded-lg border text-xs bg-surface-container-low border-surface-border"
               >
                 <span className="text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider mb-0.5">{item.label}</span>
                 <span className="font-semibold text-on-surface truncate" title={String(item.value)}>{item.value}</span>
