@@ -89,28 +89,24 @@ export default function AssetDetailPage() {
                 <span className="font-mono text-xs text-on-surface-variant">ID: {asset.id}</span>
               </div>
               {/* Year Selector */}
-              {asset.availableSessions && asset.availableSessions.length > 0 && (
-                <div className="flex items-center gap-1.5 bg-primary/5 border border-primary/20 rounded-full px-3 py-1">
-                  <span className="material-symbols-outlined text-primary text-sm">calendar_month</span>
-                  <span className="text-[10px] font-bold text-primary/70 uppercase">Tahun Uji:</span>
-                  <select
-                    value={asset.selectedSessionId || ''}
-                    onChange={(e) => {
-                      const sId = e.target.value;
-                      const found = asset.availableSessions.find((s: any) => s.id === sId);
-                      if (found) {
-                        router.push(`/unit/${assetId}?sessionId=${found.id}`);
-                      }
-                    }}
-                    className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 pr-5 cursor-pointer text-primary"
-                  >
-                    {asset.availableSessions.map((s: any) => (
-                      <option key={s.id} value={s.id}>
-                        {s.year}{s.id === asset.latestSessionId ? ' (Terbaru)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {asset.availableSessions && asset.availableSessions.length > 1 && (
+                <select
+                  value={asset.selectedSessionId || ''}
+                  onChange={(e) => {
+                    const sId = e.target.value;
+                    const found = asset.availableSessions.find((s: any) => s.id === sId);
+                    if (found) {
+                      router.push(`/unit/${assetId}?sessionId=${found.id}`);
+                    }
+                  }}
+                  className="bg-primary/5 border border-primary/20 rounded-full font-mono text-xs font-bold px-3 py-1 pr-7 cursor-pointer text-primary focus:ring-1 focus:ring-primary/30 focus:outline-none"
+                >
+                  {asset.availableSessions.map((s: any) => (
+                    <option key={s.id} value={s.id}>
+                      Tahun {s.year}{s.id === asset.latestSessionId ? ' (Terbaru)' : ''}
+                    </option>
+                  ))}
+                </select>
               )}
             </div>
             <h2 className="text-3xl font-bold text-on-surface mb-2 leading-tight tracking-tight">

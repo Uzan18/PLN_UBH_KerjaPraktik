@@ -234,6 +234,14 @@ export async function GET(
         })
       : [];
 
+    // Deduplicate sessions by year (keep latest per year, already sorted DESC)
+    const seenYears = new Set<number>();
+    const uniqueSessions = (asset.testSessions || []).filter(s => {
+      if (seenYears.has(s.testYear)) return false;
+      seenYears.add(s.testYear);
+      return true;
+    });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -249,7 +257,7 @@ export async function GET(
         selectedSessionId: selectedSession?.id || null,
         selectedTestYear: selectedSession?.testYear || null,
         latestSessionId: asset.testSessions?.[0]?.id || null,
-        availableSessions: asset.testSessions?.map(s => ({ id: s.id, year: s.testYear })) || [],
+        availableSessions: uniqueSessions.map(s => ({ id: s.id, year: s.testYear })),
       },
     });
   } catch (error) {
