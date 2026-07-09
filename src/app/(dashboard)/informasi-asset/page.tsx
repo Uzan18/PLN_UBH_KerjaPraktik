@@ -345,14 +345,14 @@ export default function InformasiAssetPage() {
                     </div>
                   ) : assetDetail ? (
                     <>
-                      {/* Specs section (Compact key-value pairs table layout) */}
-                      <div className="bg-white border border-surface-border rounded-lg shadow-sm overflow-hidden">
-                        <div className="px-4 py-2 border-b border-surface-border bg-surface-container-low/10 flex items-center justify-between">
+                      {/* Specs section (Matching dashboard unit details page UI style) */}
+                      <div className="bg-white border border-surface-border rounded-lg shadow-sm overflow-hidden p-4">
+                        <div className="flex items-center justify-between mb-3">
                           <h3 className="font-bold text-on-surface text-xs">
                             Spesifikasi Teknis {assetDetail.selectedTestYear ? `(Terupdate Tahun ${assetDetail.selectedTestYear})` : ''}
                           </h3>
                         </div>
-                        <div className="p-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           {[
                             { label: 'Manufacture', value: assetDetail.manufacture || '—' },
                             { label: 'Type', value: assetDetail.type || '—' },
@@ -367,9 +367,12 @@ export default function InformasiAssetPage() {
                             { label: 'LV Side', value: assetDetail.lvSide || '—' },
                             { label: 'LV Rated Current', value: assetDetail.lvRatedCurrent || '—' },
                           ].map((item) => (
-                            <div key={item.label} className="flex justify-between items-center py-1 border-b border-surface-border/40 text-[11px] gap-2">
-                              <span className="text-on-surface-variant font-medium">{item.label}</span>
-                              <span className="font-semibold text-on-surface text-right truncate max-w-[140px]" title={String(item.value)}>{item.value}</span>
+                            <div 
+                              key={item.label} 
+                              className="flex flex-col px-3 py-1.5 rounded-lg border text-xs bg-surface-container-low border-surface-border"
+                            >
+                              <span className="text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider mb-0.5">{item.label}</span>
+                              <span className="font-semibold text-on-surface truncate" title={String(item.value)}>{item.value}</span>
                             </div>
                           ))}
                         </div>
