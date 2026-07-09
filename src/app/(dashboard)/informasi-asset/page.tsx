@@ -345,9 +345,6 @@ export default function InformasiAssetPage() {
                               <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase">
                                 {assetDetail.equipmentType}
                               </span>
-                              {assetDetail.overallJudgement && assetDetail.overallJudgement !== 'NA' && (
-                                <StatusBadge judgement={assetDetail.overallJudgement} size="sm" />
-                              )}
                               <span className="font-mono text-xs text-on-surface-variant">ID: {assetDetail.id}</span>
                               {assetDetail.selectedTestYear && (
                                 <span className="text-xs font-semibold text-outline">

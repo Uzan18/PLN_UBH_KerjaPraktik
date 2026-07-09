@@ -83,9 +83,6 @@ export default function AssetDetailPage() {
                 <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase">
                   {asset.equipmentType}
                 </span>
-                {asset.overallJudgement && asset.overallJudgement !== 'NA' && (
-                  <StatusBadge judgement={asset.overallJudgement} size="sm" />
-                )}
                 <span className="font-mono text-xs text-on-surface-variant">ID: {asset.id}</span>
               </div>
               {/* Year Selector */}
