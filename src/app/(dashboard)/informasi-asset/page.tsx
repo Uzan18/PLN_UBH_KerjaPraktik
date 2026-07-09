@@ -348,7 +348,9 @@ export default function InformasiAssetPage() {
                               <span className="font-mono text-xs text-on-surface-variant">ID: {assetDetail.id}</span>
                               {assetDetail.selectedTestYear && (
                                 <span className="text-xs font-semibold text-outline">
-                                  Tahun Terkini: {assetDetail.selectedTestYear}
+                                  {(!assetDetail.selectedSessionId || assetDetail.selectedSessionId === assetDetail.latestSessionId)
+                                    ? `Tahun Terkini: ${assetDetail.selectedTestYear}`
+                                    : `Tahun Uji: ${assetDetail.selectedTestYear}`}
                                 </span>
                               )}
                             </div>

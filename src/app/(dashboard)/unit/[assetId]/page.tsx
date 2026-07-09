@@ -86,7 +86,9 @@ export default function AssetDetailPage() {
                 <span className="font-mono text-xs text-on-surface-variant">ID: {asset.id}</span>
                 {asset.selectedTestYear && (
                   <span className="text-xs font-semibold text-outline">
-                    Tahun Terkini: {asset.selectedTestYear}
+                    {(!selectedSessionId || asset.selectedSessionId === asset.latestSessionId)
+                      ? `Tahun Terkini: ${asset.selectedTestYear}`
+                      : `Tahun Uji: ${asset.selectedTestYear}`}
                   </span>
                 )}
               </div>
