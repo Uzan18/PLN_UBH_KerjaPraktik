@@ -113,7 +113,7 @@ export default function AssetDetailPage() {
                 </div>
               )}
             </div>
-            <h2 className="text-3xl font-bold text-on-surface mb-6 leading-tight tracking-tight">
+            <h2 className="text-3xl font-bold text-on-surface mb-2 leading-tight tracking-tight">
               {asset.name}
             </h2>
           </div>
