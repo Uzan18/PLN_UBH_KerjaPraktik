@@ -15,7 +15,6 @@ async function fetchUbpAssets() {
 export default function InformasiAssetPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUbpId, setSelectedUbpId] = useState<string | null>(null);
-  const [selectedEquipmentType, setSelectedEquipmentType] = useState<string | null>(null);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
 
   // Query
@@ -31,11 +30,7 @@ export default function InformasiAssetPage() {
     ubps.forEach((ubp: any) => {
       if (ubp.assets) {
         ubp.assets.forEach((asset: any) => {
-          list.push({
-            ...asset,
-            ubpId: ubp.id,
-            ubpName: ubp.name,
-          });
+          list.push({ ...asset, ubpId: ubp.id, ubpName: ubp.name });
         });
       }
     });
@@ -48,42 +43,33 @@ export default function InformasiAssetPage() {
     return ubps.find((u: any) => u.id === selectedUbpId) || null;
   }, [ubps, selectedUbpId]);
 
-  // Equipment types for selected UBP
-  const equipmentTypes = useMemo(() => {
-    if (!activeUbp?.assets) return [];
-    const typeMap = new Map<string, number>();
-    activeUbp.assets.forEach((asset: any) => {
-      const t = asset.equipmentType || 'Lainnya';
-      typeMap.set(t, (typeMap.get(t) || 0) + 1);
-    });
-    return Array.from(typeMap.entries()).map(([type, count]) => ({ type, count }));
-  }, [activeUbp]);
-
-  // Assets filtered by equipment type
-  const filteredAssets = useMemo(() => {
-    if (!activeUbp?.assets || !selectedEquipmentType) return [];
-    return activeUbp.assets.filter((a: any) => (a.equipmentType || 'Lainnya') === selectedEquipmentType);
-  }, [activeUbp, selectedEquipmentType]);
-
   const activeAsset = useMemo(() => {
     if (!allAssets || !selectedAssetId) return null;
     return allAssets.find((a: any) => a.id === selectedAssetId) || null;
   }, [allAssets, selectedAssetId]);
+
+  // Group assets in selected UBP by equipment type for display
+  const groupedAssets = useMemo(() => {
+    if (!activeUbp?.assets) return [];
+    const groups = new Map<string, any[]>();
+    activeUbp.assets.forEach((asset: any) => {
+      const t = asset.equipmentType || 'Lainnya';
+      if (!groups.has(t)) groups.set(t, []);
+      groups.get(t)!.push(asset);
+    });
+    return Array.from(groups.entries()).map(([type, assets]) => ({ type, assets }));
+  }, [activeUbp]);
 
   // Search results
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const query = searchQuery.toLowerCase();
     return allAssets.filter((asset) => {
-      const assetName = asset.name.toLowerCase();
-      const serialNumber = (asset.serialNumber || '').toLowerCase();
-      const manufacture = (asset.manufacture || '').toLowerCase();
-      const type = (asset.type || '').toLowerCase();
       return (
-        assetName.includes(query) ||
-        serialNumber.includes(query) ||
-        manufacture.includes(query) ||
-        type.includes(query)
+        asset.name.toLowerCase().includes(query) ||
+        (asset.serialNumber || '').toLowerCase().includes(query) ||
+        (asset.manufacture || '').toLowerCase().includes(query) ||
+        (asset.type || '').toLowerCase().includes(query)
       );
     });
   }, [allAssets, searchQuery]);
@@ -91,13 +77,6 @@ export default function InformasiAssetPage() {
   // Navigation handlers
   const handleSelectUbp = (ubpId: string | null) => {
     setSelectedUbpId(ubpId);
-    setSelectedEquipmentType(null);
-    setSelectedAssetId(null);
-    setSearchQuery('');
-  };
-
-  const handleSelectEquipmentType = (eqType: string | null) => {
-    setSelectedEquipmentType(eqType);
     setSelectedAssetId(null);
     setSearchQuery('');
   };
@@ -109,40 +88,9 @@ export default function InformasiAssetPage() {
 
   const handleSearchResultClick = (asset: any) => {
     setSelectedUbpId(asset.ubpId);
-    setSelectedEquipmentType(asset.equipmentType || 'Lainnya');
     setSelectedAssetId(asset.id);
     setSearchQuery('');
   };
-
-  // Breadcrumb labels
-  const breadcrumbItems: { label: string; onClick: () => void; active: boolean }[] = [
-    {
-      label: 'Semua UBP',
-      onClick: () => handleSelectUbp(null),
-      active: !selectedUbpId,
-    },
-  ];
-  if (selectedUbpId && activeUbp) {
-    breadcrumbItems.push({
-      label: activeUbp.name,
-      onClick: () => handleSelectEquipmentType(null),
-      active: !selectedEquipmentType,
-    });
-  }
-  if (selectedEquipmentType) {
-    breadcrumbItems.push({
-      label: selectedEquipmentType,
-      onClick: () => handleSelectAsset(null),
-      active: !selectedAssetId,
-    });
-  }
-  if (selectedAssetId && activeAsset) {
-    breadcrumbItems.push({
-      label: activeAsset.name,
-      onClick: () => {},
-      active: true,
-    });
-  }
 
   // Equipment type icons
   const eqTypeIcon = (type: string) => {
@@ -158,17 +106,30 @@ export default function InformasiAssetPage() {
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-outline flex-wrap">
         <span>Menu Utama</span>
-        {breadcrumbItems.map((item, idx) => (
-          <span key={idx} className="flex items-center gap-2">
+        <span className="material-symbols-outlined text-xs">chevron_right</span>
+        <button
+          onClick={() => handleSelectUbp(null)}
+          className={`hover:text-primary transition-colors cursor-pointer ${!selectedUbpId ? 'text-primary font-semibold' : ''}`}
+        >
+          Semua UBP
+        </button>
+        {selectedUbpId && activeUbp && (
+          <>
             <span className="material-symbols-outlined text-xs">chevron_right</span>
             <button
-              onClick={item.onClick}
-              className={`hover:text-primary transition-colors cursor-pointer ${item.active ? 'text-primary font-semibold' : ''}`}
+              onClick={() => handleSelectAsset(null)}
+              className={`hover:text-primary transition-colors cursor-pointer ${!selectedAssetId ? 'text-primary font-semibold' : ''}`}
             >
-              {item.label}
+              {activeUbp.name}
             </button>
-          </span>
-        ))}
+          </>
+        )}
+        {selectedAssetId && activeAsset && (
+          <>
+            <span className="material-symbols-outlined text-xs">chevron_right</span>
+            <span className="text-primary font-semibold">{activeAsset.name}</span>
+          </>
+        )}
       </div>
 
       {/* Header */}
@@ -178,10 +139,8 @@ export default function InformasiAssetPage() {
           <p className="text-sm text-on-surface-variant">
             {selectedAssetId && activeAsset
               ? `Spesifikasi teknis detail untuk ${activeAsset.name}.`
-              : selectedEquipmentType
-              ? `Daftar unit ${selectedEquipmentType} pada ${activeUbp?.name || ''}.`
               : selectedUbpId && activeUbp
-              ? `Pilih jenis peralatan pada ${activeUbp.name}.`
+              ? `Daftar unit pembangkit & peralatan pada ${activeUbp.name}.`
               : 'Pilih Unit Bisnis Pemeliharaan (UBP) untuk melihat aset transformator.'}
           </p>
         </div>
@@ -283,7 +242,7 @@ export default function InformasiAssetPage() {
                                 {ubp.name}
                               </h4>
                               <p className="text-xs text-on-surface-variant font-medium mt-0.5">
-                                {count} Asset Transformator
+                                {count} Peralatan
                               </p>
                             </div>
                           </div>
@@ -298,13 +257,14 @@ export default function InformasiAssetPage() {
               )}
 
               {/* ═══════════════════════════════════════════════ */}
-              {/* LEVEL 2: Equipment Type Selection              */}
+              {/* LEVEL 2: Unit Pembangkit & Peralatan           */}
+              {/* Grouped by equipment type, show assets         */}
               {/* ═══════════════════════════════════════════════ */}
-              {selectedUbpId !== null && selectedEquipmentType === null && activeUbp && (
-                <div className="space-y-4">
+              {selectedUbpId !== null && selectedAssetId === null && activeUbp && (
+                <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-on-surface-variant font-mono uppercase tracking-wider">
-                      Jenis Peralatan pada {activeUbp.name}
+                      Unit Pembangkit — {activeUbp.name}
                     </h3>
                     <button
                       onClick={() => handleSelectUbp(null)}
@@ -315,97 +275,53 @@ export default function InformasiAssetPage() {
                     </button>
                   </div>
 
-                  {equipmentTypes.length === 0 ? (
+                  {groupedAssets.length === 0 ? (
                     <div className="p-16 text-center text-on-surface-variant text-sm bg-white border border-surface-border rounded-xl">
                       <span className="material-symbols-outlined text-5xl text-outline/40 block">domain_disabled</span>
                       <p className="font-semibold text-base text-on-surface mt-2">Belum ada aset terdaftar</p>
                       <p>Silakan hubungi administrator untuk mendaftarkan aset baru pada UBP ini.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {equipmentTypes.map(({ type, count }) => (
-                        <button
-                          key={type}
-                          onClick={() => handleSelectEquipmentType(type)}
-                          className="p-6 bg-white hover:bg-primary-container/10 border border-surface-border hover:border-primary rounded-xl text-left transition-all hover:shadow-md cursor-pointer flex items-center justify-between group"
-                        >
-                          <div className="flex items-center gap-4 min-w-0">
-                            <span className="material-symbols-outlined text-3xl text-primary bg-primary/5 p-3 rounded-lg group-hover:bg-primary/15 transition-colors">
-                              {eqTypeIcon(type)}
-                            </span>
-                            <div className="min-w-0">
-                              <h4 className="font-bold text-on-surface text-base group-hover:text-primary transition-colors">
-                                {type}
-                              </h4>
-                              <p className="text-xs text-on-surface-variant font-medium mt-0.5">
-                                {count} Unit
-                              </p>
-                            </div>
-                          </div>
-                          <span className="material-symbols-outlined text-outline group-hover:text-primary group-hover:translate-x-1 transition-all">
-                            chevron_right
+                    groupedAssets.map(({ type, assets }) => (
+                      <div key={type} className="space-y-3">
+                        {/* Equipment Type Section Header */}
+                        <div className="flex items-center gap-2.5 pt-2">
+                          <span className="material-symbols-outlined text-primary text-lg bg-primary/5 p-1.5 rounded-md">
+                            {eqTypeIcon(type)}
                           </span>
-                        </button>
-                      ))}
-                    </div>
+                          <h4 className="font-bold text-on-surface text-sm uppercase tracking-wide">{type}</h4>
+                          <span className="text-[10px] font-bold text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded-full">
+                            {assets.length} Unit
+                          </span>
+                          <div className="flex-1 border-t border-surface-border/40" />
+                        </div>
+
+                        {/* Asset Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {assets.map((asset: any) => (
+                            <button
+                              key={asset.id}
+                              onClick={() => handleSelectAsset(asset.id)}
+                              className="p-4 bg-white hover:bg-primary-container/10 border border-surface-border hover:border-primary rounded-xl text-left transition-all hover:shadow-md cursor-pointer group"
+                            >
+                              <h4 className="font-bold text-on-surface text-sm group-hover:text-primary transition-colors truncate mb-2">
+                                {asset.name}
+                              </h4>
+                              <div className="text-[11px] text-on-surface-variant/80 space-y-0.5">
+                                <p className="truncate"><span className="font-medium text-on-surface/70">Manufacture:</span> {asset.manufacture || '—'}</p>
+                                <p className="truncate"><span className="font-medium text-on-surface/70">SN:</span> {asset.serialNumber || '—'}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               )}
 
               {/* ═══════════════════════════════════════════════ */}
-              {/* LEVEL 3: Asset / Unit Selection                */}
-              {/* ═══════════════════════════════════════════════ */}
-              {selectedUbpId !== null && selectedEquipmentType !== null && selectedAssetId === null && activeUbp && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-on-surface-variant font-mono uppercase tracking-wider">
-                      Daftar {selectedEquipmentType} — {activeUbp.name}
-                    </h3>
-                    <button
-                      onClick={() => handleSelectEquipmentType(null)}
-                      className="text-xs text-primary font-bold hover:underline cursor-pointer flex items-center gap-1"
-                    >
-                      <span className="material-symbols-outlined text-xs">arrow_back</span>
-                      Kembali ke Jenis Peralatan
-                    </button>
-                  </div>
-
-                  {filteredAssets.length === 0 ? (
-                    <div className="p-16 text-center text-on-surface-variant text-sm bg-white border border-surface-border rounded-xl">
-                      <span className="material-symbols-outlined text-5xl text-outline/40 block">domain_disabled</span>
-                      <p className="font-semibold text-base text-on-surface mt-2">Tidak ada unit ditemukan</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {filteredAssets.map((asset: any) => (
-                        <button
-                          key={asset.id}
-                          onClick={() => handleSelectAsset(asset.id)}
-                          className="p-5 bg-white hover:bg-primary-container/10 border border-surface-border hover:border-primary rounded-xl text-left transition-all hover:shadow-md cursor-pointer flex flex-col justify-between h-40 group"
-                        >
-                          <div>
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded uppercase">
-                                {asset.equipmentType}
-                              </span>
-                            </div>
-                            <h4 className="font-bold text-on-surface text-sm group-hover:text-primary transition-colors truncate max-w-full">
-                              {asset.name}
-                            </h4>
-                          </div>
-                          <div className="text-[11px] text-on-surface-variant/80 border-t border-surface-border/50 pt-2.5 space-y-0.5">
-                            <p className="truncate"><span className="font-medium text-on-surface/80">Manufacture:</span> {asset.manufacture || '—'}</p>
-                            <p className="truncate"><span className="font-medium text-on-surface/80">SN:</span> {asset.serialNumber || '—'}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ═══════════════════════════════════════════════ */}
-              {/* LEVEL 4: Asset Detail / Specification Sheet    */}
+              {/* LEVEL 3: Asset Detail / Specification Sheet    */}
               {/* ═══════════════════════════════════════════════ */}
               {selectedAssetId !== null && activeAsset && (
                 <div className="space-y-6">
@@ -443,7 +359,7 @@ export default function InformasiAssetPage() {
                     <div className="px-6 py-4 border-b border-surface-border bg-surface-container-low/10">
                       <h3 className="font-bold text-on-surface text-base flex items-center gap-2">
                         <span className="material-symbols-outlined text-primary">feed</span>
-                        Spesifikasi Teknis Transformator
+                        Spesifikasi Teknis
                       </h3>
                     </div>
 
