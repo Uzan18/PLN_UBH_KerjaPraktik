@@ -1,6 +1,8 @@
 import { getServerSession as nextAuthGetServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import type { UserRole } from '@/types';
+import { getDb } from '@/lib/db';
+import { User } from '@/entities/User';
 
 /**
  * Augmented session types for SIAT.
@@ -22,6 +24,22 @@ export interface SiatSession {
 export async function getServerSession(): Promise<SiatSession | null> {
   const session = await nextAuthGetServerSession(authOptions);
   if (!session?.user) return null;
+
+  const userId = (session.user as { id?: string }).id;
+  if (!userId) return null;
+
+  // Verify that the user ID exists in the database to prevent stale session errors (e.g. after database reseeding)
+  try {
+    const db = await getDb();
+    const userRepo = db.getRepository<User>('User');
+    const userExists = await userRepo.findOne({ where: { id: userId } });
+    if (!userExists) {
+      console.warn(`[Session] Stale session detected: user ID ${userId} not found in database. Expiring session.`);
+      return null;
+    }
+  } catch (err) {
+    console.error('[Session] Failed to verify user existence in database:', err);
+  }
 
   return session as unknown as SiatSession;
 }
