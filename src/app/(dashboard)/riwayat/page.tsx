@@ -578,7 +578,14 @@ export default function RiwayatPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-surface-container-low border-t border-surface-border flex justify-end gap-3">
+            <div className="px-6 py-4 bg-surface-container-low border-t border-surface-border flex justify-end gap-3 items-center">
+              <Link
+                href={`/unit/${selectedSession.assetId}?sessionId=${selectedSession.id}`}
+                className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/30 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer mr-auto"
+              >
+                <span className="material-symbols-outlined text-sm">trending_up</span>
+                Buka Detail & Tren Unit
+              </Link>
               <button 
                 onClick={() => setSelectedSession(null)}
                 className="px-4 py-2 bg-white border border-surface-border text-on-surface hover:bg-surface-container-low rounded-lg font-bold text-xs transition-colors cursor-pointer"

@@ -2,14 +2,17 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import type { JudgementLabel } from '@/types';
 
 // Fetch helper
-async function fetchAssetDetail(assetId: string) {
-  const res = await fetch(`/api/assets/${assetId}/detail`);
+async function fetchAssetDetail(assetId: string, year?: string, sessionId?: string) {
+  const params = new URLSearchParams();
+  if (year) params.append('year', year);
+  if (sessionId) params.append('sessionId', sessionId);
+  const res = await fetch(`/api/assets/${assetId}/detail?${params.toString()}`);
   if (!res.ok) throw new Error('Gagal mengambil detail aset');
   const json = await res.json();
   return json.data;
@@ -17,7 +20,11 @@ async function fetchAssetDetail(assetId: string) {
 
 export default function AssetDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const assetId = typeof params?.assetId === 'string' ? params.assetId : '';
+  const selectedSessionId = searchParams?.get('sessionId') || '';
+  const selectedYear = searchParams?.get('year') || '';
 
   // Accordion state for test type sections
   const [expandedTests, setExpandedTests] = useState<Record<string, boolean>>({});
@@ -30,8 +37,8 @@ export default function AssetDetailPage() {
   };
 
   const { data: asset, isLoading, error } = useQuery({
-    queryKey: ['asset-detail', assetId],
-    queryFn: () => fetchAssetDetail(assetId),
+    queryKey: ['asset-detail', assetId, selectedSessionId, selectedYear],
+    queryFn: () => fetchAssetDetail(assetId, selectedYear, selectedSessionId),
     enabled: !!assetId,
   });
 
@@ -58,12 +65,35 @@ export default function AssetDetailPage() {
 
   return (
     <div className="animate-fade-in max-w-[1440px] mx-auto">
-      {/* Back Link */}
-      <div className="mb-6">
+      {/* Back Link & Year Selector */}
+      <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
         <Link href="/dashboard" className="inline-flex items-center gap-2 text-primary hover:underline font-medium text-sm">
           <span className="material-symbols-outlined text-sm">arrow_back</span>
           Kembali ke Dashboard
         </Link>
+
+        {asset.availableSessions && asset.availableSessions.length > 0 && (
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 border border-surface-border rounded-lg shadow-sm text-xs">
+            <span className="font-semibold text-outline">Tahun Uji / Laporan:</span>
+            <select
+              value={asset.selectedSessionId || ''}
+              onChange={(e) => {
+                const sId = e.target.value;
+                const found = asset.availableSessions.find((s: any) => s.id === sId);
+                if (found) {
+                  router.push(`/unit/${assetId}?sessionId=${found.id}`);
+                }
+              }}
+              className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 pr-6 cursor-pointer text-primary"
+            >
+              {asset.availableSessions.map((s: any) => (
+                <option key={s.id} value={s.id}>
+                  {s.year} {s.id === asset.latestSessionId ? '(Terbaru)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Asset Header (Bento Style) */}

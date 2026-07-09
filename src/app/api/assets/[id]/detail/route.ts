@@ -99,11 +99,15 @@ export async function GET(
     requirePermission(session.user.role, 'asset:read');
 
     const { id } = await params;
+    const url = new URL(request.url);
+    const queryYear = url.searchParams.get('year') || undefined;
+    const querySessionId = url.searchParams.get('sessionId') || undefined;
+
     const db = await getDb();
     const assetRepo = db.getRepository(Asset);
     const testTypeRepo = db.getRepository(TestType);
 
-    // Get asset with latest validated session
+    // Get asset with all validated sessions
     const asset = await assetRepo.createQueryBuilder('asset')
       .leftJoinAndSelect('asset.ubp', 'ubp')
       .leftJoinAndSelect('asset.testSessions', 'ts', 'ts.status = :status', { status: 'VALIDATED' })
@@ -118,6 +122,47 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Asset not found' }, { status: 404 });
     }
 
+    // Determine which session to look at (defaults to latest validated session)
+    let selectedSession = asset.testSessions?.[0];
+    if (querySessionId) {
+      selectedSession = asset.testSessions?.find(s => s.id === querySessionId) || selectedSession;
+    } else if (queryYear) {
+      selectedSession = asset.testSessions?.find(s => String(s.testYear) === queryYear) || selectedSession;
+    }
+
+    // Merge specifications of the selected session if available (for historical correctness)
+    const specInfo = {
+      manufacture: asset.manufacture,
+      type: asset.type,
+      serialNumber: asset.serialNumber,
+      mfgYear: asset.mfgYear,
+      vectorGroup: asset.vectorGroup,
+      coolingMethod: asset.coolingMethod,
+      ratedPower: asset.ratedPower,
+      frequency: asset.frequency,
+      hvSide: asset.hvSide,
+      hvRatedCurrent: asset.hvRatedCurrent,
+      lvSide: asset.lvSide,
+      lvRatedCurrent: asset.lvRatedCurrent,
+    };
+
+    if (selectedSession?.additionalInfo) {
+      try {
+        const approved = JSON.parse(selectedSession.additionalInfo);
+        Object.entries(approved).forEach(([k, v]) => {
+          if (v !== undefined && v !== null && v !== '') {
+            if (k === 'mfgYear') {
+              specInfo.mfgYear = v ? Number(v) : null;
+            } else {
+              (specInfo as any)[k] = String(v);
+            }
+          }
+        });
+      } catch (err) {
+        console.error('Failed to parse approved additional info for asset detail:', err);
+      }
+    }
+
     // Get all test types
     const testTypes = await testTypeRepo.find({
       relations: ['parameters'],
@@ -129,13 +174,12 @@ export async function GET(
       },
     });
 
-    // Build status per test type from latest validated session
-    const latestSession = asset.testSessions?.[0];
+    // Build status per test type from selected validated session
     const allScores: (number | null)[] = [];
     const allJudgements: (JudgementLabel | null)[] = [];
 
     const testTypeStatuses = testTypes.map((tt) => {
-      const results = latestSession?.testResults?.filter(
+      const results = selectedSession?.testResults?.filter(
         (r) => r.parameter?.testTypeId === tt.id
       ) || [];
 
@@ -166,7 +210,7 @@ export async function GET(
       };
     });
 
-    // Dynamic Damage Mechanism aggregation for this asset
+    // Dynamic Damage Mechanism aggregation for this asset and selected session
     const mechanisms = [
       'Deformation',
       'Dielectric Problem',
@@ -183,9 +227,9 @@ export async function GET(
       'Breating system',
     ];
 
-    const damageMechanisms = latestSession
+    const damageMechanisms = selectedSession
       ? mechanisms.map((m) => {
-          const score = getMechanismScoreForSession(latestSession, m);
+          const score = getMechanismScoreForSession(selectedSession, m);
           return { name: m, score };
         })
       : [];
@@ -196,23 +240,16 @@ export async function GET(
         id: asset.id,
         name: asset.name,
         equipmentType: asset.equipmentType,
-        mfgYear: asset.mfgYear,
-        vectorGroup: asset.vectorGroup,
-        serialNumber: asset.serialNumber,
-        manufacture: asset.manufacture,
-        type: asset.type,
-        coolingMethod: asset.coolingMethod,
-        ratedPower: asset.ratedPower,
-        frequency: asset.frequency,
-        hvSide: asset.hvSide,
-        hvRatedCurrent: asset.hvRatedCurrent,
-        lvSide: asset.lvSide,
-        lvRatedCurrent: asset.lvRatedCurrent,
+        ...specInfo,
         ubpName: asset.ubp?.name || '',
-        lastTestYear: latestSession?.testYear || null,
+        lastTestYear: selectedSession?.testYear || null,
         overallJudgement: aggregateAssetStatus(allJudgements),
         testTypeStatuses,
         damageMechanisms,
+        selectedSessionId: selectedSession?.id || null,
+        selectedTestYear: selectedSession?.testYear || null,
+        latestSessionId: asset.testSessions?.[0]?.id || null,
+        availableSessions: asset.testSessions?.map(s => ({ id: s.id, year: s.testYear })) || [],
       },
     });
   } catch (error) {
