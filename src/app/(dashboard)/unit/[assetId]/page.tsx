@@ -76,7 +76,7 @@ export default function AssetDetailPage() {
       {/* Asset Header (Bento Style) */}
       <div className="grid grid-cols-12 gap-4 mb-8">
         {/* Left: Asset Info Card */}
-        <div className="col-span-12 lg:col-span-8 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
+        <div className="col-span-12 lg:col-span-8 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col">
           <div>
             <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <div className="flex items-center gap-3 flex-wrap">
