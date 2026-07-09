@@ -47,6 +47,17 @@ export default function ValidasiPage() {
   const [rejectSessionId, setRejectSessionId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [selectedReviewItem, setSelectedReviewItem] = useState<any | null>(null);
+  const [isConfirmingApprove, setIsConfirmingApprove] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
+  const [rejectError, setRejectError] = useState<string | null>(null);
+  const [approveSuccess, setApproveSuccess] = useState(false);
+
+  const handleCloseReview = () => {
+    setSelectedReviewItem(null);
+    setIsConfirmingApprove(false);
+    setApproveError(null);
+    setApproveSuccess(false);
+  };
 
   // Queue query
   const { data: queue, isLoading, error } = useQuery({
@@ -201,20 +212,20 @@ export default function ValidasiPage() {
     onSuccess: () => {
       setRejectSessionId(null);
       setRejectReason('');
+      setRejectError(null);
       queryClient.invalidateQueries({ queryKey: ['validation-queue'] });
     },
   });
 
-  function handleApprove(sessionId: string) {
-    if (confirm('Apakah Anda yakin ingin memvalidasi dan menyetujui data pengujian ini?')) {
-      approveMutation.mutate(sessionId);
-    }
-  }
-
-  function handleRejectSubmit(e: React.FormEvent) {
+  async function handleRejectSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!rejectSessionId || !rejectReason.trim()) return;
-    rejectMutation.mutate({ sessionId: rejectSessionId, reason: rejectReason });
+    setRejectError(null);
+    try {
+      await rejectMutation.mutateAsync({ sessionId: rejectSessionId, reason: rejectReason });
+    } catch (err: any) {
+      setRejectError(err.message || 'Terjadi kesalahan saat menolak data.');
+    }
   }
 
   return (
@@ -318,7 +329,7 @@ export default function ValidasiPage() {
                 <p className="text-[11px] text-on-surface-variant mt-0.5 font-mono">Sesi ID: {selectedReviewItem.sessionId}</p>
               </div>
               <button 
-                onClick={() => setSelectedReviewItem(null)}
+                onClick={handleCloseReview}
                 className="p-1 hover:bg-surface-container-high rounded-full transition-colors cursor-pointer text-outline hover:text-on-surface flex items-center"
               >
                 <span className="material-symbols-outlined text-lg">close</span>
@@ -327,6 +338,12 @@ export default function ValidasiPage() {
 
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
+              {approveError && (
+                <div className="bg-status-bad/10 border border-status-bad text-status-bad text-xs p-3 rounded-lg flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">error</span>
+                  <span>{approveError}</span>
+                </div>
+              )}
               {/* Asset & Session Metadata Grid */}
               <div className="grid grid-cols-2 gap-4 bg-surface-container-low/40 p-4 rounded-lg border border-surface-border text-xs">
                 <div>
@@ -436,50 +453,79 @@ export default function ValidasiPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-surface-container-low border-t border-surface-border flex justify-between gap-3">
+            <div className="px-6 py-4 bg-surface-container-low border-t border-surface-border flex justify-between gap-3 items-center">
               <button 
-                onClick={() => setSelectedReviewItem(null)}
+                onClick={handleCloseReview}
                 className="px-4 py-2 border border-outline-variant hover:bg-surface-container-low rounded-lg text-xs font-bold transition-colors cursor-pointer"
               >
                 Tutup
               </button>
               
               <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setRejectSessionId(selectedReviewItem.sessionId);
-                    setSelectedReviewItem(null);
-                  }}
-                  className="px-4 py-2 bg-status-bad hover:brightness-110 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-sm active:scale-95"
-                >
-                  <span className="material-symbols-outlined text-sm">cancel</span> Tolak
-                </button>
-                <button
-                  onClick={async () => {
-                    if (confirm('Apakah Anda yakin ingin memvalidasi dan menyetujui data pengujian ini?')) {
-                      try {
-                        await approveMutation.mutateAsync(selectedReviewItem.sessionId);
+                {isConfirmingApprove ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-status-good">Apakah Anda yakin?</span>
+                    <button
+                      onClick={() => setIsConfirmingApprove(false)}
+                      disabled={approveMutation.isPending}
+                      className="px-3 py-1.5 border border-outline-variant hover:bg-surface-container-low rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setApproveError(null);
+                        try {
+                          await approveMutation.mutateAsync(selectedReviewItem.sessionId);
+                          setApproveSuccess(true);
+                          setTimeout(() => {
+                            handleCloseReview();
+                          }, 1500);
+                        } catch (e: any) {
+                          setApproveError(e.message || 'Terjadi kesalahan saat menyetujui.');
+                          setIsConfirmingApprove(false);
+                        }
+                      }}
+                      disabled={approveMutation.isPending}
+                      className="px-4 py-1.5 bg-status-good hover:brightness-110 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
+                    >
+                      {approveMutation.isPending ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                          Memproses...
+                        </>
+                      ) : (
+                        'Ya, Setujui'
+                      )}
+                    </button>
+                  </div>
+                ) : approveSuccess ? (
+                  <div className="flex items-center gap-1.5 text-status-good text-xs font-bold mr-2">
+                    <span className="material-symbols-outlined text-sm animate-bounce">check_circle</span>
+                    Berhasil disetujui!
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        setRejectSessionId(selectedReviewItem.sessionId);
                         setSelectedReviewItem(null);
-                        alert('Data pengujian berhasil disetujui!');
-                      } catch (e: any) {
-                        alert(e.message || 'Terjadi kesalahan saat menyetujui.');
-                      }
-                    }
-                  }}
-                  disabled={approveMutation.isPending}
-                  className="px-4 py-2 bg-status-good hover:brightness-110 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
-                >
-                  {approveMutation.isPending ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                      Memproses...
-                    </>
-                  ) : (
-                    <>
+                      }}
+                      className="px-4 py-2 bg-status-bad hover:brightness-110 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-sm active:scale-95"
+                    >
+                      <span className="material-symbols-outlined text-sm">cancel</span> Tolak
+                    </button>
+                    <button
+                      onClick={() => {
+                        setApproveError(null);
+                        setIsConfirmingApprove(true);
+                      }}
+                      className="px-4 py-2 bg-status-good hover:brightness-110 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+                    >
                       <span className="material-symbols-outlined text-sm">check_circle</span> Setujui
-                    </>
-                  )}
-                </button>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -495,6 +541,12 @@ export default function ValidasiPage() {
               Masukkan alasan penolakan. Alasan ini akan ditampilkan kepada petugas input data.
             </p>
             <form onSubmit={handleRejectSubmit} className="space-y-4">
+              {rejectError && (
+                <div className="bg-status-bad/10 border border-status-bad text-status-bad text-xs p-3 rounded-lg flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">error</span>
+                  <span>{rejectError}</span>
+                </div>
+              )}
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
@@ -508,6 +560,7 @@ export default function ValidasiPage() {
                   onClick={() => {
                     setRejectSessionId(null);
                     setRejectReason('');
+                    setRejectError(null);
                   }}
                   className="px-4 py-2 border border-outline-variant rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-colors"
                 >
