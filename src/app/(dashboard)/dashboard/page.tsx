@@ -120,9 +120,10 @@ export default function DashboardPage() {
     ? matrix.rows.slice((matrixPage - 1) * PAGE_SIZE, matrixPage * PAGE_SIZE)
     : [];
 
-  // Handle row click -> drill down to asset page
-  function handleRowClick(assetId: string) {
-    router.push(`/unit/${assetId}`);
+  // Handle row click -> drill down to asset page with specific session
+  function handleRowClick(assetId: string, sessionId?: string) {
+    const url = sessionId ? `/unit/${assetId}?sessionId=${sessionId}` : `/unit/${assetId}`;
+    router.push(url);
   }
 
   // Handle export
@@ -312,7 +313,7 @@ export default function DashboardPage() {
                 {paginatedRows.map((row: MatrixRow, idx: number) => (
                   <tr
                     key={row.sessionId || row.assetId}
-                    onClick={() => handleRowClick(row.assetId)}
+                    onClick={() => handleRowClick(row.assetId, row.sessionId)}
                     className={`hover:bg-surface-container-low transition-colors group cursor-pointer ${
                       idx % 2 === 1 ? 'bg-surface-background' : ''
                     }`}
