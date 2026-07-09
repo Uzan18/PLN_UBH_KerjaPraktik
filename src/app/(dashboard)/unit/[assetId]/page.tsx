@@ -74,18 +74,17 @@ export default function AssetDetailPage() {
       </div>
 
       {/* Asset Header (Bento Style) */}
-      <div className="grid grid-cols-12 gap-4 mb-8">
-        {/* Left: Asset Info Card */}
-        <div className="col-span-12 lg:col-span-8 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col">
+      <div className="grid grid-cols-12 gap-3 mb-5">
+        <div className="col-span-12 lg:col-span-8 bg-white p-4 rounded-xl border border-surface-border shadow-sm flex flex-col">
           <div>
-            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase">
+            <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase">
                   {asset.equipmentType}
                 </span>
-                <span className="font-mono text-xs text-on-surface-variant">ID: {asset.id}</span>
+                <span className="font-mono text-[10px] text-on-surface-variant">ID: {asset.id}</span>
                 {asset.selectedTestYear && (
-                  <span className="text-xs font-semibold text-outline">
+                  <span className="text-[10px] font-semibold text-outline">
                     {(!selectedSessionId || asset.selectedSessionId === asset.latestSessionId)
                       ? `Tahun Terkini: ${asset.selectedTestYear}`
                       : `Tahun Uji: ${asset.selectedTestYear}`}
@@ -103,7 +102,7 @@ export default function AssetDetailPage() {
                       router.push(`/unit/${assetId}?sessionId=${found.id}`);
                     }
                   }}
-                  className="bg-primary/5 border border-primary/20 rounded-full font-mono text-xs font-bold px-3 py-1 pr-7 cursor-pointer text-primary focus:ring-1 focus:ring-primary/30 focus:outline-none"
+                  className="bg-primary/5 border border-primary/20 rounded-full font-mono text-[10px] font-bold px-2.5 py-0.5 pr-6 cursor-pointer text-primary focus:ring-1 focus:ring-primary/30 focus:outline-none"
                 >
                   {asset.availableSessions.map((s: any) => (
                     <option key={s.id} value={s.id}>
@@ -113,11 +112,11 @@ export default function AssetDetailPage() {
                 </select>
               )}
             </div>
-            <h2 className="text-3xl font-bold text-on-surface mb-2 leading-tight tracking-tight">
+            <h2 className="text-xl font-bold text-on-surface mb-1.5 leading-tight tracking-tight">
               {asset.name}
             </h2>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 border-t border-surface-border/50">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-3 border-t border-surface-border/50">
             {[
               { label: 'Manufacture', value: asset.manufacture || '—' },
               { label: 'Type', value: asset.type || '—' },
@@ -135,9 +134,9 @@ export default function AssetDetailPage() {
             ].map((item) => (
               <div 
                 key={item.label} 
-                className="flex flex-col px-3 py-1.5 rounded-lg border text-xs bg-surface-container-low border-surface-border"
+                className="flex flex-col px-2.5 py-1 rounded-md border text-[11px] bg-surface-container-low border-surface-border"
               >
-                <span className="text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider mb-0.5">{item.label}</span>
+                <span className="text-[8px] uppercase font-bold text-on-surface-variant/60 tracking-wider mb-0.5">{item.label}</span>
                 <span className="font-semibold text-on-surface truncate" title={String(item.value)}>{item.value}</span>
               </div>
             ))}
@@ -145,9 +144,9 @@ export default function AssetDetailPage() {
         </div>
 
         {/* Right: Trend Chart Card (Raised!) */}
-        <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-bold text-on-surface">Tren Kondisi Unit Ini</h4>
+        <div className="col-span-12 lg:col-span-4 bg-white p-4 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-bold text-on-surface text-sm">Tren Kondisi Unit Ini</h4>
           </div>
           <div className="h-64 flex flex-col justify-between relative">
             <svg className="w-full h-full" viewBox="0 0 400 200">
