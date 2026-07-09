@@ -26,7 +26,7 @@ export async function GET() {
 
     const db = await getDb();
     const ubps = await db.getRepository(Ubp).find({
-      relations: ['assets'],
+      relations: ['assets', 'assets.testTypes'],
       order: { name: 'ASC' },
     });
 

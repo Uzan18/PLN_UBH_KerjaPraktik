@@ -4,7 +4,7 @@ import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SIAT — Sistem Digitalisasi Assessment Trafo",
+  title: "Sistem Digitalisasi Assessment Trafo",
   description:
     "Aplikasi web internal PT PLN Indonesia Power untuk digitalisasi assessment kondisi transformator tenaga.",
 };

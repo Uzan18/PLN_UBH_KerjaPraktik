@@ -38,32 +38,4 @@ export function aggregateAssetStatus(judgements: (JudgementLabel | null)[]): Jud
   return worst;
 }
 
-/**
- * Calculate an overall health score (0-100) from a set of individual scores.
- * 
- * Each parameter score is on a 1-5 scale:
- * - 5 = Good → 100 points
- * - 4 = Fair → 75 points
- * - 2 = Poor → 40 points
- * - 1 = Bad → 20 points
- * 
- * The overall score is the average of all normalized scores.
- */
-export function calculateOverallHealthScore(scores: (number | null)[]): number | null {
-  const SCORE_NORMALIZED: Record<number, number> = {
-    5: 100,
-    4: 75,
-    2: 40,
-    1: 20,
-  };
 
-  const validScores = scores.filter((s): s is number => s !== null);
-
-  if (validScores.length === 0) return null;
-
-  const total = validScores.reduce((sum, score) => {
-    return sum + (SCORE_NORMALIZED[score] ?? 0);
-  }, 0);
-
-  return Math.round(total / validScores.length);
-}

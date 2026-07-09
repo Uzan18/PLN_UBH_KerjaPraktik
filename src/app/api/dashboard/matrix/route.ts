@@ -30,43 +30,46 @@ export async function GET(request: Request) {
 
     const db = await getDb();
     const testTypeRepo = db.getRepository(TestType);
-    const assetRepo = db.getRepository(Asset);
+    const sessionRepo = db.getRepository(TestSession);
 
     // Get all test types for headers
     const testTypes = await testTypeRepo.find({ order: { orderIndex: 'ASC' } });
 
-    // Get assets with their validated sessions and results
-    const assetQb = assetRepo.createQueryBuilder('asset')
+    // Get validated test sessions with their assets, results, and parameters
+    const sessionQb = sessionRepo.createQueryBuilder('ts')
+      .leftJoinAndSelect('ts.asset', 'asset')
       .leftJoinAndSelect('asset.ubp', 'ubp')
-      .leftJoinAndSelect('asset.testSessions', 'ts', 'ts.status = :status', { status: 'VALIDATED' })
+      .leftJoinAndSelect('asset.testTypes', 'att')
       .leftJoinAndSelect('ts.testResults', 'tr')
       .leftJoinAndSelect('tr.parameter', 'param')
       .leftJoinAndSelect('param.testType', 'tt')
-      .orderBy('asset.name', 'ASC');
+      .where('ts.status = :status', { status: 'VALIDATED' })
+      .orderBy('ts.test_year', 'DESC')
+      .addOrderBy('ts.createdAt', 'DESC');
 
-    if (ubpId) assetQb.andWhere('asset.ubp_id = :ubpId', { ubpId });
-    if (assetId) assetQb.andWhere('asset.id = :assetId', { assetId });
-    if (year) assetQb.andWhere('ts.test_year = :year', { year });
+    if (ubpId) sessionQb.andWhere('asset.ubp_id = :ubpId', { ubpId });
+    if (assetId) sessionQb.andWhere('asset.id = :assetId', { assetId });
+    if (year) sessionQb.andWhere('ts.test_year = :year', { year });
 
-    const assets = await assetQb.getMany();
+    const sessions = await sessionQb.getMany();
 
     // Build matrix rows
-    const rows: MatrixRow[] = assets.map((asset) => {
-      const testYear = asset.testSessions?.[0]?.testYear || year || 2024;
+    const rows: MatrixRow[] = sessions.map((session) => {
+      const asset = session.asset;
+      const testYear = session.testYear;
 
       const cells: MatrixCell[] = testTypes.map((tt) => {
-        // Get all judgements for this test type across all validated sessions
+        // Get all judgements for this test type in this specific session
         const judgements: (JudgementLabel | null)[] = [];
-        for (const ts of asset.testSessions || []) {
-          for (const result of ts.testResults || []) {
-            if (result.parameter?.testTypeId === tt.id) {
-              judgements.push(result.judgement as JudgementLabel | null);
-            }
+        for (const result of session.testResults || []) {
+          if (result.parameter?.testTypeId === tt.id) {
+            judgements.push(result.judgement as JudgementLabel | null);
           }
         }
 
-        // Worst-case aggregation (CLAUDE.md Rule #7)
-        const aggregated = aggregateAssetStatus(judgements);
+        // Check if this testType is configured for the asset
+        const isConfigured = !asset.testTypes || asset.testTypes.length === 0 || asset.testTypes.some((ct) => ct.id === tt.id);
+        const aggregated = isConfigured ? aggregateAssetStatus(judgements) : 'NA';
 
         return {
           testTypeId: tt.id,
@@ -77,6 +80,7 @@ export async function GET(request: Request) {
 
       return {
         assetId: asset.id,
+        sessionId: session.id,
         assetName: asset.name,
         ubpName: asset.ubp?.name || '',
         equipmentType: asset.equipmentType,
@@ -90,7 +94,7 @@ export async function GET(request: Request) {
       data: {
         testTypeHeaders: testTypes.map((tt) => tt.name),
         rows,
-        totalUnits: assets.length,
+        totalUnits: sessions.length,
       },
     });
   } catch (error) {

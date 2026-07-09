@@ -42,81 +42,44 @@ function LoginForm() {
   return (
     <div className="min-h-screen flex">
       {/* Left Panel — Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-primary relative overflow-hidden flex-col justify-between p-12">
-        {/* Decorative elements */}
-        <div className="absolute -top-20 -left-20 w-80 h-80 bg-white/5 rounded-full" />
-        <div className="absolute top-1/3 -right-10 w-60 h-60 bg-white/5 rounded-full" />
-        <div className="absolute bottom-10 left-10 w-40 h-40 bg-white/5 rounded-full" />
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#00A2C9] via-[#0096D2] to-[#005E82] relative overflow-hidden flex-col justify-between p-12 lg:p-16">
+        {/* Glow ambient light beams */}
+        <div className="absolute top-[-20%] left-[-20%] w-[80%] h-[80%] bg-white/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-[#FFDE00]/10 rounded-full blur-[100px] pointer-events-none" />
 
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 bg-white/10 backdrop-blur rounded-xl flex items-center justify-center">
-              <span
-                className="material-symbols-outlined text-white text-2xl"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                electric_bolt
-              </span>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">SIAT PLN</h1>
-              <p className="text-[10px] text-white/60 font-mono tracking-[0.2em] uppercase">
-                Assessment Trafo
-              </p>
-            </div>
+          <div className="inline-block bg-white/95 px-5 py-3 rounded-2xl shadow-md border border-white/20 backdrop-blur-xs">
+            <img src="/logo.png" alt="PLN Logo" className="h-9 w-auto object-contain" />
           </div>
         </div>
 
-        <div className="relative z-10">
-          <h2 className="text-4xl font-bold text-white leading-tight mb-4 tracking-tight">
+        <div className="relative z-10 my-auto">
+          <h2 className="text-4xl lg:text-5xl font-extrabold text-white leading-[1.15] tracking-tight">
             Sistem Digitalisasi
-            <br />
-            Assessment Trafo
+            <span className="text-[#FFDE00] block mt-1.5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.15)]">
+              Assessment Trafo
+            </span>
           </h2>
-          <p className="text-white/70 max-w-md leading-relaxed">
+          <p className="text-sky-100/90 text-base lg:text-lg max-w-lg mt-6 leading-relaxed font-normal">
             Platform monitoring dan assessment kondisi transformator tenaga untuk PT PLN Indonesia Power — Maintenance Business Unit.
           </p>
         </div>
 
-        <div className="relative z-10 flex items-center gap-6">
-          {[
-            { icon: 'speed', label: 'Real-time Monitoring' },
-            { icon: 'verified', label: 'Validasi Teknis' },
-            { icon: 'analytics', label: 'Analisis Otomatis' },
-          ].map((feature) => (
-            <div key={feature.label} className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-white/60 text-sm">
-                {feature.icon}
-              </span>
-              <span className="text-white/60 text-xs font-medium">{feature.label}</span>
-            </div>
-          ))}
-        </div>
+
       </div>
 
       {/* Right Panel — Login Form */}
       <div className="flex-1 flex items-center justify-center p-8 bg-surface-background">
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-10">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <span
-                className="material-symbols-outlined text-white text-xl"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                electric_bolt
-              </span>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-primary">SIAT PLN</h1>
-              <p className="text-[10px] text-on-surface-variant font-mono tracking-[0.15em] uppercase">
-                Assessment Trafo
-              </p>
+          <div className="lg:hidden flex justify-center mb-10">
+            <div className="bg-white p-3 rounded-lg shadow-sm">
+              <img src="/logo.png" alt="PLN Logo" className="h-12 w-auto object-contain" />
             </div>
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-on-surface mb-1">Masuk ke SIAT</h2>
+            <h2 className="text-2xl font-bold text-on-surface mb-1">Masuk ke Aplikasi</h2>
             <p className="text-on-surface-variant">
               Gunakan kredensial akun internal Anda.
             </p>
@@ -204,11 +167,7 @@ function LoginForm() {
             </p>
           </div>
 
-          <footer className="mt-12 text-center">
-            <p className="font-mono text-[10px] text-on-surface-variant/40 uppercase tracking-widest">
-              SIAT v1.0 — PT PLN Indonesia Power
-            </p>
-          </footer>
+
         </div>
       </div>
     </div>

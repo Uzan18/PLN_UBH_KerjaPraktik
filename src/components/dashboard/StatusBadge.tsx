@@ -43,20 +43,26 @@ const DATA_STATUS_ICONS: Record<DataStatus, string> = {
 const DATA_STATUS_LABELS: Record<DataStatus, string> = {
   DRAFT: 'Draft',
   SUBMITTED: 'Menunggu Validasi',
-  VALIDATED: 'Tervalidasi',
+  VALIDATED: 'Disetujui',
   REJECTED: 'Ditolak',
 };
 
 const SIZE_CLASSES = {
-  sm: 'px-1.5 py-0.5 text-[10px] gap-0.5',
-  md: 'px-2 py-1 text-[11px] gap-1',
-  lg: 'px-3 py-1.5 text-[13px] gap-1.5',
+  sm: 'px-2 py-0.5 text-[10px] gap-1 min-w-[65px] justify-center',
+  md: 'px-2.5 py-1 text-[11px] gap-1.5 min-w-[76px] justify-center',
+  lg: 'px-3.5 py-1.5 text-[13px] gap-2 min-w-[96px] justify-center',
 };
 
 const ICON_SIZES = {
   sm: 'text-[12px]',
   md: 'text-[14px]',
   lg: 'text-[18px]',
+};
+
+const MIN_WIDTHS = {
+  sm: '80px',
+  md: '92px',
+  lg: '110px',
 };
 
 export function StatusBadge({
@@ -73,21 +79,21 @@ export function StatusBadge({
     
     const shapeClass = iconOnly 
       ? 'w-5 h-5 justify-center rounded-full p-0' 
-      : `${SIZE_CLASSES[size]} rounded-full`;
+      : `${SIZE_CLASSES[size]} rounded`;
     
     return (
       <span
         className={`inline-flex items-center ${shapeClass} font-bold ${className}`}
         style={{
-          backgroundColor: `${color}15`,
+          backgroundColor: `${color}12`,
           color: color,
-          border: `1px solid ${color}30`,
+          ...(iconOnly ? {} : { minWidth: MIN_WIDTHS[size], justifyContent: 'center' }),
         }}
         title={judgement}
       >
         {showIcon && (
           <span
-            className={`material-symbols-outlined ${ICON_SIZES[size]}`}
+            className={`material-symbols-outlined ${ICON_SIZES[size]} mr-1`}
             style={{ fontVariationSettings: "'FILL' 1" }}
           >
             {icon}
@@ -100,33 +106,22 @@ export function StatusBadge({
 
   if (status) {
     const color = DATA_STATUS_COLORS[status];
-    const icon = DATA_STATUS_ICONS[status];
     const label = DATA_STATUS_LABELS[status];
 
     return (
-      <span
-        className={`inline-flex items-center ${SIZE_CLASSES[size]} font-bold rounded-full ${className}`}
-        style={{
-          backgroundColor: `${color}15`,
-          color: color,
-          border: `1px solid ${color}30`,
-        }}
-      >
-        {showIcon && status === 'SUBMITTED' && (
+      <span className={`inline-flex items-center gap-1.5 px-1 py-0.5 ${className}`}>
+        {showIcon && (
           <span
-            className="w-1.5 h-1.5 rounded-full animate-pulse"
+            className={`w-1.5 h-1.5 rounded-full shrink-0 ${status === 'SUBMITTED' ? 'animate-pulse' : ''}`}
             style={{ backgroundColor: color }}
           />
         )}
-        {showIcon && status !== 'SUBMITTED' && (
-          <span
-            className={`material-symbols-outlined ${ICON_SIZES[size]}`}
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            {icon}
-          </span>
-        )}
-        {label}
+        <span 
+          className="text-xs font-semibold"
+          style={{ color: color === '#64748B' ? '#475569' : color }}
+        >
+          {label}
+        </span>
       </span>
     );
   }

@@ -194,7 +194,7 @@ export default function LogPage() {
           Log Aktivitas
         </h1>
         <p className="text-on-surface-variant text-sm mt-1">
-          Riwayat seluruh aktivitas yang terjadi pada sistem SIAT, termasuk pengujian, validasi, pengelolaan laporan, dan perubahan master data.
+          Riwayat seluruh aktivitas yang terjadi pada sistem, termasuk pengujian, validasi, pengelolaan laporan, dan perubahan master data.
         </p>
       </div>
 

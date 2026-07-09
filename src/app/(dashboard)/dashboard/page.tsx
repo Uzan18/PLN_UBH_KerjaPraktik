@@ -73,17 +73,28 @@ export default function DashboardPage() {
   const [year, setYear] = useState('');
   const [ubpId, setUbpId] = useState('');
   const [assetId, setAssetId] = useState('');
+  const [testTypeId, setTestTypeId] = useState('');
   const [matrixPage, setMatrixPage] = useState(1);
 
   // Reset page when filters change
   useEffect(() => {
     setMatrixPage(1);
-  }, [year, ubpId, assetId]);
+  }, [year, ubpId, assetId, testTypeId]);
 
   // Queries
   const { data: ubps, isLoading: isUbpsLoading } = useQuery({
     queryKey: ['ubps'],
     queryFn: fetchUbps,
+  });
+
+  const { data: testTypes } = useQuery({
+    queryKey: ['testTypes'],
+    queryFn: async () => {
+      const res = await fetch('/api/master/test-types');
+      if (!res.ok) throw new Error('Gagal mengambil data jenis pengujian');
+      const json = await res.json();
+      return json.data;
+    }
   });
 
   const { data: summary, isLoading: isSummaryLoading } = useQuery({
@@ -120,6 +131,7 @@ export default function DashboardPage() {
     if (year) params.append('year', year);
     if (ubpId) params.append('ubpId', ubpId);
     if (assetId) params.append('assetId', assetId);
+    if (testTypeId) params.append('testTypeId', testTypeId);
     window.open(`/api/export/excel?${params.toString()}`, '_blank');
   }
 
@@ -299,7 +311,7 @@ export default function DashboardPage() {
               <tbody>
                 {paginatedRows.map((row: MatrixRow, idx: number) => (
                   <tr
-                    key={row.assetId}
+                    key={row.sessionId || row.assetId}
                     onClick={() => handleRowClick(row.assetId)}
                     className={`hover:bg-surface-container-low transition-colors group cursor-pointer ${
                       idx % 2 === 1 ? 'bg-surface-background' : ''
@@ -364,7 +376,7 @@ export default function DashboardPage() {
         {!isLoading && matrix?.rows && (
           <div className="px-6 py-3 border-t border-surface-border flex justify-between items-center bg-surface-container-low">
             <span className="font-mono text-xs text-on-surface-variant">
-              Showing {totalRows > 0 ? (matrixPage - 1) * PAGE_SIZE + 1 : 0}–{Math.min(totalRows, matrixPage * PAGE_SIZE)} of {totalRows} Units
+              Showing {totalRows > 0 ? (matrixPage - 1) * PAGE_SIZE + 1 : 0}–{Math.min(totalRows, matrixPage * PAGE_SIZE)} of {totalRows} Records
             </span>
             {totalPages > 1 && (
               <div className="flex items-center gap-1.5">

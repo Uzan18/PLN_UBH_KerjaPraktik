@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     requirePermission(session.user.role, 'test-session:create');
 
     const body = await request.json();
-    const { assetId, testYear } = body;
+    const { assetId, testYear, additionalInfo } = body;
 
     if (!assetId || !testYear) {
       return NextResponse.json(
@@ -30,9 +30,9 @@ export async function POST(request: Request) {
     }
 
     const db = await getDb();
-    const assetRepo = db.getRepository(Asset);
-    const sessionRepo = db.getRepository(TestSession);
-    const auditRepo = db.getRepository(AuditLog);
+    const assetRepo = db.getRepository<Asset>('Asset');
+    const sessionRepo = db.getRepository<TestSession>('TestSession');
+    const auditRepo = db.getRepository<AuditLog>('AuditLog');
 
     // Verify asset exists
     const asset = await assetRepo.findOne({ where: { id: assetId } });
@@ -45,6 +45,7 @@ export async function POST(request: Request) {
       testYear: parseInt(testYear),
       status: 'DRAFT',
       createdById: session.user.id,
+      additionalInfoPending: additionalInfo ? JSON.stringify(additionalInfo) : null,
     });
     await sessionRepo.save(testSession);
 
@@ -83,7 +84,7 @@ export async function GET(request: Request) {
     const testYear = url.searchParams.get('testYear') ? parseInt(url.searchParams.get('testYear')!) : undefined;
 
     const db = await getDb();
-    const sessionRepo = db.getRepository(TestSession);
+    const sessionRepo = db.getRepository<TestSession>('TestSession');
 
     // If querying a specific asset and year, return the single session with all results
     if (assetId && testYear) {

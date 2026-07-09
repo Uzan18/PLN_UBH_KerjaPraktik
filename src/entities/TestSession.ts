@@ -60,6 +60,12 @@ export class TestSession {
   @Column({ name: 'reject_reason', type: 'varchar', length: 2000, nullable: true })
   rejectReason!: string | null;
 
+  @Column({ name: 'additional_info_pending', type: 'varchar', length: 4000, nullable: true })
+  additionalInfoPending!: string | null;
+
+  @Column({ name: 'additional_info', type: 'varchar', length: 4000, nullable: true })
+  additionalInfo!: string | null;
+
   @OneToMany('TestResult', 'testSession', { cascade: true })
   testResults!: TestResult[];
 

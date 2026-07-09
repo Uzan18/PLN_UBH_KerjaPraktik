@@ -8,6 +8,8 @@ import { TestType } from '@/entities/TestType';
 import { Parameter } from '@/entities/Parameter';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
+import { aggregateAssetStatus } from '@/lib/scoring/aggregateAssetStatus';
+
 
 interface TestResultWithParam {
   isNotApplicable: boolean;
@@ -129,20 +131,20 @@ export async function GET(request: Request) {
     const validatedSessions = await sessQb.getMany();
     const totalRecords = validatedSessions.length;
 
-    // Count judgements across all results
+    // Count judgements across all validated sessions (each session counts as 1 overall condition)
     let goodCount = 0;
     let fairCount = 0;
     let poorCount = 0;
     let badCount = 0;
 
     for (const s of validatedSessions) {
-      for (const r of s.testResults) {
-        switch (r.judgement) {
-          case 'GOOD': goodCount++; break;
-          case 'FAIR': fairCount++; break;
-          case 'POOR': poorCount++; break;
-          case 'BAD': badCount++; break;
-        }
+      const judgements = s.testResults.map(r => r.judgement);
+      const overallJudgement = aggregateAssetStatus(judgements);
+      switch (overallJudgement) {
+        case 'GOOD': goodCount++; break;
+        case 'FAIR': fairCount++; break;
+        case 'POOR': poorCount++; break;
+        case 'BAD': badCount++; break;
       }
     }
 

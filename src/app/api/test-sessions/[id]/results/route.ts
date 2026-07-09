@@ -31,10 +31,10 @@ export async function PUT(
 
     const { id } = await params;
     const db = await getDb();
-    const sessionRepo = db.getRepository(TestSession);
-    const resultRepo = db.getRepository(TestResult);
-    const criteriaRepo = db.getRepository(Criteria);
-    const auditRepo = db.getRepository(AuditLog);
+    const sessionRepo = db.getRepository<TestSession>('TestSession');
+    const resultRepo = db.getRepository<TestResult>('TestResult');
+    const criteriaRepo = db.getRepository<Criteria>('Criteria');
+    const auditRepo = db.getRepository<AuditLog>('AuditLog');
 
     // Get the test session
     const testSession = await sessionRepo.findOne({ where: { id } });
@@ -52,25 +52,40 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { results } = body as {
-      results: Array<{
+    const { results, additionalInfo } = body as {
+      results?: Array<{
         parameterId: string;
         value: number | null;
         isNotApplicable: boolean;
       }>;
+      additionalInfo?: any;
     };
 
-    if (!results || !Array.isArray(results)) {
+    if ((!results || !Array.isArray(results)) && additionalInfo === undefined) {
       return NextResponse.json(
-        { success: false, error: 'results array is required' },
+        { success: false, error: 'results array or additionalInfo is required' },
         { status: 400 }
       );
     }
 
-    const savedResults = [];
-    const now = new Date();
+    // Save additionalInfo if provided
+    if (additionalInfo !== undefined) {
+      testSession.additionalInfoPending = additionalInfo ? JSON.stringify(additionalInfo) : null;
+    }
 
-    for (const r of results) {
+    // Reset status to DRAFT and clear reject reason if currently REJECTED
+    if (testSession.status === 'REJECTED') {
+      testSession.status = 'DRAFT';
+      testSession.rejectReason = null;
+    }
+
+    await sessionRepo.save(testSession);
+
+    const savedResults = [];
+    if (results && Array.isArray(results)) {
+      const now = new Date();
+
+      for (const r of results) {
       // Get criteria for this parameter (CLAUDE.md Rule #6 - versioned)
       const criteria = await criteriaRepo.createQueryBuilder('c')
         .where('c.parameter_id = :parameterId', { parameterId: r.parameterId })
@@ -119,6 +134,7 @@ export async function PUT(
 
       savedResults.push(result);
     }
+    }
 
     // Audit Log (CLAUDE.md Rule #5)
     const auditLog = auditRepo.create({
@@ -137,3 +153,57 @@ export async function PUT(
     return NextResponse.json({ success: false, error: message }, { status });
   }
 }
+
+/**
+ * GET /api/test-sessions/[id]/results
+ * Get all results for a specific test session.
+ */
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession();
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const db = await getDb();
+    const sessionRepo = db.getRepository<TestSession>('TestSession');
+    const resultRepo = db.getRepository<TestResult>('TestResult');
+
+    // Get the test session
+    const testSession = await sessionRepo.findOne({ where: { id } });
+
+    if (!testSession) {
+      return NextResponse.json({ success: false, error: 'Session not found' }, { status: 404 });
+    }
+
+    // Role-based visibility check: INPUT users can only see their own sessions
+    if (session.user.role === 'INPUT' && testSession.createdById !== session.user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
+      );
+    }
+
+    // Fetch results with parameter and testType relations
+    const results = await resultRepo.find({
+      where: { testSessionId: id },
+      relations: ['parameter', 'parameter.testType'],
+      order: {
+        parameter: {
+          orderIndex: 'ASC',
+          name: 'ASC'
+        }
+      }
+    });
+
+    return NextResponse.json({ success: true, data: results });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}
+

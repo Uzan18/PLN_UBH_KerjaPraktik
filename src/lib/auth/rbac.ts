@@ -117,7 +117,7 @@ export function canModifySession(
   sessionStatus: string,
 ): boolean {
   if (userRole === 'INPUT') {
-    return userId === sessionCreatedById && sessionStatus === 'DRAFT';
+    return userId === sessionCreatedById && (sessionStatus === 'DRAFT' || sessionStatus === 'REJECTED');
   }
   return false;
 }

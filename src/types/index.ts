@@ -58,6 +58,7 @@ export interface MatrixCell {
 
 export interface MatrixRow {
   assetId: string;
+  sessionId?: string;
   assetName: string;
   ubpName: string;
   equipmentType?: string;
@@ -72,8 +73,17 @@ export interface AssetDetail {
   mfgYear: number | null;
   vectorGroup: string | null;
   serialNumber: string | null;
+  manufacture?: string | null;
+  type?: string | null;
+  coolingMethod?: string | null;
+  ratedPower?: string | null;
+  frequency?: string | null;
+  hvSide?: string | null;
+  hvRatedCurrent?: string | null;
+  lvSide?: string | null;
+  lvRatedCurrent?: string | null;
   ubpName: string;
-  overallScore: number | null;
+  lastTestYear: number | null;
   overallJudgement: JudgementLabel;
 }
 

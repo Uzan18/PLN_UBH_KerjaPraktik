@@ -265,7 +265,7 @@ export default function UbpAssetManagementPage() {
                                     <thead>
                                       <tr className="bg-surface-container-low font-mono text-[10px] text-on-surface-variant uppercase tracking-wider border-b border-surface-border">
                                         <th className="px-4 py-2">Nama Aset / Trafo</th>
-                                        <th className="px-4 py-2 w-[180px]">Jenis Peralatan</th>
+                                        <th className="px-4 py-2 w-[180px] text-center">Jenis Peralatan</th>
                                         <th className="px-4 py-2 w-[120px] text-center">Tahun Pembuatan</th>
                                         <th className="px-4 py-2 w-[120px] text-center">Vector Group</th>
                                         <th className="px-4 py-2 w-[150px]">Nomor Seri</th>
@@ -277,7 +277,7 @@ export default function UbpAssetManagementPage() {
                                         ubp.assets.map((asset: any) => (
                                           <tr key={asset.id} className="hover:bg-surface-container-low/30 transition-colors">
                                             <td className="px-4 py-3 font-semibold text-on-surface">{asset.name}</td>
-                                            <td className="px-4 py-3 text-on-surface-variant">{asset.equipmentType}</td>
+                                            <td className="px-4 py-3 text-on-surface-variant text-center">{asset.equipmentType}</td>
                                             <td className="px-4 py-3 text-center font-mono">{asset.mfgYear ?? '—'}</td>
                                             <td className="px-4 py-3 text-center font-mono">{asset.vectorGroup ?? '—'}</td>
                                             <td className="px-4 py-3 font-mono">{asset.serialNumber ?? '—'}</td>

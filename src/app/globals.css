@@ -4,13 +4,13 @@
 
 :root {
   /* Primary */
-  --primary: #00286a;
-  --primary-container: #0f3d91;
-  --primary-fixed: #dae2ff;
-  --primary-fixed-dim: #b2c5ff;
+  --primary: #0096D2;
+  --primary-container: #e0f2fe;
+  --primary-fixed: #e0f2fe;
+  --primary-fixed-dim: #bae6fd;
   --on-primary: #ffffff;
-  --on-primary-container: #8eadff;
-  --on-primary-fixed: #001848;
+  --on-primary-container: #0369a1;
+  --on-primary-fixed: #002e47;
 
   /* Secondary */
   --secondary: #7c5800;
@@ -100,6 +100,10 @@
   /* Fonts - using Hanken Grotesk as primary font via Google Fonts link */
   --font-sans: "Hanken Grotesk", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+html {
+  scrollbar-gutter: stable;
 }
 
 /* ===== Base Styles ===== */

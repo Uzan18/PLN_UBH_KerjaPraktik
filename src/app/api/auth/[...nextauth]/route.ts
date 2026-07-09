@@ -18,7 +18,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         const db = await getDb();
-        const userRepo = db.getRepository(User);
+        const userRepo = db.getRepository<User>('User');
 
         const user = await userRepo.findOne({
           where: { email: credentials.email },

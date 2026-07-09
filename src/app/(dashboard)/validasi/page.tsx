@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 
@@ -12,16 +12,126 @@ async function fetchValidationQueue() {
   return json.data;
 }
 
+async function fetchSessionDetail(sessionId: string) {
+  const res = await fetch(`/api/test-sessions/${sessionId}/results`);
+  if (!res.ok) throw new Error('Gagal mengambil data detail pengujian');
+  const json = await res.json();
+  return json.data || [];
+}
+
+const TEST_TYPE_ORDER = [
+  'Insulation Resistance',
+  'Polarity Index',
+  'Turn to Turn Ratio',
+  'Winding Resistance HV',
+  'Winding Resistance LV',
+  'Excitation Current',
+  'SFRA Open HV',
+  'SFRA Shorted HV',
+  'SFRA Open LV',
+  'SFRA Shorted LV',
+  'Tan Delta Winding',
+  'Tan Delta Bushing',
+  'Watt Loss Bushing',
+  'Grounding Resistance',
+  'Dirana Moisture',
+  'Oil Conductivity',
+  'Arrester Grounding',
+  'Arrester Insulation Resistance',
+  'Arrester Leakage Current',
+  'Arrester Watt Loss',
+];
+
 export default function ValidasiPage() {
   const queryClient = useQueryClient();
   const [rejectSessionId, setRejectSessionId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [selectedReviewItem, setSelectedReviewItem] = useState<any | null>(null);
 
   // Queue query
   const { data: queue, isLoading, error } = useQuery({
     queryKey: ['validation-queue'],
     queryFn: fetchValidationQueue,
   });
+
+  // Detail query
+  const { data: details, isLoading: isDetailLoading } = useQuery({
+    queryKey: ['validation-detail', selectedReviewItem?.sessionId],
+    queryFn: () => fetchSessionDetail(selectedReviewItem!.sessionId),
+    enabled: !!selectedReviewItem,
+  });
+
+  const selectedReviewAssetInfo = useMemo(() => {
+    if (!selectedReviewItem) return null;
+    
+    const info = {
+      manufacture: selectedReviewItem.asset?.manufacture || '—',
+      type: selectedReviewItem.asset?.type || '—',
+      serialNumber: selectedReviewItem.asset?.serialNumber || '—',
+      mfgYear: selectedReviewItem.asset?.mfgYear ? String(selectedReviewItem.asset.mfgYear) : '—',
+      vectorGroup: selectedReviewItem.asset?.vectorGroup || '—',
+      coolingMethod: selectedReviewItem.asset?.coolingMethod || '—',
+      ratedPower: selectedReviewItem.asset?.ratedPower || '—',
+      frequency: selectedReviewItem.asset?.frequency || '—',
+      hvSide: selectedReviewItem.asset?.hvSide || '—',
+      hvRatedCurrent: selectedReviewItem.asset?.hvRatedCurrent || '—',
+      lvSide: selectedReviewItem.asset?.lvSide || '—',
+      lvRatedCurrent: selectedReviewItem.asset?.lvRatedCurrent || '—',
+    };
+
+    // 1. Merge approved specifications stored in the session
+    if (selectedReviewItem.additionalInfo) {
+      try {
+        const approved = JSON.parse(selectedReviewItem.additionalInfo);
+        Object.entries(approved).forEach(([k, v]) => {
+          if (v !== undefined && v !== null && v !== '') {
+            info[k as keyof typeof info] = String(v);
+          }
+        });
+      } catch (err) {
+        console.error('Failed to parse approved additional info:', err);
+      }
+    }
+
+    // 2. Merge pending changes
+    if (selectedReviewItem.additionalInfoPending) {
+      try {
+        const pending = JSON.parse(selectedReviewItem.additionalInfoPending);
+        Object.entries(pending).forEach(([k, v]) => {
+          if (v !== undefined && v !== null && v !== '') {
+            info[k as keyof typeof info] = String(v);
+          }
+        });
+      } catch (err) {
+        console.error('Failed to parse pending additional info:', err);
+      }
+    }
+    
+    return info;
+  }, [selectedReviewItem]);
+
+  // Sort parameter results
+  const sortedDetails = useMemo(() => {
+    if (!details) return [];
+    return [...details].sort((a: any, b: any) => {
+      const typeA = a.parameter?.testType?.name || '';
+      const typeB = b.parameter?.testType?.name || '';
+      
+      if (typeA !== typeB) {
+        const idxA = TEST_TYPE_ORDER.indexOf(typeA);
+        const idxB = TEST_TYPE_ORDER.indexOf(typeB);
+        const posA = idxA !== -1 ? idxA : 999;
+        const posB = idxB !== -1 ? idxB : 999;
+        return posA - posB;
+      }
+      
+      const orderA = a.parameter?.orderIndex ?? 999;
+      const orderB = b.parameter?.orderIndex ?? 999;
+      if (orderA !== orderB) return orderA - orderB;
+      
+      return (a.parameter?.name || '').localeCompare(b.parameter?.name || '');
+    });
+  }, [details]);
 
   // Approve mutation
   const approveMutation = useMutation({
@@ -148,20 +258,12 @@ export default function ValidasiPage() {
                       })}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                      <div className="flex justify-end opacity-60 group-hover:opacity-100 transition-opacity">
                         <button 
-                          onClick={() => handleApprove(item.sessionId)}
-                          className="p-1.5 text-status-good hover:bg-status-good/10 rounded-md transition-colors" 
-                          title="Approve"
+                          onClick={() => setSelectedReviewItem(item)}
+                          className="px-3 py-1 bg-surface-container hover:bg-surface-container-high border border-surface-border text-primary text-[10px] font-bold rounded transition-colors cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-xl">check_circle</span>
-                        </button>
-                        <button 
-                          onClick={() => setRejectSessionId(item.sessionId)}
-                          className="p-1.5 text-status-bad hover:bg-status-bad/10 rounded-md transition-colors" 
-                          title="Reject"
-                        >
-                          <span className="material-symbols-outlined text-xl">cancel</span>
+                          Detail
                         </button>
                       </div>
                     </td>
@@ -172,6 +274,176 @@ export default function ValidasiPage() {
           )}
         </div>
       </div>
+
+      {/* Review/Detail Modal */}
+      {selectedReviewItem && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 animate-fade-in p-4">
+          <div className="bg-white border border-surface-border rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-scale-up">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-surface-container-low border-b border-surface-border flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-primary font-sans">Detail Validasi Pengujian</h3>
+                <p className="text-[11px] text-on-surface-variant mt-0.5 font-mono">Sesi ID: {selectedReviewItem.sessionId}</p>
+              </div>
+              <button 
+                onClick={() => setSelectedReviewItem(null)}
+                className="p-1 hover:bg-surface-container-high rounded-full transition-colors cursor-pointer text-outline hover:text-on-surface flex items-center"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
+              {/* Asset & Session Metadata Grid */}
+              <div className="grid grid-cols-2 gap-4 bg-surface-container-low/40 p-4 rounded-lg border border-surface-border text-xs">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-outline">Unit Pembangkit</p>
+                  <p className="font-bold text-on-surface mt-0.5">{selectedReviewItem.assetName}</p>
+                  <p className="text-[10px] font-mono text-on-surface-variant uppercase mt-0.5">{selectedReviewItem.ubpName}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-outline">Equipment Type</p>
+                  <p className="font-bold text-on-surface mt-0.5">{selectedReviewItem.asset?.equipmentType || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-outline">Tahun Uji / Input Oleh</p>
+                  <p className="font-mono font-bold text-primary text-sm mt-0.5">{selectedReviewItem.testYear}</p>
+                  <p className="text-[11px] font-medium text-on-surface-variant">{selectedReviewItem.createdByName}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-outline">Status Validasi</p>
+                  <div className="mt-1">
+                    <StatusBadge status={selectedReviewItem.status} size="sm" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Informasi Tambahan Alat */}
+              {selectedReviewAssetInfo && (
+                <div className="space-y-2">
+                  <h4 className="font-bold text-on-surface text-sm">Informasi Tambahan Alat</h4>
+                  <div className="border border-surface-border rounded-lg overflow-hidden bg-white max-w-2xl shadow-sm">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-surface-container-low border-b border-surface-border font-mono text-[9px] uppercase font-bold text-on-surface-variant">
+                          <th className="px-4 py-2 w-[45%] border-r border-surface-border">Parameter Alat</th>
+                          <th className="px-4 py-2 w-[55%]">Nilai Informasi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-surface-border">
+                        {[
+                          { key: 'manufacture', label: 'Manufacture' },
+                          { key: 'type', label: 'Type' },
+                          { key: 'serialNumber', label: 'Serial Number' },
+                          { key: 'mfgYear', label: 'Year of Manufacturing' },
+                          { key: 'vectorGroup', label: 'Vector Grup' },
+                          { key: 'coolingMethod', label: 'Cooling Method' },
+                          { key: 'ratedPower', label: 'Rated Power' },
+                          { key: 'frequency', label: 'Frequency' },
+                          { key: 'hvSide', label: 'HV Side' },
+                          { key: 'hvRatedCurrent', label: 'HV Rated Current' },
+                          { key: 'lvSide', label: 'LV Side' },
+                          { key: 'lvRatedCurrent', label: 'LV Rated Current' },
+                        ].map((field) => (
+                          <tr key={field.key} className="hover:bg-surface-container-low/10 transition-colors">
+                            <td className="px-4 py-2 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/35 w-[45%]">
+                              {field.label}
+                            </td>
+                            <td className="px-4 py-2 w-[55%] font-semibold text-on-surface-variant">
+                              {selectedReviewAssetInfo[field.key as keyof typeof selectedReviewAssetInfo] || '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Parameter Results Table */}
+              <div>
+                <h4 className="font-bold text-on-surface text-sm mb-3">Hasil Pengukuran Parameter</h4>
+                <div className="border border-surface-border rounded-lg overflow-hidden">
+                  {isDetailLoading ? (
+                    <div className="flex items-center justify-center py-10">
+                      <div className="w-6 h-6 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    </div>
+                  ) : !sortedDetails || sortedDetails.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-on-surface-variant">Tidak ada hasil parameter pengujian ditemukan.</div>
+                  ) : (
+                    <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead className="sticky top-0 bg-surface-container-low border-b border-surface-border z-10">
+                          <tr>
+                            <th className="px-4 py-2 font-mono text-[9px] uppercase font-bold text-on-surface-variant w-[35%]">Jenis Pengujian</th>
+                            <th className="px-4 py-2 font-mono text-[9px] uppercase font-bold text-on-surface-variant w-[30%]">Parameter</th>
+                            <th className="px-4 py-2 font-mono text-[9px] uppercase font-bold text-on-surface-variant w-[20%]">Nilai</th>
+                            <th className="px-4 py-2 font-mono text-[9px] uppercase font-bold text-on-surface-variant text-center w-[15%]">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-surface-border/40">
+                          {sortedDetails.map((r: any) => (
+                            <tr key={r.id} className="hover:bg-surface-container-low/20 transition-colors">
+                              <td className="px-4 py-2 font-semibold text-on-surface">{r.parameter?.testType?.name}</td>
+                              <td className="px-4 py-2 text-on-surface-variant font-medium">{r.parameter?.name}</td>
+                              <td className="px-4 py-2 font-mono text-on-surface">
+                                {r.isNotApplicable ? <span className="text-outline/40">N/A</span> : r.value}
+                              </td>
+                              <td className="px-4 py-2 text-center">
+                                <StatusBadge judgement={r.judgement} size="sm" showIcon={false} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-surface-container-low border-t border-surface-border flex justify-between gap-3">
+              <button 
+                onClick={() => setSelectedReviewItem(null)}
+                className="px-4 py-2 border border-outline-variant hover:bg-surface-container-low rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              >
+                Tutup
+              </button>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setRejectSessionId(selectedReviewItem.sessionId);
+                    setSelectedReviewItem(null);
+                  }}
+                  className="px-4 py-2 bg-status-bad hover:brightness-110 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-sm active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-sm">cancel</span> Tolak
+                </button>
+                <button
+                  onClick={async () => {
+                    if (confirm('Apakah Anda yakin ingin memvalidasi dan menyetujui data pengujian ini?')) {
+                      try {
+                        await approveMutation.mutateAsync(selectedReviewItem.sessionId);
+                        setSelectedReviewItem(null);
+                        alert('Data pengujian berhasil disetujui!');
+                      } catch (e: any) {
+                        alert(e.message || 'Terjadi kesalahan saat menyetujui.');
+                      }
+                    }
+                  }}
+                  disabled={approveMutation.isPending}
+                  className="px-4 py-2 bg-status-good hover:brightness-110 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-sm active:scale-95 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-sm">check_circle</span> Setujui
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reject Modal */}
       {rejectSessionId && (

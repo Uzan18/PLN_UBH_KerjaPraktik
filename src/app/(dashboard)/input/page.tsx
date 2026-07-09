@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import type { JudgementLabel } from '@/types';
 
@@ -20,13 +21,41 @@ async function fetchTestTypes() {
   return json.data;
 }
 
-export default function InputPage() {
+const TEST_TYPE_ORDER = [
+  'Insulation Resistance',
+  'Polarity Index',
+  'Turn to Turn Ratio',
+  'Winding Resistance HV',
+  'Winding Resistance LV',
+  'Excitation Current',
+  'SFRA Open HV',
+  'SFRA Shorted HV',
+  'SFRA Open LV',
+  'SFRA Shorted LV',
+  'Tan Delta Winding',
+  'Tan Delta Bushing',
+  'Watt Loss Bushing',
+  'Grounding Resistance',
+  'Dirana Moisture',
+  'Oil Conductivity',
+  'Arrester Grounding',
+  'Arrester Insulation Resistance',
+  'Arrester Leakage Current',
+  'Arrester Watt Loss',
+];
+
+function InputForm() {
+  const searchParams = useSearchParams();
+  const paramAssetId = searchParams.get('assetId');
+  const paramTestYear = searchParams.get('testYear');
+
   // Filters/selections state
   const [testYear, setTestYear] = useState(String(new Date().getFullYear()));
   const [selectedUbpId, setSelectedUbpId] = useState('');
   const [selectedUnitName, setSelectedUnitName] = useState('');
   const [selectedAssetId, setSelectedAssetId] = useState('');
-  const [selectedTestTypeId, setSelectedTestTypeId] = useState('');
+  const [selectedTestTypeIds, setSelectedTestTypeIds] = useState<string[]>([]);
+  const [sessionStatus, setSessionStatus] = useState<string | null>(null);
 
   // Values input state: parameterId -> string value
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -35,6 +64,22 @@ export default function InputPage() {
 
   // Active Session ID (if created/found)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
+  // Additional asset info input state
+  const [additionalInfo, setAdditionalInfo] = useState({
+    manufacture: '',
+    type: '',
+    serialNumber: '',
+    mfgYear: '',
+    vectorGroup: '',
+    coolingMethod: '',
+    ratedPower: '',
+    frequency: '',
+    hvSide: '',
+    hvRatedCurrent: '',
+    lvSide: '',
+    lvRatedCurrent: '',
+  });
 
   // Queries
   const { data: ubps, isLoading: isUbpsLoading } = useQuery({
@@ -47,12 +92,55 @@ export default function InputPage() {
     queryFn: fetchTestTypes,
   });
 
+  // Find selected UBP & Asset
+  const selectedUbp = ubps?.find((u: any) => u.id === selectedUbpId);
+  const selectedAsset = selectedUbp?.assets?.find((a: any) => a.id === selectedAssetId);
+
+  // Sync URL search params with states
+  useEffect(() => {
+    if (paramAssetId && paramTestYear) {
+      setTestYear(paramTestYear);
+      if (ubps) {
+        let foundUbpId = '';
+        let foundUnitName = '';
+        for (const u of ubps) {
+          const asset = u.assets?.find((a: any) => a.id === paramAssetId);
+          if (asset) {
+            foundUbpId = u.id;
+            foundUnitName = asset.name;
+            break;
+          }
+        }
+        if (foundUbpId) {
+          setSelectedUbpId(foundUbpId);
+          setSelectedUnitName(foundUnitName);
+          setSelectedAssetId(paramAssetId);
+        }
+      }
+    }
+  }, [paramAssetId, paramTestYear, ubps]);
+
   // Load existing session and results when selectedAssetId or testYear changes
   useEffect(() => {
     if (!selectedAssetId || !testYear) {
       setActiveSessionId(null);
+      setSessionStatus(null);
       setInputValues({});
       setCalculatedStatuses({});
+      setAdditionalInfo({
+        manufacture: '',
+        type: '',
+        serialNumber: '',
+        mfgYear: '',
+        vectorGroup: '',
+        coolingMethod: '',
+        ratedPower: '',
+        frequency: '',
+        hvSide: '',
+        hvRatedCurrent: '',
+        lvSide: '',
+        lvRatedCurrent: '',
+      });
       return;
     }
 
@@ -64,6 +152,7 @@ export default function InputPage() {
         if (json.success && json.data) {
           const session = json.data;
           setActiveSessionId(session.id);
+          setSessionStatus(session.status);
           
           // Map testResults to inputValues and calculatedStatuses
           const vals: Record<string, string> = {};
@@ -81,10 +170,66 @@ export default function InputPage() {
           
           setInputValues(vals);
           setCalculatedStatuses(stats);
+
+          // Populate additionalInfo from pending or asset
+          let info = {
+            manufacture: session.asset?.manufacture || '',
+            type: session.asset?.type || '',
+            serialNumber: session.asset?.serialNumber || '',
+            mfgYear: session.asset?.mfgYear ? String(session.asset.mfgYear) : '',
+            vectorGroup: session.asset?.vectorGroup || '',
+            coolingMethod: session.asset?.coolingMethod || '',
+            ratedPower: session.asset?.ratedPower || '',
+            frequency: session.asset?.frequency || '',
+            hvSide: session.asset?.hvSide || '',
+            hvRatedCurrent: session.asset?.hvRatedCurrent || '',
+            lvSide: session.asset?.lvSide || '',
+            lvRatedCurrent: session.asset?.lvRatedCurrent || '',
+          };
+
+          // 1. Merge approved specifications stored in the session
+          if (session.additionalInfo) {
+            try {
+              const approved = JSON.parse(session.additionalInfo);
+              info = { ...info, ...approved };
+            } catch (err) {
+              console.error('Failed to parse approved additional info:', err);
+            }
+          }
+
+          // 2. Merge pending changes
+          if (session.additionalInfoPending) {
+            try {
+              const pending = JSON.parse(session.additionalInfoPending);
+              info = { ...info, ...pending };
+            } catch (err) {
+              console.error('Failed to parse pending additional info:', err);
+            }
+          }
+          setAdditionalInfo(info);
         } else {
           setActiveSessionId(null);
+          setSessionStatus(null);
           setInputValues({});
           setCalculatedStatuses({});
+
+          // No session: load from asset directly
+          if (selectedAsset) {
+            setAdditionalInfo({
+              manufacture: selectedAsset.manufacture || '',
+              type: selectedAsset.type || '',
+              serialNumber: selectedAsset.serialNumber || '',
+              mfgYear: selectedAsset.mfgYear ? String(selectedAsset.mfgYear) : '',
+              vectorGroup: selectedAsset.vectorGroup || '',
+              coolingMethod: selectedAsset.coolingMethod || '',
+              ratedPower: selectedAsset.ratedPower || '',
+              frequency: selectedAsset.frequency || '',
+              hvSide: selectedAsset.hvSide || '',
+              hvRatedCurrent: selectedAsset.hvRatedCurrent || '',
+              lvSide: selectedAsset.lvSide || '',
+              lvRatedCurrent: selectedAsset.lvRatedCurrent || '',
+            });
+          }
         }
       } catch (e) {
         console.error('Error loading existing session:', e);
@@ -92,18 +237,60 @@ export default function InputPage() {
     }
 
     loadExistingSession();
-  }, [selectedAssetId, testYear]);
+  }, [selectedAssetId, testYear, selectedAsset]);
 
-  // Set default selected test type when testTypes load
+  // Load initial asset info when selectedAsset changes (if no session active)
   useEffect(() => {
-    if (testTypes && testTypes.length > 0 && !selectedTestTypeId) {
-      setSelectedTestTypeId(testTypes[0].id);
+    if (selectedAsset && !activeSessionId) {
+      setAdditionalInfo({
+        manufacture: selectedAsset.manufacture || '',
+        type: selectedAsset.type || '',
+        serialNumber: selectedAsset.serialNumber || '',
+        mfgYear: selectedAsset.mfgYear ? String(selectedAsset.mfgYear) : '',
+        vectorGroup: selectedAsset.vectorGroup || '',
+        coolingMethod: selectedAsset.coolingMethod || '',
+        ratedPower: selectedAsset.ratedPower || '',
+        frequency: selectedAsset.frequency || '',
+        hvSide: selectedAsset.hvSide || '',
+        hvRatedCurrent: selectedAsset.hvRatedCurrent || '',
+        lvSide: selectedAsset.lvSide || '',
+        lvRatedCurrent: selectedAsset.lvRatedCurrent || '',
+      });
     }
-  }, [testTypes, selectedTestTypeId]);
+  }, [selectedAsset, activeSessionId]);
 
-  // Find selected UBP & Asset
-  const selectedUbp = ubps?.find((u: any) => u.id === selectedUbpId);
-  const selectedAsset = selectedUbp?.assets?.find((a: any) => a.id === selectedAssetId);
+
+
+  // Filter and sort test types based on selected asset configuration (if configured)
+  const availableTestTypes = useMemo(() => {
+    if (!testTypes) return [];
+    let filtered = testTypes;
+    if (selectedAsset) {
+      if (selectedAsset.testTypes && selectedAsset.testTypes.length > 0) {
+        filtered = testTypes.filter((tt: any) =>
+          selectedAsset.testTypes.some((ct: any) => ct.id === tt.id)
+        );
+      }
+    }
+    // Sort according to TEST_TYPE_ORDER
+    return [...filtered].sort((a: any, b: any) => {
+      const idxA = TEST_TYPE_ORDER.indexOf(a.name);
+      const idxB = TEST_TYPE_ORDER.indexOf(b.name);
+      const posA = idxA !== -1 ? idxA : 999;
+      const posB = idxB !== -1 ? idxB : 999;
+      return posA - posB;
+    });
+  }, [testTypes, selectedAsset]);
+
+  // Set default selected test type when availableTestTypes changes
+  useEffect(() => {
+    if (availableTestTypes.length > 0) {
+      // Select all by default when availableTestTypes changes
+      setSelectedTestTypeIds(availableTestTypes.map((tt: any) => tt.id));
+    } else {
+      setSelectedTestTypeIds([]);
+    }
+  }, [availableTestTypes]);
 
   // Sync selectedUnitName with selectedAsset when it changes
   useEffect(() => {
@@ -112,18 +299,18 @@ export default function InputPage() {
     }
   }, [selectedAsset]);
 
-  // Get active test type parameters
-  const activeTestType = testTypes?.find((tt: any) => tt.id === selectedTestTypeId);
-
   // Mutations
   const createSessionMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch('/api/test-sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetId: selectedAssetId, testYear }),
+        body: JSON.stringify({ assetId: selectedAssetId, testYear, additionalInfo }),
       });
-      if (!res.ok) throw new Error('Gagal membuat sesi pengujian');
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Gagal membuat sesi pengujian');
+      }
       const json = await res.json();
       return json.data;
     },
@@ -134,9 +321,12 @@ export default function InputPage() {
       const res = await fetch(`/api/test-sessions/${sessionId}/results`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ results }),
+        body: JSON.stringify({ results, additionalInfo }),
       });
-      if (!res.ok) throw new Error('Gagal menyimpan hasil pengukuran');
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Gagal menyimpan hasil pengukuran');
+      }
       const json = await res.json();
       return json.data;
     },
@@ -234,6 +424,10 @@ export default function InputPage() {
       alert('Silakan pilih Unit Pembangkit/Asset terlebih dahulu.');
       return;
     }
+    if (sessionStatus === 'VALIDATED' || sessionStatus === 'SUBMITTED') {
+      alert('Data tidak dapat disimpan karena status pengujian saat ini adalah ' + sessionStatus);
+      return;
+    }
 
     try {
       let sessionId = activeSessionId;
@@ -241,6 +435,7 @@ export default function InputPage() {
         const session = await createSessionMutation.mutateAsync();
         sessionId = session.id;
         setActiveSessionId(sessionId);
+        setSessionStatus(session.status);
       }
 
       const results = Object.entries(inputValues).map(([parameterId, val]) => ({
@@ -250,6 +445,9 @@ export default function InputPage() {
       }));
 
       await saveResultsMutation.mutateAsync({ sessionId: sessionId!, results });
+      if (sessionStatus === 'REJECTED') {
+        setSessionStatus('DRAFT');
+      }
       alert('Draft berhasil disimpan!');
     } catch (e: any) {
       alert(e.message || 'Terjadi kesalahan saat menyimpan draft.');
@@ -261,6 +459,10 @@ export default function InputPage() {
       alert('Silakan pilih Unit Pembangkit/Asset terlebih dahulu.');
       return;
     }
+    if (sessionStatus === 'VALIDATED' || sessionStatus === 'SUBMITTED') {
+      alert('Data tidak dapat disubmit karena status pengujian saat ini adalah ' + sessionStatus);
+      return;
+    }
 
     try {
       let sessionId = activeSessionId;
@@ -268,6 +470,7 @@ export default function InputPage() {
         const session = await createSessionMutation.mutateAsync();
         sessionId = session.id;
         setActiveSessionId(sessionId);
+        setSessionStatus(session.status);
       }
 
       const results = Object.entries(inputValues).map(([parameterId, val]) => ({
@@ -278,92 +481,13 @@ export default function InputPage() {
 
       await saveResultsMutation.mutateAsync({ sessionId: sessionId!, results });
       await submitSessionMutation.mutateAsync(sessionId!);
+      setSessionStatus('SUBMITTED');
+      alert('Data pengujian berhasil dikirim untuk validasi!');
     } catch (e: any) {
       alert(e.message || 'Terjadi kesalahan saat mengirim data.');
     }
   }
 
-  // Damage Mechanisms definitions
-  const mechanisms = [
-    'Deformation',
-    'Dielectric Problem',
-    'OTI/WTI Problem',
-    'Leakage',
-    'LA Problem',
-    'Core defect',
-    'Bushing-Electrical defect',
-    'Oil Problem',
-    'Grounding Problem',
-    'Bushing-Mechanical defect',
-    'Winding & Connection',
-    'Thermal Problem',
-    'Breating system',
-  ];
-
-  function getMechanismPreview(mechanism: string) {
-    let minScore: number | null = null;
-
-    testTypes?.forEach((tt: any) => {
-      tt.parameters?.forEach((param: any) => {
-        const calc = calculatedStatuses[param.id];
-        if (!calc || calc.score === null || calc.score === undefined) return;
-
-        const ttName = tt.name.toUpperCase();
-        const pName = param.name.toUpperCase();
-
-        let match = false;
-        switch (mechanism) {
-          case 'Bushing-Electrical defect':
-            match = ttName.includes('TAN DELTA BUSHING') || ttName.includes('WATT LOSS BUSHING');
-            break;
-          case 'Bushing-Mechanical defect':
-            match = ttName.includes('VISUAL INSPECTION') && (pName.includes('BUSHING DEFECT') || pName.includes('CONTAMINANT'));
-            break;
-          case 'Deformation':
-            match = ttName.includes('SFRA') || ttName.includes('DEFORMATION');
-            break;
-          case 'Winding & Connection':
-            match = ttName.includes('TURN TO TURN RATIO') || ttName.includes('WINDING RESISTANCE');
-            break;
-          case 'Core defect':
-            match = ttName.includes('EXC CURRENT') || pName.includes('EXC');
-            break;
-          case 'Dielectric Problem':
-            match = ttName.includes('INSULATION RESISTANCE') || ttName.includes('TAN DELTA WINDING') || ttName.includes('DIRANA MOISTURE');
-            break;
-          case 'Oil Problem':
-            match = (ttName.includes('OIL ANALYSIS') && (pName.includes('STATUS') || pName.includes('BDV'))) || ttName.includes('DIRANA OIL CONDUCT') || ttName.includes('OIL CONDUCTIVITY');
-            break;
-          case 'Leakage':
-            match = ttName.includes('VISUAL INSPECTION') && (pName.includes('LEAKAGE') || pName.includes('BOCOR'));
-            break;
-          case 'Thermal Problem':
-            match = (ttName.includes('DGA') && (pName.includes('STATUS') || pName.includes('DAMAGE MECHANISME') || pName.includes('DAMAGE'))) || (ttName.includes('OIL ANALYSIS') && pName.includes('STATUS'));
-            break;
-          case 'OTI/WTI Problem':
-            match = ttName.includes('OTI') || ttName.includes('WTI');
-            break;
-          case 'Grounding Problem':
-            match = ttName.includes('GROUNDING RESISTANCE') || pName.includes('GROUNDING');
-            break;
-          case 'Breating system':
-            match = ttName.includes('VISUAL INSPECTION') && (pName.includes('SILICA GEL') || pName.includes('SILICA GEL PUDAR'));
-            break;
-          case 'LA Problem':
-            match = ttName.includes('ARRESTER');
-            break;
-        }
-
-        if (match) {
-          if (minScore === null || calc.score < minScore) {
-            minScore = calc.score;
-          }
-        }
-      });
-    });
-
-    return minScore;
-  }
 
   return (
     <div className="pb-32 animate-fade-in">
@@ -374,10 +498,10 @@ export default function InputPage() {
       </div>
 
       {/* Selection Section */}
-      <section className="bg-white border border-surface-border rounded-xl p-6 mb-6 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="space-y-2">
-            <label className="block font-mono text-xs tracking-wider text-on-surface-variant">Tahun Pengujian</label>
+      <section className="bg-white border border-surface-border rounded-xl p-4 mb-4 shadow-sm space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="space-y-1">
+            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Tahun Pengujian</label>
             {(() => {
               const currentYear = new Date().getFullYear();
               const startYear = 1950;
@@ -391,7 +515,7 @@ export default function InputPage() {
                 <select 
                   value={testYear}
                   onChange={(e) => setTestYear(e.target.value)}
-                  className="w-full bg-surface-container-low border-surface-border rounded-lg text-sm py-2.5 focus:ring-primary"
+                  className="w-full bg-surface-container-low border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary"
                 >
                   {years.map((y) => (
                     <option key={y} value={y}>{y}</option>
@@ -400,8 +524,8 @@ export default function InputPage() {
               );
             })()}
           </div>
-          <div className="space-y-2">
-            <label className="block font-mono text-xs tracking-wider text-on-surface-variant">UBP</label>
+          <div className="space-y-1">
+            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">UBP</label>
             <select 
               value={selectedUbpId}
               onChange={(e) => {
@@ -409,7 +533,7 @@ export default function InputPage() {
                 setSelectedUnitName('');
                 setSelectedAssetId('');
               }}
-              className="w-full bg-surface-container-low border-surface-border rounded-lg text-sm py-2.5 focus:ring-primary"
+              className="w-full bg-surface-container-low border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary"
             >
               <option value="">Pilih UBP</option>
               {ubps?.map((ubp: any) => (
@@ -417,8 +541,8 @@ export default function InputPage() {
               ))}
             </select>
           </div>
-          <div className="space-y-2">
-            <label className="block font-mono text-xs tracking-wider text-on-surface-variant">Unit Pembangkit/Asset</label>
+          <div className="space-y-1">
+            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Unit Pembangkit / Asset</label>
             <select 
               value={selectedUnitName}
               onChange={(e) => {
@@ -437,7 +561,7 @@ export default function InputPage() {
                 }
               }}
               disabled={!selectedUbpId}
-              className="w-full bg-surface-container-low border-surface-border rounded-lg text-sm py-2.5 focus:ring-primary disabled:opacity-50"
+              className="w-full bg-surface-container-low border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary disabled:opacity-50"
             >
               <option value="">Pilih Unit</option>
               {(() => {
@@ -449,8 +573,8 @@ export default function InputPage() {
               })()}
             </select>
           </div>
-          <div className="space-y-2">
-            <label className="block font-mono text-xs tracking-wider text-on-surface-variant">Equipment</label>
+          <div className="space-y-1">
+            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Equipment</label>
             {(() => {
               const assetsInUbp = selectedUbp?.assets || [];
               const assetsForUnit = selectedUnitName ? assetsInUbp.filter((a: any) => a.name === selectedUnitName) : [];
@@ -460,7 +584,7 @@ export default function InputPage() {
                   <select
                     value={selectedAssetId}
                     onChange={(e) => setSelectedAssetId(e.target.value)}
-                    className="w-full bg-surface-container-low border-surface-border rounded-lg text-sm py-2.5 focus:ring-primary"
+                    className="w-full bg-surface-container-low border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary"
                   >
                     <option value="">Pilih Equipment</option>
                     {assetsForUnit.map((asset: any) => (
@@ -474,7 +598,7 @@ export default function InputPage() {
                     type="text"
                     readOnly
                     value={selectedAsset ? selectedAsset.equipmentType : (assetsForUnit.length === 1 ? assetsForUnit[0].equipmentType : '—')}
-                    className="w-full bg-surface-container-low border-surface-border rounded-lg text-sm py-2.5 px-3 focus:outline-none"
+                    className="w-full bg-surface-container-low border-surface-border rounded-lg text-xs py-1.5 px-3 focus:outline-none"
                   />
                 );
               }
@@ -483,45 +607,112 @@ export default function InputPage() {
         </div>
 
         {selectedAsset && (
-          <div className="flex flex-wrap gap-2 pt-4 border-t border-surface-border animate-fade-in">
-            {[
-              { label: 'Mfg Year', value: selectedAsset.mfgYear || '—' },
-              { label: 'Vector', value: selectedAsset.vectorGroup || '—' },
-              { label: 'Serial', value: selectedAsset.serialNumber || '—' },
-            ].map((item) => (
-              <div key={item.label} className="px-4 py-2 bg-surface-container-low border border-surface-border rounded-full flex items-center gap-2">
-                <span className="text-[10px] uppercase font-bold text-outline">{item.label}:</span>
-                <span className="text-sm font-semibold text-on-surface-variant">{item.value}</span>
-              </div>
-            ))}
+          <div className="pt-4 border-t border-surface-border/50 animate-fade-in space-y-3">
+            <h4 className="font-bold text-primary text-xs uppercase tracking-wider">Informasi Tambahan Alat</h4>
+            <div className="border border-surface-border rounded-lg overflow-hidden bg-white max-w-2xl shadow-sm">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-surface-container-low border-b border-surface-border font-mono text-[9px] uppercase font-bold text-on-surface-variant">
+                    <th className="px-4 py-2 w-[45%] border-r border-surface-border">Parameter Alat</th>
+                    <th className="px-4 py-2 w-[55%]">Nilai Informasi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {[
+                    { key: 'manufacture', label: 'Manufacture', placeholder: 'Contoh: LUNENGCHENMING' },
+                    { key: 'type', label: 'Type', placeholder: 'Contoh: SFPZ10-370000/150 TH' },
+                    { key: 'serialNumber', label: 'Serial Number', placeholder: 'Contoh: 200911126' },
+                    { key: 'mfgYear', label: 'Year of Manufacturing', placeholder: 'Contoh: 2010', type: 'number' },
+                    { key: 'vectorGroup', label: 'Vector Grup', placeholder: 'Contoh: YNd1' },
+                    { key: 'coolingMethod', label: 'Cooling Method', placeholder: 'Contoh: OFAF' },
+                    { key: 'ratedPower', label: 'Rated Power', placeholder: 'Contoh: 370 MVA' },
+                    { key: 'frequency', label: 'Frequency', placeholder: 'Contoh: 50 Hz' },
+                    { key: 'hvSide', label: 'HV Side', placeholder: 'Contoh: 150 kV' },
+                    { key: 'hvRatedCurrent', label: 'HV Rated Current', placeholder: 'Contoh: 1424 A' },
+                    { key: 'lvSide', label: 'LV Side', placeholder: 'Contoh: 20 kV' },
+                    { key: 'lvRatedCurrent', label: 'LV Rated Current', placeholder: 'Contoh: 10680 A' },
+                  ].map((field) => {
+                    const isReadOnly = sessionStatus === 'VALIDATED' || sessionStatus === 'SUBMITTED';
+                    return (
+                      <tr key={field.key} className="hover:bg-surface-container-low/10 transition-colors">
+                        <td className="px-4 py-2 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/35 w-[45%]">
+                          {field.label}
+                        </td>
+                        <td className="px-4 py-2 w-[55%]">
+                          {isReadOnly ? (
+                            <span className="font-semibold text-on-surface-variant text-xs">
+                              {additionalInfo[field.key as keyof typeof additionalInfo] || '—'}
+                            </span>
+                          ) : (
+                            <input
+                              type={field.type || 'text'}
+                              value={additionalInfo[field.key as keyof typeof additionalInfo] || ''}
+                              onChange={(e) => setAdditionalInfo(prev => ({ ...prev, [field.key]: e.target.value }))}
+                              placeholder={field.placeholder}
+                              className="w-full bg-transparent border-0 p-0 text-xs focus:ring-0 focus:outline-none placeholder:text-outline/40 font-semibold text-primary"
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </section>
 
-      {/* Grid Layout for Form & Damage Mechanism Live Preview */}
-      <div className="grid grid-cols-12 gap-6 items-start">
-        {/* Left Form (col-span-12 lg:col-span-8) */}
-        <div className="col-span-12 lg:col-span-8 space-y-6">
+      <div className="space-y-6">
           {/* Test Type Selection */}
-          <section className="mb-2">
-            <h3 className="text-xl font-semibold text-primary mb-4">Pilih Jenis Pengujian</h3>
+          <section className="mb-2 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-primary">Pilih Jenis Pengujian</h3>
+              {availableTestTypes.length > 0 && (
+                <div className="flex gap-3 text-xs font-semibold">
+                  <button
+                    onClick={() => setSelectedTestTypeIds(availableTestTypes.map((t: any) => t.id))}
+                    className="text-primary hover:underline cursor-pointer"
+                  >
+                    Pilih Semua
+                  </button>
+                  <span className="text-outline/40">|</span>
+                  <button
+                    onClick={() => setSelectedTestTypeIds([])}
+                    className="text-primary hover:underline cursor-pointer"
+                  >
+                    Batal Pilih Semua
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2 overflow-x-auto pb-2">
-              {testTypes?.map((test: any) => {
-                const isActive = selectedTestTypeId === test.id;
+              {availableTestTypes.map((test: any) => {
+                const isActive = selectedTestTypeIds.includes(test.id);
                 return (
                   <button
                     key={test.id}
-                    onClick={() => setSelectedTestTypeId(test.id)}
-                    className={`px-6 py-2.5 rounded-full font-mono text-xs tracking-wider flex items-center gap-2 shadow-sm whitespace-nowrap transition-all ${
+                    onClick={() => {
+                      setSelectedTestTypeIds((prev) =>
+                        prev.includes(test.id) ? prev.filter((id) => id !== test.id) : [...prev, test.id]
+                      );
+                    }}
+                    className={`px-4 py-2 rounded-full font-mono text-[11px] font-bold tracking-tight flex items-center gap-2 shadow-sm whitespace-nowrap transition-all cursor-pointer border ${
                       isActive
-                        ? 'bg-primary text-white'
-                        : 'bg-white border border-surface-border text-on-surface-variant hover:bg-surface-container-low'
+                        ? 'bg-primary border-primary text-white'
+                        : 'bg-white border-surface-border text-on-surface-variant hover:bg-surface-container-low'
                     }`}
                   >
-                    {isActive && (
-                      <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                    )}
-                    {test.name}
+                    <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors border ${
+                      isActive
+                        ? 'bg-white border-white text-primary'
+                        : 'border-outline-variant bg-transparent text-transparent'
+                    }`}>
+                      <span className="material-symbols-outlined text-[10px] font-extrabold" style={{ fontVariationSettings: "'wght' 800" }}>
+                        check
+                      </span>
+                    </div>
+                    <span>{test.name}</span>
                   </button>
                 );
               })}
@@ -529,116 +720,131 @@ export default function InputPage() {
           </section>
 
           {/* Form Inputs */}
-          <section className="space-y-4">
-            {activeTestType && (
-              <div className="bg-white border border-surface-border rounded-xl overflow-hidden shadow-sm">
-                <div className="p-4 bg-surface-container-low flex items-center justify-between border-b border-surface-border">
-                  <div className="flex items-center gap-4">
-                    <span className="material-symbols-outlined text-primary">bolt</span>
-                    <h4 className="text-xl font-semibold text-primary">{activeTestType.name}</h4>
-                  </div>
-                </div>
-                <div className="p-6 space-y-4">
-                  {activeTestType.parameters?.map((param: any, idx: number) => {
-                    const calculated = calculatedStatuses[param.id];
+          <section className="space-y-6">
+            {selectedTestTypeIds.length > 0 ? (
+              <div className={selectedTestTypeIds.length > 1 ? "grid grid-cols-1 lg:grid-cols-2 gap-4 items-start" : "space-y-6"}>
+                {availableTestTypes
+                  .filter((tt: any) => selectedTestTypeIds.includes(tt.id))
+                  .map((activeTestType: any) => {
                     return (
-                      <div key={param.id} className={`grid grid-cols-12 items-center gap-4 ${idx < activeTestType.parameters.length - 1 ? 'border-b border-surface-border/50 pb-4' : ''}`}>
-                        <label className="col-span-3 text-base text-on-surface-variant font-medium">{param.name}</label>
-                        <div className="col-span-6 relative">
-                          <input
-                            className="w-full bg-white border border-surface-border rounded-lg py-3 px-4 text-base focus:ring-primary focus:border-primary"
-                            type="number"
-                            step="any"
-                            value={inputValues[param.id] || ''}
-                            onChange={(e) => handleValueChange(param.id, e.target.value, param.criteria)}
-                            placeholder="Masukkan nilai"
-                          />
-                          {param.unit && (
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center text-outline">
-                              <span className="text-xs font-bold uppercase">{param.unit}</span>
-                            </div>
-                          )}
+                      <div key={activeTestType.id} className="bg-white border border-surface-border rounded-xl overflow-hidden shadow-sm h-fit">
+                        {/* Header */}
+                        <div className="px-4 py-2.5 bg-surface-container-low flex items-center justify-between border-b border-surface-border">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-bold text-primary">{activeTestType.name}</h4>
+                          </div>
                         </div>
-                        <div className="col-span-3 flex justify-end">
-                          {calculated ? (
-                            <StatusBadge judgement={calculated.judgement} size="lg" />
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container text-outline rounded-full border border-surface-border text-[13px] font-bold">
-                              <span className="material-symbols-outlined text-lg">radio_button_unchecked</span>
-                              PENDING
-                            </span>
-                          )}
+                        {/* Compact Table */}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                              <tr className="bg-surface-container-low/30 border-b border-surface-border/50">
+                                <th className="px-4 py-2 font-mono text-[10px] uppercase tracking-wider font-bold text-on-surface-variant w-[35%]">Nama Parameter</th>
+                                <th className="px-4 py-2 font-mono text-[10px] uppercase tracking-wider font-bold text-on-surface-variant w-[45%]">Nilai Pengukuran</th>
+                                <th className="px-4 py-2 font-mono text-[10px] uppercase tracking-wider font-bold text-on-surface-variant text-center w-[20%]">Status Kondisi</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-surface-border/40">
+                              {activeTestType.parameters?.map((param: any) => {
+                                const calculated = calculatedStatuses[param.id];
+                                return (
+                                  <tr key={param.id} className="hover:bg-surface-container-low/20 transition-colors">
+                                    {/* Parameter Name */}
+                                    <td className="px-4 py-1.5 font-semibold text-on-surface">
+                                      {param.name}
+                                    </td>
+                                    {/* Input Value */}
+                                    <td className="px-4 py-1.5">
+                                      <div className="relative max-w-md">
+                                        <input
+                                          className="w-full bg-white border border-surface-border rounded py-1 pl-2.5 pr-12 text-xs focus:ring-1 focus:ring-primary focus:border-primary font-mono disabled:bg-surface-container-low disabled:text-outline/80"
+                                          type="number"
+                                          step="any"
+                                          value={inputValues[param.id] || ''}
+                                          onChange={(e) => handleValueChange(param.id, e.target.value, param.criteria)}
+                                          disabled={sessionStatus === 'VALIDATED' || sessionStatus === 'SUBMITTED'}
+                                          placeholder="—"
+                                        />
+                                        {param.unit && (
+                                          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center text-outline select-none pointer-events-none">
+                                            <span className="text-[9px] font-bold uppercase">{param.unit}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                    {/* Status Badge */}
+                                    <td className="px-4 py-1.5 text-center">
+                                      {calculated ? (
+                                        <StatusBadge judgement={calculated.judgement} size="sm" showIcon={false} />
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface-container/60 text-outline/80 rounded border border-surface-border/50 text-[9px] font-bold">
+                                          PENDING
+                                        </span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     );
                   })}
-                </div>
               </div>
-            )}
+            ) : selectedAsset && availableTestTypes.length === 0 ? (
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-6 rounded-xl text-center shadow-sm font-medium">
+                <span className="material-symbols-outlined text-4xl mb-2 text-yellow-600 block">warning</span>
+                Aset ini belum memiliki jenis pengujian terkonfigurasi.<br/>
+                Silakan hubungi Admin untuk mengelola jenis pengujian aset ini.
+              </div>
+            ) : selectedAsset && selectedTestTypeIds.length === 0 ? (
+              <div className="bg-surface-container-low border border-surface-border text-on-surface-variant p-6 rounded-xl text-center shadow-sm font-medium animate-fade-in">
+                <span className="material-symbols-outlined text-4xl mb-2 text-outline block font-light">checklist</span>
+                Tidak ada jenis pengujian terpilih.<br/>
+                Pilih satu atau beberapa jenis pengujian di atas untuk diisi.
+              </div>
+            ) : null}
           </section>
-        </div>
-
-        {/* Right Sidebar: Damage Mechanism Live Preview (col-span-12 lg:col-span-4) */}
-        <div className="col-span-12 lg:col-span-4 bg-white border border-surface-border rounded-xl p-6 shadow-sm sticky top-24">
-          <h3 className="text-lg font-semibold text-primary mb-2 flex items-center gap-2">
-            <span className="material-symbols-outlined text-xl">healing</span>
-            Live Preview Status Kerusakan
-          </h3>
-          <p className="text-xs text-on-surface-variant mb-6">
-            Status indikasi kerusakan per mekanisme dihitung real-time berdasarkan input pengukuran Anda.
-          </p>
-
-          <div className="space-y-3">
-            {mechanisms.map((m) => {
-              const score = getMechanismPreview(m);
-              let statusLabel = 'GOOD';
-              let colorClasses = 'bg-green-50 text-green-700 border-green-200';
-
-              if (score === 4) {
-                statusLabel = 'FAIR';
-                colorClasses = 'bg-yellow-50 text-yellow-700 border-yellow-200';
-              } else if (score === 2) {
-                statusLabel = 'POOR';
-                colorClasses = 'bg-orange-50 text-orange-700 border-orange-200';
-              } else if (score === 1) {
-                statusLabel = 'BAD';
-                colorClasses = 'bg-red-50 text-red-700 border-red-200';
-              } else if (score === null) {
-                statusLabel = 'PENDING';
-                colorClasses = 'bg-surface-container text-outline border-surface-border';
-              }
-
-              return (
-                <div key={m} className="flex items-center justify-between py-2.5 border-b border-surface-border/50 text-xs">
-                  <span className="font-semibold text-on-surface">{m}</span>
-                  <span className={`px-2.5 py-0.5 rounded-full font-bold border text-[10px] uppercase tracking-wider ${colorClasses}`}>
-                    {statusLabel}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
       </div>
 
       {/* Sticky Footer */}
       <footer className="fixed bottom-0 right-0 w-[calc(100%-16rem)] bg-white border-t border-surface-border px-6 py-4 z-40 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-on-surface-variant">
-          <span className="material-symbols-outlined text-status-good" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
-          <span className="text-sm">Sistem secara otomatis menghitung skor berdasarkan ambang batas standar PLN.</span>
+        <div className="flex items-center gap-3">
+          {sessionStatus === 'VALIDATED' ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg text-xs font-semibold">
+              <span className="material-symbols-outlined text-base">verified</span>
+              <span>Sesi pengujian tahun {testYear} telah disetujui (VALIDATED). Pengeditan dinonaktifkan.</span>
+            </div>
+          ) : sessionStatus === 'SUBMITTED' ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-xs font-semibold">
+              <span className="material-symbols-outlined text-base animate-pulse">pending</span>
+              <span>Sesi pengujian tahun {testYear} telah dikirim (SUBMITTED) & menunggu verifikasi QC.</span>
+            </div>
+          ) : sessionStatus === 'REJECTED' ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-semibold">
+              <span className="material-symbols-outlined text-base">error_outline</span>
+              <span>Sesi pengujian tahun {testYear} DITOLAK oleh QC. Silakan perbaiki data di bawah lalu kirim ulang.</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-on-surface-variant">
+              <span className="material-symbols-outlined text-status-good" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
+              <span className="text-sm">Sistem secara otomatis menghitung skor berdasarkan ambang batas standar PLN.</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <button 
             onClick={handleSaveDraft}
-            disabled={saveResultsMutation.isPending || createSessionMutation.isPending}
-            className="px-8 py-2.5 bg-white border border-primary text-primary hover:bg-surface-container-low rounded-lg font-bold text-sm transition-all active:scale-95 disabled:opacity-50"
+            disabled={saveResultsMutation.isPending || createSessionMutation.isPending || sessionStatus === 'VALIDATED' || sessionStatus === 'SUBMITTED'}
+            className="px-8 py-2.5 bg-white border border-primary text-primary hover:bg-surface-container-low rounded-lg font-bold text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Simpan sebagai Draft
           </button>
           <button 
             onClick={handleSubmit}
-            disabled={submitSessionMutation.isPending || saveResultsMutation.isPending || createSessionMutation.isPending}
-            className="px-8 py-2.5 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-sm shadow-md transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+            disabled={submitSessionMutation.isPending || saveResultsMutation.isPending || createSessionMutation.isPending || sessionStatus === 'VALIDATED' || sessionStatus === 'SUBMITTED'}
+            className="px-8 py-2.5 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-sm shadow-md transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Submit untuk Validasi
             <span className="material-symbols-outlined text-xl">send</span>
@@ -646,5 +852,17 @@ export default function InputPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function InputPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    }>
+      <InputForm />
+    </Suspense>
   );
 }

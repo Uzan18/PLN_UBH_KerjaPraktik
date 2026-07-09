@@ -6,10 +6,13 @@ import { useSession, signOut } from 'next-auth/react';
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: 'dashboard', label: 'Dashboard', roles: ['VIEWER', 'INPUT', 'QC', 'ADMIN'] },
+  { href: '/informasi-asset', icon: 'info', label: 'Informasi Aset', roles: ['VIEWER', 'INPUT', 'QC', 'ADMIN'] },
   { href: '/input', icon: 'edit_document', label: 'Input Data', roles: ['INPUT'] },
+  { href: '/riwayat', icon: 'assignment', label: 'Riwayat Pengujian', roles: ['INPUT', 'QC', 'ADMIN'] },
   { href: '/validasi', icon: 'rule', label: 'Validasi Data', roles: ['QC'] },
   { href: '/master-data/kriteria', icon: 'gavel', label: 'Master Kriteria', roles: ['ADMIN'] },
   { href: '/master-data/ubp-asset', icon: 'domain', label: 'Master UBP & Aset', roles: ['ADMIN'] },
+  { href: '/master-data/pengujian', icon: 'fact_check', label: 'Kelola Pengujian', roles: ['ADMIN'] },
   { href: '/laporan', icon: 'analytics', label: 'Laporan', roles: ['VIEWER', 'INPUT', 'QC', 'ADMIN'] },
   { href: '/log', icon: 'history', label: 'Log Aktivitas', roles: ['ADMIN'] },
   { href: '/pengaturan', icon: 'settings', label: 'Pengaturan', roles: ['ADMIN'] },
@@ -42,23 +45,8 @@ export default function DashboardLayout({
       {/* ===== Side Navigation Bar ===== */}
       <aside className="h-screen w-64 fixed left-0 top-0 bg-surface-container border-r border-surface-border flex flex-col py-6 z-50">
         {/* Logo / Brand */}
-        <div className="px-6 mb-8 flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <span
-              className="material-symbols-outlined text-on-primary text-xl"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              electric_bolt
-            </span>
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold text-primary leading-none">
-              SIAT PLN
-            </h1>
-            <p className="text-[10px] leading-tight font-medium text-on-surface-variant tracking-wider uppercase font-mono">
-              Assessment Trafo
-            </p>
-          </div>
+        <div className="px-6 mb-8 flex justify-center">
+          <img src="/logo.png" alt="PLN Logo" className="h-10 w-auto object-contain" />
         </div>
 
         {/* Navigation */}
@@ -159,11 +147,12 @@ export default function DashboardLayout({
 
 function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard')) return 'Dashboard Monitoring';
+  if (pathname.startsWith('/informasi-asset')) return 'Informasi Spesifikasi Aset';
   if (pathname.startsWith('/input')) return 'Input Data Pengujian';
   if (pathname.startsWith('/validasi')) return 'Validasi Data';
   if (pathname.startsWith('/master-data')) return 'Master Data';
   if (pathname.startsWith('/unit/')) return 'Detail Asset';
   if (pathname.startsWith('/laporan')) return 'Laporan';
   if (pathname.startsWith('/pengaturan')) return 'Pengaturan';
-  return 'SIAT';
+  return 'Assessment Trafo';
 }
