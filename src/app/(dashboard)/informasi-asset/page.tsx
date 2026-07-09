@@ -15,6 +15,7 @@ async function fetchUbpAssets() {
 export default function InformasiAssetPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUbpId, setSelectedUbpId] = useState<string | null>(null);
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState<string | null>(null);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
 
   // Query
@@ -23,7 +24,7 @@ export default function InformasiAssetPage() {
     queryFn: fetchUbpAssets,
   });
 
-  // Flat list of all assets for search & helper mapping
+  // Flat list of all assets for search
   const allAssets = useMemo(() => {
     if (!ubps) return [];
     const list: any[] = [];
@@ -46,6 +47,23 @@ export default function InformasiAssetPage() {
     if (!ubps || !selectedUbpId) return null;
     return ubps.find((u: any) => u.id === selectedUbpId) || null;
   }, [ubps, selectedUbpId]);
+
+  // Equipment types for selected UBP
+  const equipmentTypes = useMemo(() => {
+    if (!activeUbp?.assets) return [];
+    const typeMap = new Map<string, number>();
+    activeUbp.assets.forEach((asset: any) => {
+      const t = asset.equipmentType || 'Lainnya';
+      typeMap.set(t, (typeMap.get(t) || 0) + 1);
+    });
+    return Array.from(typeMap.entries()).map(([type, count]) => ({ type, count }));
+  }, [activeUbp]);
+
+  // Assets filtered by equipment type
+  const filteredAssets = useMemo(() => {
+    if (!activeUbp?.assets || !selectedEquipmentType) return [];
+    return activeUbp.assets.filter((a: any) => (a.equipmentType || 'Lainnya') === selectedEquipmentType);
+  }, [activeUbp, selectedEquipmentType]);
 
   const activeAsset = useMemo(() => {
     if (!allAssets || !selectedAssetId) return null;
@@ -73,6 +91,13 @@ export default function InformasiAssetPage() {
   // Navigation handlers
   const handleSelectUbp = (ubpId: string | null) => {
     setSelectedUbpId(ubpId);
+    setSelectedEquipmentType(null);
+    setSelectedAssetId(null);
+    setSearchQuery('');
+  };
+
+  const handleSelectEquipmentType = (eqType: string | null) => {
+    setSelectedEquipmentType(eqType);
     setSelectedAssetId(null);
     setSearchQuery('');
   };
@@ -84,55 +109,84 @@ export default function InformasiAssetPage() {
 
   const handleSearchResultClick = (asset: any) => {
     setSelectedUbpId(asset.ubpId);
+    setSelectedEquipmentType(asset.equipmentType || 'Lainnya');
     setSelectedAssetId(asset.id);
     setSearchQuery('');
   };
 
+  // Breadcrumb labels
+  const breadcrumbItems: { label: string; onClick: () => void; active: boolean }[] = [
+    {
+      label: 'Semua UBP',
+      onClick: () => handleSelectUbp(null),
+      active: !selectedUbpId,
+    },
+  ];
+  if (selectedUbpId && activeUbp) {
+    breadcrumbItems.push({
+      label: activeUbp.name,
+      onClick: () => handleSelectEquipmentType(null),
+      active: !selectedEquipmentType,
+    });
+  }
+  if (selectedEquipmentType) {
+    breadcrumbItems.push({
+      label: selectedEquipmentType,
+      onClick: () => handleSelectAsset(null),
+      active: !selectedAssetId,
+    });
+  }
+  if (selectedAssetId && activeAsset) {
+    breadcrumbItems.push({
+      label: activeAsset.name,
+      onClick: () => {},
+      active: true,
+    });
+  }
+
+  // Equipment type icons
+  const eqTypeIcon = (type: string) => {
+    const t = type.toUpperCase();
+    if (t.includes('ARRESTER') || t.includes('LA')) return 'flash_on';
+    if (t.includes('UAT') || t.includes('AUXILIARY')) return 'electrical_services';
+    if (t.includes('TRAFO') || t.includes('TRANSFORMER')) return 'power';
+    return 'settings';
+  };
+
   return (
     <div className="space-y-6 animate-fade-in pb-10">
-      {/* Breadcrumb Header */}
-      <div className="flex items-center gap-2 text-xs text-outline mb-2 flex-wrap">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-xs text-outline flex-wrap">
         <span>Menu Utama</span>
-        <span className="material-symbols-outlined text-xs">chevron_right</span>
-        <button 
-          onClick={() => handleSelectUbp(null)}
-          className={`hover:text-primary transition-colors cursor-pointer ${!selectedUbpId ? 'text-primary font-semibold' : ''}`}
-        >
-          Semua UBP
-        </button>
-        {selectedUbpId && activeUbp && (
-          <>
+        {breadcrumbItems.map((item, idx) => (
+          <span key={idx} className="flex items-center gap-2">
             <span className="material-symbols-outlined text-xs">chevron_right</span>
-            <button 
-              onClick={() => handleSelectAsset(null)}
-              className={`hover:text-primary transition-colors cursor-pointer ${!selectedAssetId ? 'text-primary font-semibold' : ''}`}
+            <button
+              onClick={item.onClick}
+              className={`hover:text-primary transition-colors cursor-pointer ${item.active ? 'text-primary font-semibold' : ''}`}
             >
-              {activeUbp.name}
+              {item.label}
             </button>
-          </>
-        )}
-        {selectedAssetId && activeAsset && (
-          <>
-            <span className="material-symbols-outlined text-xs">chevron_right</span>
-            <span className="text-primary font-semibold">{activeAsset.name}</span>
-          </>
-        )}
+          </span>
+        ))}
       </div>
 
-      {/* Header Panel */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold text-on-surface">Informasi Spesifikasi Aset</h1>
           <p className="text-sm text-on-surface-variant">
             {selectedAssetId && activeAsset
               ? `Spesifikasi teknis detail untuk ${activeAsset.name}.`
+              : selectedEquipmentType
+              ? `Daftar unit ${selectedEquipmentType} pada ${activeUbp?.name || ''}.`
               : selectedUbpId && activeUbp
-              ? `Daftar unit transformator daya pada ${activeUbp.name}.`
+              ? `Pilih jenis peralatan pada ${activeUbp.name}.`
               : 'Pilih Unit Bisnis Pemeliharaan (UBP) untuk melihat aset transformator.'}
           </p>
         </div>
 
-        {/* Global Search Box */}
+        {/* Search Box */}
         <div className="relative w-full md:w-80 shrink-0">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-sm">search</span>
           <input
@@ -159,7 +213,7 @@ export default function InformasiAssetPage() {
 
       {!isLoading && !error && (
         <>
-          {/* SEARCH MODE DISPLAY */}
+          {/* SEARCH MODE */}
           {searchQuery.trim() !== '' ? (
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-on-surface-variant font-mono uppercase tracking-wider">
@@ -177,7 +231,7 @@ export default function InformasiAssetPage() {
                     <button
                       key={asset.id}
                       onClick={() => handleSearchResultClick(asset)}
-                      className="p-5 bg-white hover:bg-primary-container/10 border border-surface-border hover:border-primary rounded-xl text-left transition-all hover:shadow-md cursor-pointer flex flex-col justify-between h-40 group"
+                      className="p-5 bg-white hover:bg-primary-container/10 border border-surface-border hover:border-primary rounded-xl text-left transition-all hover:shadow-md cursor-pointer flex flex-col justify-between h-36 group"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
@@ -192,8 +246,7 @@ export default function InformasiAssetPage() {
                           {asset.name}
                         </h4>
                       </div>
-                      <div className="text-[11px] text-on-surface-variant/80 border-t border-surface-border/50 pt-2.5 space-y-0.5">
-                        <p className="truncate"><span className="font-medium text-on-surface/80">Manufacture:</span> {asset.manufacture || '—'}</p>
+                      <div className="text-[11px] text-on-surface-variant/80 border-t border-surface-border/50 pt-2 space-y-0.5">
                         <p className="truncate"><span className="font-medium text-on-surface/80">SN:</span> {asset.serialNumber || '—'}</p>
                       </div>
                     </button>
@@ -202,9 +255,11 @@ export default function InformasiAssetPage() {
               )}
             </div>
           ) : (
-            /* HIERARCHICAL MODE DISPLAY */
+            /* HIERARCHICAL MODE */
             <div>
-              {/* LEVEL 1: UBP Selection */}
+              {/* ═══════════════════════════════════════════════ */}
+              {/* LEVEL 1: UBP Selection                        */}
+              {/* ═══════════════════════════════════════════════ */}
               {selectedUbpId === null && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-on-surface-variant font-mono uppercase tracking-wider">
@@ -242,14 +297,16 @@ export default function InformasiAssetPage() {
                 </div>
               )}
 
-              {/* LEVEL 2: Asset Selection */}
-              {selectedUbpId !== null && selectedAssetId === null && activeUbp && (
+              {/* ═══════════════════════════════════════════════ */}
+              {/* LEVEL 2: Equipment Type Selection              */}
+              {/* ═══════════════════════════════════════════════ */}
+              {selectedUbpId !== null && selectedEquipmentType === null && activeUbp && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-on-surface-variant font-mono uppercase tracking-wider">
-                      Daftar Aset pada {activeUbp.name}
+                      Jenis Peralatan pada {activeUbp.name}
                     </h3>
-                    <button 
+                    <button
                       onClick={() => handleSelectUbp(null)}
                       className="text-xs text-primary font-bold hover:underline cursor-pointer flex items-center gap-1"
                     >
@@ -258,15 +315,69 @@ export default function InformasiAssetPage() {
                     </button>
                   </div>
 
-                  {!activeUbp.assets || activeUbp.assets.length === 0 ? (
+                  {equipmentTypes.length === 0 ? (
                     <div className="p-16 text-center text-on-surface-variant text-sm bg-white border border-surface-border rounded-xl">
                       <span className="material-symbols-outlined text-5xl text-outline/40 block">domain_disabled</span>
                       <p className="font-semibold text-base text-on-surface mt-2">Belum ada aset terdaftar</p>
                       <p>Silakan hubungi administrator untuk mendaftarkan aset baru pada UBP ini.</p>
                     </div>
                   ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {equipmentTypes.map(({ type, count }) => (
+                        <button
+                          key={type}
+                          onClick={() => handleSelectEquipmentType(type)}
+                          className="p-6 bg-white hover:bg-primary-container/10 border border-surface-border hover:border-primary rounded-xl text-left transition-all hover:shadow-md cursor-pointer flex items-center justify-between group"
+                        >
+                          <div className="flex items-center gap-4 min-w-0">
+                            <span className="material-symbols-outlined text-3xl text-primary bg-primary/5 p-3 rounded-lg group-hover:bg-primary/15 transition-colors">
+                              {eqTypeIcon(type)}
+                            </span>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-on-surface text-base group-hover:text-primary transition-colors">
+                                {type}
+                              </h4>
+                              <p className="text-xs text-on-surface-variant font-medium mt-0.5">
+                                {count} Unit
+                              </p>
+                            </div>
+                          </div>
+                          <span className="material-symbols-outlined text-outline group-hover:text-primary group-hover:translate-x-1 transition-all">
+                            chevron_right
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ═══════════════════════════════════════════════ */}
+              {/* LEVEL 3: Asset / Unit Selection                */}
+              {/* ═══════════════════════════════════════════════ */}
+              {selectedUbpId !== null && selectedEquipmentType !== null && selectedAssetId === null && activeUbp && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-on-surface-variant font-mono uppercase tracking-wider">
+                      Daftar {selectedEquipmentType} — {activeUbp.name}
+                    </h3>
+                    <button
+                      onClick={() => handleSelectEquipmentType(null)}
+                      className="text-xs text-primary font-bold hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-xs">arrow_back</span>
+                      Kembali ke Jenis Peralatan
+                    </button>
+                  </div>
+
+                  {filteredAssets.length === 0 ? (
+                    <div className="p-16 text-center text-on-surface-variant text-sm bg-white border border-surface-border rounded-xl">
+                      <span className="material-symbols-outlined text-5xl text-outline/40 block">domain_disabled</span>
+                      <p className="font-semibold text-base text-on-surface mt-2">Tidak ada unit ditemukan</p>
+                    </div>
+                  ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {activeUbp.assets.map((asset: any) => (
+                      {filteredAssets.map((asset: any) => (
                         <button
                           key={asset.id}
                           onClick={() => handleSelectAsset(asset.id)}
@@ -293,11 +404,13 @@ export default function InformasiAssetPage() {
                 </div>
               )}
 
-              {/* LEVEL 3: Specification Sheet */}
+              {/* ═══════════════════════════════════════════════ */}
+              {/* LEVEL 4: Asset Detail / Specification Sheet    */}
+              {/* ═══════════════════════════════════════════════ */}
               {selectedAssetId !== null && activeAsset && (
                 <div className="space-y-6">
                   {/* Action Buttons Header */}
-                  <div className="flex items-center justify-between bg-white px-6 py-4 rounded-xl border border-surface-border shadow-sm">
+                  <div className="flex items-center justify-between bg-white px-6 py-4 rounded-xl border border-surface-border shadow-sm flex-wrap gap-3">
                     <div className="flex items-center gap-3">
                       <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase">
                         {activeAsset.equipmentType}
@@ -313,7 +426,7 @@ export default function InformasiAssetPage() {
                         className="bg-white border border-surface-border hover:bg-surface-container-low text-on-surface-variant px-4 py-2 rounded-lg font-bold text-xs transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
                       >
                         <span className="material-symbols-outlined text-xs">arrow_back</span>
-                        Kembali ke Aset
+                        Kembali
                       </button>
                       <Link
                         href={`/unit/${activeAsset.id}`}
