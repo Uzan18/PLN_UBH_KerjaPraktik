@@ -314,25 +314,16 @@ export default function InformasiAssetPage() {
               {level === 4 && activeAsset && (
                 <div className="space-y-4">
                   {/* Action Buttons Header */}
-                  <div className="flex items-center justify-between bg-white px-4 py-2.5 rounded-lg border border-surface-border shadow-sm flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-[10px] font-bold uppercase">{activeAsset.equipmentType}</span>
-                      <h2 className="text-sm font-bold text-on-surface truncate max-w-[200px] md:max-w-md">{activeAsset.name}</h2>
-                      {assetDetail?.overallJudgement && assetDetail.overallJudgement !== 'NA' && (
-                        <StatusBadge judgement={assetDetail.overallJudgement} size="sm" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button onClick={() => handleSelectAsset(null)}
-                        className="bg-white border border-surface-border hover:bg-surface-container-low text-on-surface-variant px-3 py-1.5 rounded-md font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer">
-                        <span className="material-symbols-outlined text-xs">arrow_back</span>
-                        Kembali
-                      </button>
-                      <Link href={`/unit/${activeAsset.id}`}
-                        className="bg-primary hover:brightness-110 text-white px-3 py-1.5 rounded-md font-bold text-xs transition-all flex items-center gap-1 active:scale-95">
-                        Lihat Selengkapnya (Riwayat & Tren)
-                      </Link>
-                    </div>
+                  <div className="flex items-center justify-between">
+                    <button onClick={() => handleSelectAsset(null)}
+                      className="bg-white border border-surface-border hover:bg-surface-container-low text-on-surface-variant px-3 py-1.5 rounded-md font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer">
+                      <span className="material-symbols-outlined text-xs">arrow_back</span>
+                      Kembali
+                    </button>
+                    <Link href={`/unit/${activeAsset.id}`}
+                      className="bg-primary hover:brightness-110 text-white px-3 py-1.5 rounded-md font-bold text-xs transition-all flex items-center gap-1 active:scale-95">
+                      Lihat Selengkapnya (Riwayat & Tren)
+                    </Link>
                   </div>
 
                   {isLoadingDetail ? (
@@ -345,38 +336,92 @@ export default function InformasiAssetPage() {
                     </div>
                   ) : assetDetail ? (
                     <>
-                      {/* Specs section (Matching dashboard unit details page UI style) */}
-                      <div className="bg-white border border-surface-border rounded-lg shadow-sm overflow-hidden p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-bold text-on-surface text-xs">
-                            Spesifikasi Teknis {assetDetail.selectedTestYear ? `(Terupdate Tahun ${assetDetail.selectedTestYear})` : ''}
-                          </h3>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                          {[
-                            { label: 'Manufacture', value: assetDetail.manufacture || '—' },
-                            { label: 'Type', value: assetDetail.type || '—' },
-                            { label: 'Serial Number', value: assetDetail.serialNumber || '—' },
-                            { label: 'Tahun Buat', value: assetDetail.mfgYear ? String(assetDetail.mfgYear) : '—' },
-                            { label: 'Vector Group', value: assetDetail.vectorGroup || '—' },
-                            { label: 'Cooling Method', value: assetDetail.coolingMethod || '—' },
-                            { label: 'Rated Power', value: assetDetail.ratedPower || '—' },
-                            { label: 'Frequency', value: assetDetail.frequency || '—' },
-                            { label: 'HV Side', value: assetDetail.hvSide || '—' },
-                            { label: 'HV Rated Current', value: assetDetail.hvRatedCurrent || '—' },
-                            { label: 'LV Side', value: assetDetail.lvSide || '—' },
-                            { label: 'LV Rated Current', value: assetDetail.lvRatedCurrent || '—' },
-                          ].map((item) => (
-                            <div 
-                              key={item.label} 
-                              className="flex flex-col px-3 py-1.5 rounded-lg border text-xs bg-surface-container-low border-surface-border"
-                            >
-                              <span className="text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider mb-0.5">{item.label}</span>
-                              <span className="font-semibold text-on-surface truncate" title={String(item.value)}>{item.value}</span>
+                      {/* Top Bento Grid (Matching Pic 2) */}
+                      <div className="grid grid-cols-12 gap-4">
+                        {/* Left Card: Asset Specs */}
+                        <div className="col-span-12 lg:col-span-8 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center gap-3 mb-2 flex-wrap">
+                              <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase">
+                                {assetDetail.equipmentType}
+                              </span>
+                              {assetDetail.overallJudgement && assetDetail.overallJudgement !== 'NA' && (
+                                <StatusBadge judgement={assetDetail.overallJudgement} size="sm" />
+                              )}
+                              <span className="font-mono text-xs text-on-surface-variant">ID: {assetDetail.id}</span>
+                              {assetDetail.selectedTestYear && (
+                                <span className="text-xs font-semibold text-outline">
+                                  Tahun Terkini: {assetDetail.selectedTestYear}
+                                </span>
+                              )}
                             </div>
-                          ))}
+                            <h2 className="text-3xl font-bold text-on-surface mb-2 leading-tight tracking-tight">
+                              {assetDetail.name}
+                            </h2>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 border-t border-surface-border/50">
+                            {[
+                              { label: 'Manufacture', value: assetDetail.manufacture || '—' },
+                              { label: 'Type', value: assetDetail.type || '—' },
+                              { label: 'Serial Number', value: assetDetail.serialNumber || '—' },
+                              { label: 'Tahun Buat', value: assetDetail.mfgYear ? String(assetDetail.mfgYear) : '—' },
+                              { label: 'Vector Group', value: assetDetail.vectorGroup || '—' },
+                              { label: 'Cooling Method', value: assetDetail.coolingMethod || '—' },
+                              { label: 'Rated Power', value: assetDetail.ratedPower || '—' },
+                              { label: 'Frequency', value: assetDetail.frequency || '—' },
+                              { label: 'HV Side', value: assetDetail.hvSide || '—' },
+                              { label: 'HV Rated Current', value: assetDetail.hvRatedCurrent || '—' },
+                              { label: 'LV Side', value: assetDetail.lvSide || '—' },
+                              { label: 'LV Rated Current', value: assetDetail.lvRatedCurrent || '—' },
+                            ].map((item) => (
+                              <div 
+                                key={item.label} 
+                                className="flex flex-col px-3 py-1.5 rounded-lg border text-xs bg-surface-container-low border-surface-border"
+                              >
+                                <span className="text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider mb-0.5">{item.label}</span>
+                                <span className="font-semibold text-on-surface truncate" title={String(item.value)}>{item.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Right Card: Trend Chart (Mock SVG mirroring Pic 2) */}
+                        <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="font-bold text-on-surface text-sm">Tren Kondisi Unit Ini</h4>
+                          </div>
+                          <div className="h-44 flex flex-col justify-between relative">
+                            <svg className="w-full h-full" viewBox="0 0 400 200">
+                              <line x1="0" y1="40" x2="400" y2="40" stroke="#E2E8F0" strokeDasharray="4" />
+                              <line x1="0" y1="100" x2="400" y2="100" stroke="#E2E8F0" strokeDasharray="4" />
+                              <line x1="0" y1="160" x2="400" y2="160" stroke="#E2E8F0" strokeDasharray="4" />
+                              <path d="M 0 50 L 80 45 L 160 60 L 240 85 L 320 110 L 400 135" fill="none" stroke="#0F3D91" strokeWidth="3" />
+                              <path d="M 0 70 L 80 75 L 160 80 L 240 100 L 320 120 L 400 115" fill="none" stroke="#EAB308" strokeWidth="2" strokeDasharray="4" />
+                              <circle cx="80" cy="45" r="4" fill="#0F3D91" />
+                              <circle cx="160" cy="60" r="4" fill="#0F3D91" />
+                              <circle cx="240" cy="85" r="4" fill="#0F3D91" />
+                              <circle cx="320" cy="110" r="4" fill="#0F3D91" />
+                              <circle cx="400" cy="135" r="5" fill="#EF4444" stroke="white" strokeWidth="2" />
+                            </svg>
+                            <div className="flex justify-between mt-2 text-[9px] font-bold text-on-surface-variant">
+                              <span>2021</span><span>2022</span><span>2023</span><span>2024</span><span>2025</span>
+                            </div>
+                          </div>
+                          <div className="mt-2 flex justify-between text-[10px]">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-1 bg-primary" />
+                              <span className="text-on-surface-variant font-medium">Tren Kondisi</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-1 border-t border-dashed border-status-fair" />
+                              <span className="text-on-surface-variant font-medium">Batas Aman</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
+
+                      {/* Spacer */}
+                      <div className="h-2" />
 
                       {/* Last Test Results Grid */}
                       <div className="grid grid-cols-12 gap-4">
