@@ -145,6 +145,22 @@ export default function ValidasiPage() {
       }
       return res.json();
     },
+    onMutate: async (sessionId) => {
+      // Optimistic update: cancel outgoing refetches and instantly remove from local queue
+      await queryClient.cancelQueries({ queryKey: ['validation-queue'] });
+      const previousQueue = queryClient.getQueryData(['validation-queue']);
+      queryClient.setQueryData(['validation-queue'], (old: any) => {
+        if (!old) return old;
+        return old.filter((item: any) => item.sessionId !== sessionId);
+      });
+      return { previousQueue };
+    },
+    onError: (err, sessionId, context) => {
+      // Rollback on error
+      if (context?.previousQueue) {
+        queryClient.setQueryData(['validation-queue'], context.previousQueue);
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['validation-queue'] });
       queryClient.invalidateQueries({ queryKey: ['summary'] });
@@ -165,6 +181,22 @@ export default function ValidasiPage() {
         throw new Error(err.error || 'Gagal menolak data');
       }
       return res.json();
+    },
+    onMutate: async ({ sessionId }) => {
+      // Optimistic update: cancel outgoing refetches and instantly remove from local queue
+      await queryClient.cancelQueries({ queryKey: ['validation-queue'] });
+      const previousQueue = queryClient.getQueryData(['validation-queue']);
+      queryClient.setQueryData(['validation-queue'], (old: any) => {
+        if (!old) return old;
+        return old.filter((item: any) => item.sessionId !== sessionId);
+      });
+      return { previousQueue };
+    },
+    onError: (err, variables, context) => {
+      // Rollback on error
+      if (context?.previousQueue) {
+        queryClient.setQueryData(['validation-queue'], context.previousQueue);
+      }
     },
     onSuccess: () => {
       setRejectSessionId(null);
@@ -435,9 +467,18 @@ export default function ValidasiPage() {
                     }
                   }}
                   disabled={approveMutation.isPending}
-                  className="px-4 py-2 bg-status-good hover:brightness-110 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-sm active:scale-95 disabled:opacity-50"
+                  className="px-4 py-2 bg-status-good hover:brightness-110 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
                 >
-                  <span className="material-symbols-outlined text-sm">check_circle</span> Setujui
+                  {approveMutation.isPending ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                      Memproses...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-sm">check_circle</span> Setujui
+                    </>
+                  )}
                 </button>
               </div>
             </div>
