@@ -65,35 +65,12 @@ export default function AssetDetailPage() {
 
   return (
     <div className="animate-fade-in max-w-[1440px] mx-auto">
-      {/* Back Link & Year Selector */}
-      <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+      {/* Back Link */}
+      <div className="mb-6">
         <Link href="/dashboard" className="inline-flex items-center gap-2 text-primary hover:underline font-medium text-sm">
           <span className="material-symbols-outlined text-sm">arrow_back</span>
           Kembali ke Dashboard
         </Link>
-
-        {asset.availableSessions && asset.availableSessions.length > 0 && (
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 border border-surface-border rounded-lg shadow-sm text-xs">
-            <span className="font-semibold text-outline">Tahun Uji / Laporan:</span>
-            <select
-              value={asset.selectedSessionId || ''}
-              onChange={(e) => {
-                const sId = e.target.value;
-                const found = asset.availableSessions.find((s: any) => s.id === sId);
-                if (found) {
-                  router.push(`/unit/${assetId}?sessionId=${found.id}`);
-                }
-              }}
-              className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 pr-6 cursor-pointer text-primary"
-            >
-              {asset.availableSessions.map((s: any) => (
-                <option key={s.id} value={s.id}>
-                  {s.year} {s.id === asset.latestSessionId ? '(Terbaru)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
 
       {/* Asset Header (Bento Style) */}
@@ -101,14 +78,40 @@ export default function AssetDetailPage() {
         {/* Left: Asset Info Card */}
         <div className="col-span-12 lg:col-span-8 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-3 mb-2 flex-wrap">
-              <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase">
-                {asset.equipmentType}
-              </span>
-              {asset.overallJudgement && asset.overallJudgement !== 'NA' && (
-                <StatusBadge judgement={asset.overallJudgement} size="sm" />
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase">
+                  {asset.equipmentType}
+                </span>
+                {asset.overallJudgement && asset.overallJudgement !== 'NA' && (
+                  <StatusBadge judgement={asset.overallJudgement} size="sm" />
+                )}
+                <span className="font-mono text-xs text-on-surface-variant">ID: {asset.id}</span>
+              </div>
+              {/* Year Selector */}
+              {asset.availableSessions && asset.availableSessions.length > 0 && (
+                <div className="flex items-center gap-1.5 bg-primary/5 border border-primary/20 rounded-full px-3 py-1">
+                  <span className="material-symbols-outlined text-primary text-sm">calendar_month</span>
+                  <span className="text-[10px] font-bold text-primary/70 uppercase">Tahun Uji:</span>
+                  <select
+                    value={asset.selectedSessionId || ''}
+                    onChange={(e) => {
+                      const sId = e.target.value;
+                      const found = asset.availableSessions.find((s: any) => s.id === sId);
+                      if (found) {
+                        router.push(`/unit/${assetId}?sessionId=${found.id}`);
+                      }
+                    }}
+                    className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 pr-5 cursor-pointer text-primary"
+                  >
+                    {asset.availableSessions.map((s: any) => (
+                      <option key={s.id} value={s.id}>
+                        {s.year}{s.id === asset.latestSessionId ? ' (Terbaru)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
-              <span className="font-mono text-xs text-on-surface-variant">ID: {asset.id}</span>
             </div>
             <h2 className="text-3xl font-bold text-on-surface mb-6 leading-tight tracking-tight">
               {asset.name}
@@ -128,7 +131,7 @@ export default function AssetDetailPage() {
               { label: 'HV Rated Current', value: asset.hvRatedCurrent || '—' },
               { label: 'LV Side', value: asset.lvSide || '—' },
               { label: 'LV Rated Current', value: asset.lvRatedCurrent || '—' },
-              { label: 'Tahun Uji Terakhir', value: asset.lastTestYear ? String(asset.lastTestYear) : '—', highlight: true },
+
             ].map((item) => (
               <div 
                 key={item.label} 
