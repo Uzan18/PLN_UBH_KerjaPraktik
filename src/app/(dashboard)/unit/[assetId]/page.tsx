@@ -84,6 +84,11 @@ export default function AssetDetailPage() {
                   {asset.equipmentType}
                 </span>
                 <span className="font-mono text-xs text-on-surface-variant">ID: {asset.id}</span>
+                {asset.selectedTestYear && (
+                  <span className="text-xs font-semibold text-outline">
+                    Tahun Terkini: {asset.selectedTestYear}
+                  </span>
+                )}
               </div>
               {/* Year Selector */}
               {asset.availableSessions && asset.availableSessions.length > 1 && (
