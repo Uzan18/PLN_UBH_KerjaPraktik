@@ -30,7 +30,11 @@ import { ReportFile } from '@/entities/ReportFile';
  *
  * For development, use Oracle XE in Docker.
  */
-export const AppDataSource = new DataSource({
+const globalForDataSource = globalThis as unknown as {
+  appDataSource: DataSource | null;
+};
+
+export const AppDataSource = globalForDataSource.appDataSource || new DataSource({
   type: 'oracle',
   host: process.env.ORACLE_HOST || 'localhost',
   port: parseInt(process.env.ORACLE_PORT || '1521'),
@@ -60,3 +64,7 @@ export const AppDataSource = new DataSource({
     poolIncrement: 1,
   },
 });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForDataSource.appDataSource = AppDataSource;
+}

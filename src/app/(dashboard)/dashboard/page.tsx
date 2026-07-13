@@ -260,10 +260,10 @@ export default function DashboardPage() {
           </div>
           <button 
             onClick={handleExport}
-            className="bg-white border border-primary text-primary px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 hover:bg-surface-container-low transition-colors active:opacity-80"
+            className="bg-white border border-primary text-primary px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 hover:bg-primary-container/10 transition-all active:scale-95 shadow-xs hover:shadow-sm cursor-pointer"
           >
             <span className="material-symbols-outlined text-lg">download</span>
-            Export
+            Export Excel
           </button>
         </div>
 

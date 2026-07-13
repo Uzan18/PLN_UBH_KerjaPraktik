@@ -21,6 +21,9 @@ export class TestType {
   @Column({ name: 'order_index', type: 'int', default: 0 })
   orderIndex!: number;
 
+  @Column({ name: 'standard', type: 'varchar', length: 500, nullable: true })
+  standard!: string | null;
+
   @OneToMany('Parameter', 'testType')
   parameters!: Parameter[];
 

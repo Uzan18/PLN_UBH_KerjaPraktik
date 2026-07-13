@@ -74,7 +74,7 @@ export default function AssetDetailPage() {
       </div>
 
       {/* Asset Header (Bento Style) */}
-      <div className="grid grid-cols-12 gap-4 mb-1 items-start">
+      <div className="grid grid-cols-12 gap-4 items-start">
         {/* Left: Asset Info Card */}
         <div className="col-span-12 lg:col-span-8 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col">
           <div>
@@ -84,11 +84,9 @@ export default function AssetDetailPage() {
                   {asset.equipmentType}
                 </span>
                 <span className="font-mono text-xs text-on-surface-variant">ID: {asset.id}</span>
-                {asset.selectedTestYear && (
+                {asset.selectedTestYear && selectedSessionId && asset.selectedSessionId !== asset.latestSessionId && (
                   <span className="text-xs font-semibold text-outline">
-                    {(!selectedSessionId || asset.selectedSessionId === asset.latestSessionId)
-                      ? `Tahun Terkini: ${asset.selectedTestYear}`
-                      : `Tahun Uji: ${asset.selectedTestYear}`}
+                    Tahun Uji: {asset.selectedTestYear}
                   </span>
                 )}
               </div>
@@ -147,9 +145,9 @@ export default function AssetDetailPage() {
         {/* Right: Trend Chart Card (Raised!) */}
         <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
-            <h4 className="font-bold text-on-surface">Tren Kondisi Unit Ini</h4>
+            <h4 className="font-bold text-on-surface text-sm">Tren Kondisi Unit Ini</h4>
           </div>
-          <div className="h-64 flex flex-col justify-between relative">
+          <div className="h-44 flex flex-col justify-between relative">
             <svg className="w-full h-full" viewBox="0 0 400 200">
               <line x1="0" y1="40" x2="400" y2="40" stroke="#E2E8F0" strokeDasharray="4" />
               <line x1="0" y1="100" x2="400" y2="100" stroke="#E2E8F0" strokeDasharray="4" />
@@ -162,30 +160,33 @@ export default function AssetDetailPage() {
               <circle cx="320" cy="110" r="4" fill="#0F3D91" />
               <circle cx="400" cy="135" r="5" fill="#EF4444" stroke="white" strokeWidth="2" />
             </svg>
-            <div className="flex justify-between mt-2 text-[10px] font-bold text-on-surface-variant">
+            <div className="flex justify-between mt-2 text-[9px] font-bold text-on-surface-variant">
               <span>2021</span><span>2022</span><span>2023</span><span>2024</span><span>2025</span>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-1 bg-primary" />
-              <span className="text-[11px] text-on-surface-variant font-medium">Tren Kondisi</span>
+          <div className="mt-2 flex justify-between text-[10px]">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-1 bg-primary" />
+              <span className="text-on-surface-variant font-medium">Tren Kondisi</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-1 border-t border-dashed border-status-fair" />
-              <span className="text-[11px] text-on-surface-variant font-medium">Batas Aman</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-1 border-t border-dashed border-status-fair" />
+              <span className="text-on-surface-variant font-medium">Batas Aman</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Content Grid */}
-      <div className="grid grid-cols-12 gap-4">
-        {/* Main: Accordions */}
-        <div className="col-span-12 lg:col-span-8 space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xl font-semibold">Status Kondisi per Jenis Pengujian</h3>
-          </div>
+      {/* Spacer */}
+      <div className="my-4 h-2" />
+
+      {/* Bottom Content Grid */}
+      <div className="grid grid-cols-12 gap-4 items-start">
+        {/* Left Column: Test Status Accordions */}
+        <div className="col-span-12 lg:col-span-8 space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface">
+            Hasil Pengujian {asset.selectedTestYear ? `(Tahun ${asset.selectedTestYear})` : ''}
+          </h3>
 
           {asset.testTypeStatuses.map((test: any) => {
             const hasParameters = test.parameters && test.parameters.length > 0;
@@ -194,20 +195,25 @@ export default function AssetDetailPage() {
             return (
               <div
                 key={test.testTypeId}
-                className="bg-white rounded-lg overflow-hidden border border-surface-border"
+                className="bg-white rounded-lg overflow-hidden border border-surface-border shadow-sm"
               >
                 {/* Clickable Header */}
                 <button
                   onClick={() => toggleTestExpand(test.testTypeId)}
-                  className="w-full flex items-center justify-between p-4 bg-white hover:bg-surface-container-low transition-colors text-left focus:outline-none cursor-pointer"
+                  className="w-full flex items-center justify-between p-3.5 bg-white hover:bg-surface-container-low transition-colors text-left focus:outline-none cursor-pointer"
                 >
-                  <div className="flex items-center gap-4">
-                    <span className="font-semibold text-on-surface text-base">{test.testTypeName}</span>
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-on-surface text-xs">{test.testTypeName}</span>
+                    {test.standard && (
+                      <span className="text-[10px] text-on-surface-variant font-mono mt-0.5 font-medium uppercase tracking-wider">
+                        Std: {test.standard}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
                     <StatusBadge judgement={test.judgement} size="sm" />
                     {hasParameters && (
-                      <span className={`material-symbols-outlined text-on-surface-variant transition-transform duration-200 ${
+                      <span className={`material-symbols-outlined text-sm text-on-surface-variant transition-transform duration-200 ${
                         isExpanded ? 'rotate-180' : ''
                       }`}>
                         expand_more
@@ -218,28 +224,28 @@ export default function AssetDetailPage() {
 
                 {/* Collapsible Parameter Table */}
                 {hasParameters && isExpanded && (
-                  <div className="p-4 bg-white border-t border-surface-border animate-fade-in">
+                  <div className="p-3 bg-white border-t border-surface-border animate-fade-in">
                     <div className="overflow-x-auto custom-scrollbar">
-                      <table className="w-full text-left text-[13px] border-collapse">
+                      <table className="w-full text-left text-xs border-collapse">
                         <thead>
-                          <tr className="bg-surface-container-low">
-                            <th className="p-3 font-bold text-on-surface-variant border-b border-surface-border">Parameter</th>
-                            <th className="p-3 font-bold text-on-surface-variant border-b border-surface-border text-center">Value</th>
-                            <th className="p-3 font-bold text-on-surface-variant border-b border-surface-border text-center">Satuan</th>
-                            <th className="p-3 font-bold text-on-surface-variant border-b border-surface-border text-center">Kondisi (Judgement)</th>
+                          <tr className="bg-surface-container-low text-[10px] text-on-surface-variant font-mono uppercase tracking-wider">
+                            <th className="p-2 font-bold border-b border-surface-border">Parameter</th>
+                            <th className="p-2 font-bold border-b border-surface-border text-center">Value</th>
+                            <th className="p-2 font-bold border-b border-surface-border text-center">Satuan</th>
+                            <th className="p-2 font-bold border-b border-surface-border text-center">Kondisi</th>
                           </tr>
                         </thead>
                         <tbody>
                           {test.parameters.map((param: any, idx: number) => (
                             <tr key={param.parameterId} className={idx % 2 === 1 ? 'bg-surface-background' : ''}>
-                              <td className="p-3 border-b border-surface-border font-bold">{param.parameterName}</td>
-                              <td className="p-3 border-b border-surface-border text-center font-mono">
-                                {param.isNotApplicable ? 'N/A' : param.value !== null ? param.value : '—'}
+                              <td className="p-2 border-b border-surface-border font-bold text-on-surface">{param.parameterName}</td>
+                              <td className="p-2 border-b border-surface-border text-center font-mono font-semibold text-primary">
+                                {param.displayValue || (param.isNotApplicable ? 'N/A' : param.value !== null ? param.value : '—')}
                               </td>
-                              <td className="p-3 border-b border-surface-border text-center text-on-surface-variant">
+                              <td className="p-2 border-b border-surface-border text-center text-on-surface-variant">
                                 {param.unit || '—'}
                               </td>
-                              <td className="p-3 border-b border-surface-border text-center">
+                              <td className="p-2 border-b border-surface-border text-center">
                                 {param.judgement ? (
                                   <StatusBadge judgement={param.judgement} size="sm" showIcon={false} />
                                 ) : (
@@ -258,19 +264,17 @@ export default function AssetDetailPage() {
           })}
         </div>
 
-        {/* Sidebar */}
-        <div className="col-span-12 lg:col-span-4 space-y-4">
-
-          {/* Status Kerusakan per Mekanisme */}
-          <div className="bg-white p-4 rounded-xl border border-surface-border shadow-sm">
-            <h4 className="font-bold text-on-surface mb-2 flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-xl">healing</span>
-              Status Kerusakan per Mekanisme
-            </h4>
-            <p className="text-[11px] text-on-surface-variant mb-4">
-              Indikasi kerusakan dihitung berdasarkan hasil pengukuran terverifikasi terbaru.
+        {/* Right Column: Sidebar */}
+        <div className="col-span-12 lg:col-span-4 space-y-3">
+          {/* Kondisi Mekanisme Kerusakan */}
+          <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface">
+            Kondisi Mekanisme Kerusakan
+          </h3>
+          <div className="bg-white p-3.5 rounded-lg border border-surface-border shadow-sm !mt-2">
+            <p className="text-[10px] text-on-surface-variant mb-3">
+              Indikasi kerusakan berdasarkan hasil pengukuran terverifikasi terbaru.
             </p>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {asset.damageMechanisms && asset.damageMechanisms.length > 0 ? (
                 asset.damageMechanisms.map((dm: any) => {
                   const score = dm.score;
@@ -292,9 +296,9 @@ export default function AssetDetailPage() {
                   }
 
                   return (
-                    <div key={dm.name} className="flex items-center justify-between py-2 border-b border-surface-border/50 text-xs">
+                    <div key={dm.name} className="flex items-center justify-between py-1.5 border-b border-surface-border/50 text-xs">
                       <span className="font-medium text-on-surface">{dm.name}</span>
-                      <span className={`px-2 py-0.5 rounded-full font-bold border text-[9px] uppercase tracking-wider ${colorClasses}`}>
+                      <span className={`px-2 py-0.5 rounded-full font-bold border text-[8px] uppercase tracking-wider ${colorClasses}`}>
                         {statusLabel}
                       </span>
                     </div>
@@ -312,7 +316,7 @@ export default function AssetDetailPage() {
           <div className="bg-white p-4 rounded-xl border border-surface-border shadow-sm space-y-3">
             <h4 className="font-bold text-on-surface mb-2">Tindakan Cepat</h4>
             <Link 
-              href="/input"
+              href={`/input?assetId=${assetId}&testYear=${asset.selectedTestYear || new Date().getFullYear()}`}
               className="w-full py-2 bg-primary text-white rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2 active:scale-95"
             >
               <span className="material-symbols-outlined text-sm">add</span> Input Data Baru

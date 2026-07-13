@@ -8,14 +8,13 @@ const NAV_ITEMS = [
   { href: '/dashboard', icon: 'dashboard', label: 'Dashboard', roles: ['VIEWER', 'INPUT', 'QC', 'ADMIN'] },
   { href: '/informasi-asset', icon: 'info', label: 'Informasi Aset', roles: ['VIEWER', 'INPUT', 'QC', 'ADMIN'] },
   { href: '/input', icon: 'edit_document', label: 'Input Data', roles: ['INPUT'] },
-  { href: '/riwayat', icon: 'assignment', label: 'Riwayat Pengujian', roles: ['INPUT', 'QC', 'ADMIN'] },
+  { href: '/riwayat', icon: 'assignment', label: 'Riwayat Uji', roles: ['INPUT', 'QC', 'ADMIN'] },
   { href: '/validasi', icon: 'rule', label: 'Validasi Data', roles: ['QC'] },
-  { href: '/master-data/kriteria', icon: 'gavel', label: 'Master Kriteria', roles: ['ADMIN'] },
-  { href: '/master-data/ubp-asset', icon: 'domain', label: 'Master UBP & Aset', roles: ['ADMIN'] },
-  { href: '/master-data/pengujian', icon: 'fact_check', label: 'Kelola Pengujian', roles: ['ADMIN'] },
   { href: '/laporan', icon: 'analytics', label: 'Laporan', roles: ['VIEWER', 'INPUT', 'QC', 'ADMIN'] },
-  { href: '/log', icon: 'history', label: 'Log Aktivitas', roles: ['ADMIN'] },
-  { href: '/pengaturan', icon: 'settings', label: 'Pengaturan', roles: ['ADMIN'] },
+  { href: '/master-data/ubp-asset', icon: 'domain', label: 'Master UBP & Aset', roles: ['ADMIN'] },
+  { href: '/master-data/pengujian', icon: 'fact_check', label: 'Kriteria Standard', roles: ['ADMIN'] },
+  { href: '/master-data/users', icon: 'group', label: 'Kelola Pengguna', roles: ['ADMIN'] },
+  { href: '/log', icon: 'history', label: 'Log Audit', roles: ['ADMIN'] },
 ];
 
 export default function DashboardLayout({
@@ -93,7 +92,7 @@ export default function DashboardLayout({
                 {userName}
               </p>
               <p className="text-xs font-mono text-on-surface-variant truncate">
-                {userRole}
+                {userRole === 'QC' ? 'Validator' : userRole === 'INPUT' ? 'Inputter' : userRole === 'ADMIN' ? 'Admin' : 'Viewer'}
               </p>
             </div>
           </div>
@@ -117,29 +116,20 @@ export default function DashboardLayout({
             </h2>
           </div>
           <div className="flex items-center gap-4">
-            <button className="text-on-surface-variant hover:text-primary transition-colors active:opacity-80">
-              <span className="material-symbols-outlined">notifications</span>
-            </button>
-            <button className="text-on-surface-variant hover:text-primary transition-colors active:opacity-80">
-              <span className="material-symbols-outlined">help</span>
-            </button>
             {userRole === 'INPUT' && (
-              <>
-                <div className="h-8 w-px bg-surface-border mx-2" />
-                <Link
-                  href="/input"
-                  className="bg-primary text-on-primary px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 active:scale-95 transition-transform hover:brightness-110"
-                >
-                  <span className="material-symbols-outlined text-lg">add</span>
-                  Input Baru
-                </Link>
-              </>
+              <Link
+                href="/input"
+                className="bg-primary text-on-primary px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 active:scale-95 transition-transform hover:brightness-110"
+              >
+                <span className="material-symbols-outlined text-lg">add</span>
+                Input Baru
+              </Link>
             )}
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-6 w-full max-w-[1440px] mx-auto min-w-0">{children}</main>
       </div>
     </div>
   );
@@ -147,12 +137,12 @@ export default function DashboardLayout({
 
 function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard')) return 'Dashboard Monitoring';
-  if (pathname.startsWith('/informasi-asset')) return 'Informasi Spesifikasi Aset';
-  if (pathname.startsWith('/input')) return 'Input Data Pengujian';
+  if (pathname.startsWith('/informasi-asset')) return 'Informasi Aset';
+  if (pathname.startsWith('/input')) return 'Input Data';
+  if (pathname.startsWith('/riwayat')) return 'Riwayat Uji';
   if (pathname.startsWith('/validasi')) return 'Validasi Data';
   if (pathname.startsWith('/master-data')) return 'Master Data';
   if (pathname.startsWith('/unit/')) return 'Detail Asset';
   if (pathname.startsWith('/laporan')) return 'Laporan';
-  if (pathname.startsWith('/pengaturan')) return 'Pengaturan';
   return 'Assessment Trafo';
 }

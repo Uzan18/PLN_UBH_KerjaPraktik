@@ -7,6 +7,34 @@ import * as xlsx from 'xlsx';
 import { aggregateAssetStatus } from '@/lib/scoring/aggregateAssetStatus';
 import type { JudgementLabel } from '@/types';
 
+const TEST_TYPE_ORDER = [
+  'INSULATION RESISTANCE',
+  'POLARITY INDEX',
+  'TURN TO TURN RATIO',
+  'WINDING RESISTANCE HV',
+  'WINDING RESISTANCE LV',
+  'SFRA HV OPEN',
+  'SFRA HV SHORTED',
+  'SFRA LV OPEN',
+  'SFRA LV SHORTED',
+  'EXC CURRENT',
+  'TAN DELTA WINDING',
+  'TAN DELTA BUSHING',
+  'WATT LOSS BUSHING BUSHING',
+  'GROUNDING RESISTANCE',
+  'DIRANA MOISTURE',
+  'DIRANA OIL CONDUCT',
+  'ARRESTER GROUND',
+  'ARRESTER IR',
+  'ARRESTER WATT LOSS',
+  'VISUAL INSPECTION',
+  'OTI ',
+  'WTI',
+  'DGA',
+  'OIL ANALYSIS',
+  'RLA'
+];
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
@@ -24,6 +52,17 @@ export async function GET(req: Request) {
     // Fetch all test types ordered by index
     let testTypes = await testTypeRepo.find({
       order: { orderIndex: 'ASC' },
+    });
+
+    // Sort according to TEST_TYPE_ORDER
+    testTypes = [...testTypes].sort((a, b) => {
+      const nameA = (a.name || '').trim().toUpperCase();
+      const nameB = (b.name || '').trim().toUpperCase();
+      const idxA = TEST_TYPE_ORDER.indexOf(nameA);
+      const idxB = TEST_TYPE_ORDER.indexOf(nameB);
+      const posA = idxA !== -1 ? idxA : 999;
+      const posB = idxB !== -1 ? idxB : 999;
+      return posA - posB;
     });
 
     // If filtered by specific test type / tool, restrict sheet 1 columns to just that test type

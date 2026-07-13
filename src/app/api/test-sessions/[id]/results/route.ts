@@ -7,7 +7,7 @@ import { Criteria } from '@/entities/Criteria';
 import { AuditLog } from '@/entities/AuditLog';
 import { getServerSession } from '@/lib/auth/session';
 import { canModifySession } from '@/lib/auth/rbac';
-import { calculateScore } from '@/lib/scoring/calculateScore';
+import { calculateScore, mapQualitativeValueToNumber } from '@/lib/scoring/calculateScore';
 import { determineJudgement } from '@/lib/scoring/determineJudgement';
 import type { JudgementLabel } from '@/types';
 import { LessThanOrEqual, IsNull, MoreThanOrEqual } from 'typeorm';
@@ -200,7 +200,44 @@ export async function GET(
       }
     });
 
-    return NextResponse.json({ success: true, data: results });
+    const criteriaRepo = db.getRepository(Criteria);
+    const now = testSession.createdAt || new Date();
+    const mappedResults = [];
+
+    for (const r of results) {
+      const criteria = await criteriaRepo.createQueryBuilder('c')
+        .where('c.parameter_id = :parameterId', { parameterId: r.parameterId })
+        .andWhere('c.effective_from <= :now', { now })
+        .andWhere('(c.effective_to IS NULL OR c.effective_to >= :now2)', { now2: now })
+        .orderBy('c.effective_from', 'DESC')
+        .getOne();
+
+      const valNum = r.value !== null && r.value !== undefined ? Number(r.value) : null;
+      let displayValue = valNum !== null ? String(valNum) : '—';
+      
+      if (r.isNotApplicable) {
+        displayValue = 'N/A';
+      } else if (valNum !== null && criteria) {
+        const labelOptions = [criteria.goodValue, criteria.fairValue, criteria.poorValue, criteria.badValue]
+          .filter(Boolean)
+          .map((v) => String(v).trim());
+          
+        for (const opt of labelOptions) {
+          const mapped = mapQualitativeValueToNumber(opt);
+          if (mapped !== null && mapped === valNum) {
+            displayValue = opt;
+            break;
+          }
+        }
+      }
+
+      mappedResults.push({
+        ...r,
+        displayValue,
+      });
+    }
+
+    return NextResponse.json({ success: true, data: mappedResults });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal Server Error';
     return NextResponse.json({ success: false, error: message }, { status: 500 });

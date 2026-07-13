@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { useSession } from 'next-auth/react';
 
 interface AuditLogEntry {
@@ -28,16 +28,16 @@ interface Filters {
   entities: string[];
 }
 
-// Human-readable labels for actions
-const ACTION_LABELS: Record<string, { label: string; color: string; icon: string }> = {
-  CREATE: { label: 'Menambahkan', color: 'text-emerald-700 bg-emerald-50 border-emerald-200', icon: 'add_circle' },
-  UPDATE: { label: 'Mengubah', color: 'text-amber-700 bg-amber-50 border-amber-200', icon: 'edit' },
-  DELETE: { label: 'Menghapus', color: 'text-red-700 bg-red-50 border-red-200', icon: 'delete' },
-  UPLOAD: { label: 'Mengunggah', color: 'text-blue-700 bg-blue-50 border-blue-200', icon: 'upload_file' },
-  SUBMIT: { label: 'Mengirim', color: 'text-indigo-700 bg-indigo-50 border-indigo-200', icon: 'send' },
-  APPROVE: { label: 'Menyetujui', color: 'text-emerald-700 bg-emerald-50 border-emerald-200', icon: 'check_circle' },
-  REJECT: { label: 'Menolak', color: 'text-red-700 bg-red-50 border-red-200', icon: 'cancel' },
-  IMPORT: { label: 'Mengimpor', color: 'text-purple-700 bg-purple-50 border-purple-200', icon: 'file_upload' },
+// Human-readable labels for actions (no icons)
+const ACTION_LABELS: Record<string, { label: string; color: string }> = {
+  CREATE: { label: 'Menambahkan', color: 'text-emerald-700 bg-emerald-50 border-emerald-100 font-sans' },
+  UPDATE: { label: 'Mengubah', color: 'text-amber-700 bg-amber-50 border-amber-100 font-sans' },
+  DELETE: { label: 'Menghapus', color: 'text-red-700 bg-red-50 border-red-100 font-sans' },
+  UPLOAD: { label: 'Mengunggah', color: 'text-blue-700 bg-blue-50 border-blue-100 font-sans' },
+  SUBMIT: { label: 'Mengirim', color: 'text-indigo-700 bg-indigo-50 border-indigo-100 font-sans' },
+  APPROVE: { label: 'Menyetujui', color: 'text-emerald-700 bg-emerald-50 border-emerald-100 font-sans' },
+  REJECT: { label: 'Menolak', color: 'text-red-700 bg-red-50 border-red-100 font-sans' },
+  IMPORT: { label: 'Mengimpor', color: 'text-purple-700 bg-purple-50 border-purple-100 font-sans' },
 };
 
 // Human-readable entity names
@@ -54,10 +54,10 @@ const ENTITY_LABELS: Record<string, string> = {
 
 // Role badge colors
 const ROLE_COLORS: Record<string, string> = {
-  ADMIN: 'bg-red-100 text-red-700 border-red-200',
-  QC: 'bg-amber-100 text-amber-700 border-amber-200',
-  INPUT: 'bg-blue-100 text-blue-700 border-blue-200',
-  VIEWER: 'bg-gray-100 text-gray-600 border-gray-200',
+  ADMIN: 'bg-red-50 text-red-700 border-red-100 font-sans',
+  QC: 'bg-purple-50 text-purple-700 border-purple-100 font-sans',
+  INPUT: 'bg-blue-50 text-blue-700 border-blue-100 font-sans',
+  VIEWER: 'bg-slate-50 text-slate-700 border-slate-200 font-sans',
 };
 
 export default function LogPage() {
@@ -141,7 +141,14 @@ export default function LogPage() {
   };
 
   const getActionMeta = (action: string) => {
-    return ACTION_LABELS[action] || { label: action, color: 'text-gray-700 bg-gray-50 border-gray-200', icon: 'info' };
+    const baseAction = (action || '').split('_')[0].toUpperCase();
+    return (
+      ACTION_LABELS[action] ||
+      ACTION_LABELS[baseAction] || {
+        label: action,
+        color: 'text-gray-700 bg-gray-50 border-gray-200',
+      }
+    );
   };
 
   const getEntityLabel = (entity: string) => {
@@ -184,14 +191,14 @@ export default function LogPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in font-sans">
+    <div className="space-y-6 animate-fade-in font-sans">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-on-surface flex items-center gap-3">
           <span className="material-symbols-outlined text-primary text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>
             history
           </span>
-          Log Aktivitas
+          Log Audit
         </h1>
         <p className="text-on-surface-variant text-sm mt-1">
           Riwayat seluruh aktivitas yang terjadi pada sistem, termasuk pengujian, validasi, pengelolaan laporan, dan perubahan master data.
@@ -286,17 +293,17 @@ export default function LogPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse table-fixed">
                 <thead>
-                  <tr className="border-b border-surface-border bg-surface-container-low text-on-surface-variant text-xs font-mono font-medium uppercase select-none">
-                    <th className="py-3 px-4 w-[180px]">Waktu</th>
-                    <th className="py-3 px-4">User</th>
-                    <th className="py-3 px-4">Aksi</th>
-                    <th className="py-3 px-4">Deskripsi</th>
-                    <th className="py-3 px-4 text-center w-[60px]">Detail</th>
+                  <tr className="bg-surface-container-low/40 border-b border-surface-border font-bold font-sans text-[10px] uppercase tracking-wider text-outline select-none">
+                    <th className="py-3.5 px-4 w-[120px]">Waktu</th>
+                    <th className="py-3.5 px-4 w-[180px]">User</th>
+                    <th className="py-3.5 px-4 w-[130px]">Aksi</th>
+                    <th className="py-3.5 px-4">Deskripsi</th>
+                    <th className="py-3.5 px-4 text-center w-[70px]">Detail</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-surface-border text-sm">
+                <tbody className="divide-y divide-surface-border/40 text-sm">
                   {logs.map((log) => {
                     const actionMeta = getActionMeta(log.action);
                     const isExpanded = expandedId === log.id;
@@ -304,85 +311,86 @@ export default function LogPage() {
                     const afterData = parseJsonSafe(log.afterData);
 
                     return (
-                      <tr key={log.id} className="group">
-                        <td className="py-3 px-4 align-top">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-on-surface font-medium text-xs">{formatDate(log.createdAt)}</span>
-                            <span className="text-on-surface-variant font-mono text-[11px]">{formatTime(log.createdAt)}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 align-top">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-on-surface font-semibold text-sm">{log.userName}</span>
-                            <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded border w-fit ${ROLE_COLORS[log.userRole] || ROLE_COLORS.VIEWER}`}>
-                              {log.userRole}
+                      <Fragment key={log.id}>
+                        <tr 
+                          className="hover:bg-surface-container-low/10 transition-all border-l-4 border-l-transparent hover:border-l-primary group/row"
+                        >
+                          <td className="py-3 px-4 align-middle">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-on-surface font-semibold text-xs">{formatDate(log.createdAt)}</span>
+                              <span className="text-on-surface-variant font-medium text-[10px]">{formatTime(log.createdAt)}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="flex items-center gap-3">
+                              <div className="h-8 w-8 rounded-full bg-surface-container-high text-primary font-bold text-xs flex items-center justify-center border border-surface-border/50 shrink-0">
+                                {log.userName.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex flex-col gap-1 min-w-0">
+                                <span className="text-on-surface font-semibold text-xs truncate">{log.userName}</span>
+                                <span className={`inline-flex items-center px-2 py-0.5 text-[9px] font-bold rounded border w-fit ${ROLE_COLORS[log.userRole] || ROLE_COLORS.VIEWER}`}>
+                                  {log.userRole === 'INPUT' ? 'Inputter' : log.userRole === 'QC' ? 'Validator' : log.userRole === 'ADMIN' ? 'Admin' : 'Viewer'}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <span className="text-on-surface font-semibold text-xs">
+                              {actionMeta.label}
                             </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 align-top">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border ${actionMeta.color}`}>
-                            <span className="material-symbols-outlined text-[14px]">{actionMeta.icon}</span>
-                            {actionMeta.label}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 align-top">
-                          <span className="text-on-surface text-sm">{getLogDescription(log)}</span>
-                        </td>
-                        <td className="py-3 px-4 align-top text-center">
-                          {(beforeData || afterData) && (
-                            <button
-                              onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                              className="p-1 hover:bg-surface-container-low text-on-surface-variant/60 hover:text-primary rounded-md transition-all cursor-pointer"
-                              title="Lihat Detail"
-                            >
-                              <span className={`material-symbols-outlined text-[18px] transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-                                expand_more
-                              </span>
-                            </button>
-                          )}
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="py-3 px-4 align-middle text-on-surface-variant font-medium text-xs">
+                            {getLogDescription(log)}
+                          </td>
+                          <td className="py-3 px-4 align-middle text-center">
+                            {(beforeData || afterData) && (
+                              <button
+                                onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                                className="h-7 w-7 text-outline hover:text-primary hover:bg-primary/5 rounded-lg border border-surface-border hover:border-primary/20 transition-all cursor-pointer flex items-center justify-center mx-auto"
+                                title="Lihat Detail"
+                              >
+                                <span className={`material-symbols-outlined text-[16px] transition-transform font-bold ${isExpanded ? 'rotate-180' : ''}`}>
+                                  expand_more
+                                </span>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                        {isExpanded && (beforeData || afterData) && (
+                          <tr className="bg-surface-container-low/20">
+                            <td colSpan={5} className="p-4 border-t border-b border-surface-border/40">
+                              <div className="flex items-center gap-2 mb-3">
+                                <span className="material-symbols-outlined text-primary text-[16px]">data_object</span>
+                                <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Detail Data</span>
+                                <span className="text-[10px] font-mono text-on-surface-variant/50 ml-auto">ID: {log.entityId}</span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {beforeData && (
+                                  <div className="bg-red-50/30 border border-red-200/30 rounded-lg p-3">
+                                    <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider mb-2">Data Sebelum</p>
+                                    <pre className="text-xs text-red-800 font-mono overflow-auto whitespace-pre-wrap max-h-40">
+                                      {JSON.stringify(beforeData, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {afterData && (
+                                  <div className="bg-emerald-50/30 border border-emerald-200/30 rounded-lg p-3">
+                                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-2">Data Sesudah</p>
+                                    <pre className="text-xs text-emerald-800 font-mono overflow-auto whitespace-pre-wrap max-h-40">
+                                      {JSON.stringify(afterData, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-
-            {/* Expanded Detail Rows */}
-            {expandedId && (() => {
-              const log = logs.find((l) => l.id === expandedId);
-              if (!log) return null;
-              const beforeData = parseJsonSafe(log.beforeData);
-              const afterData = parseJsonSafe(log.afterData);
-
-              return (
-                <div className="border-t border-surface-border bg-surface-container-low p-4 animate-fade-in">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="material-symbols-outlined text-primary text-[16px]">data_object</span>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Detail Data</span>
-                    <span className="text-[10px] font-mono text-on-surface-variant/50 ml-auto">ID: {log.entityId}</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {beforeData && (
-                      <div className="bg-red-50/50 border border-red-200/50 rounded-lg p-3">
-                        <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider mb-2">Data Sebelum</p>
-                        <pre className="text-xs text-red-800 font-mono overflow-auto whitespace-pre-wrap max-h-40">
-                          {JSON.stringify(beforeData, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                    {afterData && (
-                      <div className="bg-emerald-50/50 border border-emerald-200/50 rounded-lg p-3">
-                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-2">Data Sesudah</p>
-                        <pre className="text-xs text-emerald-800 font-mono overflow-auto whitespace-pre-wrap max-h-40">
-                          {JSON.stringify(afterData, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* Pagination */}
             <div className="border-t border-surface-border px-4 py-3 flex items-center justify-between bg-surface-container-low text-sm">

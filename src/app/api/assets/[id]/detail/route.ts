@@ -4,10 +4,40 @@ import { getDb } from '@/lib/db';
 import { Asset } from '@/entities/Asset';
 import { TestType } from '@/entities/TestType';
 import { TestSession } from '@/entities/TestSession';
+import { Criteria } from '@/entities/Criteria';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
 import { aggregateAssetStatus } from '@/lib/scoring/aggregateAssetStatus';
+import { mapQualitativeValueToNumber } from '@/lib/scoring/calculateScore';
 import type { JudgementLabel } from '@/types';
+
+const TEST_TYPE_ORDER = [
+  'INSULATION RESISTANCE',
+  'POLARITY INDEX',
+  'TURN TO TURN RATIO',
+  'WINDING RESISTANCE HV',
+  'WINDING RESISTANCE LV',
+  'SFRA HV OPEN',
+  'SFRA HV SHORTED',
+  'SFRA LV OPEN',
+  'SFRA LV SHORTED',
+  'EXC CURRENT',
+  'TAN DELTA WINDING',
+  'TAN DELTA BUSHING',
+  'WATT LOSS BUSHING BUSHING',
+  'GROUNDING RESISTANCE',
+  'DIRANA MOISTURE',
+  'DIRANA OIL CONDUCT',
+  'ARRESTER GROUND',
+  'ARRESTER IR',
+  'ARRESTER WATT LOSS',
+  'VISUAL INSPECTION',
+  'OTI ',
+  'WTI',
+  'DGA',
+  'OIL ANALYSIS',
+  'RLA'
+];
 
 interface TestResultWithParam {
   isNotApplicable: boolean;
@@ -178,7 +208,11 @@ export async function GET(
     const allScores: (number | null)[] = [];
     const allJudgements: (JudgementLabel | null)[] = [];
 
-    const testTypeStatuses = testTypes.map((tt) => {
+    const criteriaRepo = db.getRepository(Criteria);
+    const now = selectedSession?.createdAt || new Date();
+
+    const testTypeStatuses = [];
+    for (const tt of testTypes) {
       const results = selectedSession?.testResults?.filter(
         (r) => r.parameter?.testTypeId === tt.id
       ) || [];
@@ -189,26 +223,57 @@ export async function GET(
       allScores.push(...scores);
       allJudgements.push(...judgements);
 
-      const parameters = tt.parameters.map((param) => {
+      const parameters = [];
+      for (const param of tt.parameters) {
         const result = results.find((r) => r.parameterId === param.id);
-        return {
+        const valNum = result?.value !== null && result?.value !== undefined ? Number(result.value) : null;
+        let displayValue = valNum !== null ? String(valNum) : '—';
+
+        if (result?.isNotApplicable) {
+          displayValue = 'N/A';
+        } else if (valNum !== null) {
+          const criteria = await criteriaRepo.createQueryBuilder('c')
+            .where('c.parameter_id = :parameterId', { parameterId: param.id })
+            .andWhere('c.effective_from <= :now', { now })
+            .andWhere('(c.effective_to IS NULL OR c.effective_to >= :now2)', { now2: now })
+            .orderBy('c.effective_from', 'DESC')
+            .getOne();
+
+          if (criteria) {
+            const labelOptions = [criteria.goodValue, criteria.fairValue, criteria.poorValue, criteria.badValue]
+              .filter(Boolean)
+              .map((v) => String(v).trim());
+              
+            for (const opt of labelOptions) {
+              const mapped = mapQualitativeValueToNumber(opt);
+              if (mapped !== null && mapped === valNum) {
+                displayValue = opt;
+                break;
+              }
+            }
+          }
+        }
+
+        parameters.push({
           parameterId: param.id,
           parameterName: param.name,
           unit: param.unit,
-          value: result?.value !== null && result?.value !== undefined ? Number(result.value) : null,
+          value: valNum,
+          displayValue,
           isNotApplicable: result?.isNotApplicable || false,
           score: result?.score !== null && result?.score !== undefined ? Number(result.score) : null,
           judgement: (result?.judgement as JudgementLabel) || null,
-        };
-      });
+        });
+      }
 
-      return {
+      testTypeStatuses.push({
         testTypeId: tt.id,
         testTypeName: tt.name,
+        standard: tt.standard,
         judgement: aggregateAssetStatus(judgements),
         parameters,
-      };
-    });
+      });
+    }
 
     // Dynamic Damage Mechanism aggregation for this asset and selected session
     const mechanisms = [
@@ -242,6 +307,17 @@ export async function GET(
       return true;
     });
 
+    // Sort testTypeStatuses according to TEST_TYPE_ORDER
+    const sortedTestTypeStatuses = [...testTypeStatuses].sort((a, b) => {
+      const nameA = (a.testTypeName || '').trim().toUpperCase();
+      const nameB = (b.testTypeName || '').trim().toUpperCase();
+      const idxA = TEST_TYPE_ORDER.indexOf(nameA);
+      const idxB = TEST_TYPE_ORDER.indexOf(nameB);
+      const posA = idxA !== -1 ? idxA : 999;
+      const posB = idxB !== -1 ? idxB : 999;
+      return posA - posB;
+    });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -252,7 +328,7 @@ export async function GET(
         ubpName: asset.ubp?.name || '',
         lastTestYear: selectedSession?.testYear || null,
         overallJudgement: aggregateAssetStatus(allJudgements),
-        testTypeStatuses,
+        testTypeStatuses: sortedTestTypeStatuses,
         damageMechanisms,
         selectedSessionId: selectedSession?.id || null,
         selectedTestYear: selectedSession?.testYear || null,

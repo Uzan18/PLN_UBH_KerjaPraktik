@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 
@@ -34,12 +34,42 @@ export default function UbpAssetManagementPage() {
   const [serialNumber, setSerialNumber] = useState('');
 
   const [errorMsg, setErrorMsg] = useState('');
+  const [localCustomTypes, setLocalCustomTypes] = useState<string[]>([]);
+
+  // Load custom equipment types from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('siat_custom_equipment_types');
+      if (stored) {
+        try {
+          setLocalCustomTypes(JSON.parse(stored));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, []);
 
   // Queries
   const { data: ubps, isLoading, error } = useQuery({
     queryKey: ['ubp-assets-manage'],
     queryFn: fetchUbpAssets,
   });
+
+  const existingEquipmentTypes = useMemo(() => {
+    const defaultTypes = ['Main Trafo', 'UAT', 'SST', 'Trafo Bantu', ...localCustomTypes];
+    const set = new Set<string>(defaultTypes);
+    if (ubps) {
+      for (const ubp of ubps) {
+        for (const asset of ubp.assets || []) {
+          if (asset.equipmentType) {
+            set.add(asset.equipmentType);
+          }
+        }
+      }
+    }
+    return Array.from(set).sort();
+  }, [ubps, localCustomTypes]);
 
   // Mutations
   const addUbpMutation = useMutation({
@@ -469,11 +499,10 @@ export default function UbpAssetManagementPage() {
                       onChange={(e) => setEquipmentType(e.target.value)}
                       className="w-full bg-surface-container-low border border-surface-border rounded-lg text-sm py-2.5 px-3 focus:ring-primary focus:border-primary"
                     >
-                      <option value="Main Trafo">Main Trafo</option>
-                      <option value="UAT">UAT</option>
-                      <option value="SST">SST</option>
-                      <option value="Trafo Bantu">Trafo Bantu</option>
-                      <option value="Custom">Lain-lain (Kustom)</option>
+                      {existingEquipmentTypes.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                      <option value="Custom">Lain-lain (Kustom)...</option>
                     </select>
                   </div>
 
@@ -541,6 +570,22 @@ export default function UbpAssetManagementPage() {
                       setErrorMsg('Jenis Peralatan wajib diisi');
                       return;
                     }
+
+                    let testTypeIds: string[] | undefined = undefined;
+                    if (typeof window !== 'undefined') {
+                      const mappingsStr = localStorage.getItem('siat_custom_equipment_type_mappings');
+                      if (mappingsStr) {
+                        try {
+                          const mappings = JSON.parse(mappingsStr);
+                          if (mappings && mappings[finalType.trim()]) {
+                            testTypeIds = mappings[finalType.trim()];
+                          }
+                        } catch (e) {
+                          console.error(e);
+                        }
+                      }
+                    }
+
                     addAssetMutation.mutate({
                       ubpId: targetUbpId,
                       equipmentType: finalType.trim(),
@@ -548,6 +593,7 @@ export default function UbpAssetManagementPage() {
                       mfgYear: mfgYear ? parseInt(mfgYear) : undefined,
                       vectorGroup: vectorGroup || undefined,
                       serialNumber: serialNumber || undefined,
+                      testTypeIds,
                     });
                   }}
                   disabled={addAssetMutation.isPending}

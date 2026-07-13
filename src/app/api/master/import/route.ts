@@ -12,7 +12,7 @@ import { ReportDirectory } from '@/entities/ReportDirectory';
 import { ReportFile } from '@/entities/ReportFile';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
-import { calculateScore } from '@/lib/scoring/calculateScore';
+import { calculateScore, mapQualitativeValueToNumber } from '@/lib/scoring/calculateScore';
 import { determineJudgement } from '@/lib/scoring/determineJudgement';
 import * as XLSX from 'xlsx';
 
@@ -69,6 +69,12 @@ function lookupCriteria(testType: string, param: string): { good: string | null;
   }
   if (tt.includes('ARRESTER WATT LOSS')) {
     return { good: '<= 0.5', fair: '0.51 - 1', poor: '1.01 - 2', bad: '> 2' };
+  }
+  if (tt.includes('VISUAL INSPECTION') || tt.includes('VISUAL')) {
+    return { good: 'TIDAK ADA', fair: null, poor: null, bad: 'ADA' };
+  }
+  if (tt.includes('OTI') || tt.includes('WTI')) {
+    return { good: 'GOOD', fair: 'FAIR', poor: 'POOR', bad: 'BAD' };
   }
 
   return { good: null, fair: null, poor: null, bad: null };
@@ -324,13 +330,22 @@ export async function POST(request: Request) {
           let score: number | null = null;
 
           // Resolve Value
-          if (rawValue === null || rawValue === undefined || String(rawValue).trim().toUpperCase() === 'NA' || String(rawValue).trim().toUpperCase() === 'N/A' || String(rawValue).trim() === '') {
+          const rawStr = rawValue !== null && rawValue !== undefined ? String(rawValue).trim() : '';
+          const cleanRaw = rawStr.toUpperCase();
+
+          if (rawValue === null || rawValue === undefined || cleanRaw === 'NA' || cleanRaw === 'N/A' || cleanRaw === '') {
             isNotApplicable = true;
           } else {
-            numericValue = parseFloat(String(rawValue).replace(/,/g, ''));
-            if (isNaN(numericValue)) {
-              numericValue = null;
-              isNotApplicable = true;
+            const qualMapped = mapQualitativeValueToNumber(rawStr);
+            if (qualMapped !== null) {
+              numericValue = qualMapped;
+              isNotApplicable = false;
+            } else {
+              numericValue = parseFloat(rawStr.replace(/,/g, ''));
+              if (isNaN(numericValue)) {
+                numericValue = null;
+                isNotApplicable = true;
+              }
             }
           }
 
@@ -383,9 +398,10 @@ export async function POST(request: Request) {
         await transactionManager.save(ReportDirectory, rootFolder);
 
         const ubpAssets = Array.from(assetCache.values()).filter((a) => a.ubpId === ubpObj.id);
-        for (const asset of ubpAssets) {
+        const uniqueUnitNames = new Set(ubpAssets.map((a) => a.name.trim()));
+        for (const unitName of uniqueUnitNames) {
           const assetFolder = transactionManager.create(ReportDirectory, {
-            name: asset.name,
+            name: unitName,
             parentId: rootFolder.id,
           });
           await transactionManager.save(ReportDirectory, assetFolder);

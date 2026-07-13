@@ -138,6 +138,13 @@ export async function DELETE(request: Request) {
     // Cascade delete manually to ensure data integrity in SQLite / other db types
     if (ubp.assets && ubp.assets.length > 0) {
       for (const asset of ubp.assets) {
+        // Load asset with testTypes relation to unlink them first
+        const fullAsset = await assetRepo.findOne({ where: { id: asset.id }, relations: ['testTypes'] });
+        if (fullAsset) {
+          fullAsset.testTypes = [];
+          await assetRepo.save(fullAsset);
+        }
+
         const testSessions = await sessionRepo.find({ where: { assetId: asset.id } });
         for (const s of testSessions) {
           await resultRepo.delete({ testSessionId: s.id });

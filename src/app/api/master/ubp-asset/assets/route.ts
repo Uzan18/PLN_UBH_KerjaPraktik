@@ -3,12 +3,13 @@ export const dynamic = 'force-dynamic';
 import { getDb } from '@/lib/db';
 import { Asset } from '@/entities/Asset';
 import { Ubp } from '@/entities/Ubp';
+import { TestType } from '@/entities/TestType';
 import { TestSession } from '@/entities/TestSession';
 import { TestResult } from '@/entities/TestResult';
 import { ReportDirectory } from '@/entities/ReportDirectory';
 import { AuditLog } from '@/entities/AuditLog';
 import { getServerSession } from '@/lib/auth/session';
-import { IsNull } from 'typeorm';
+import { IsNull, In } from 'typeorm';
 
 /**
  * POST /api/master/ubp-asset/assets
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { ubpId, equipmentType, mfgYear, vectorGroup, serialNumber } = body;
+    const { ubpId, equipmentType, mfgYear, vectorGroup, serialNumber, testTypeIds } = body;
     let { name } = body;
 
     if (!ubpId) {
@@ -42,11 +43,27 @@ export async function POST(request: Request) {
     const ubpRepo = db.getRepository(Ubp);
     const dirRepo = db.getRepository(ReportDirectory);
     const auditRepo = db.getRepository(AuditLog);
+    const testTypeRepo = db.getRepository(TestType);
 
     // Verify UBP exists
     const ubp = await ubpRepo.findOne({ where: { id: ubpId } });
     if (!ubp) {
       return NextResponse.json({ success: false, error: 'UBP not found' }, { status: 404 });
+    }
+
+    // Find an existing asset with the same equipmentType to copy its testTypes configuration
+    const existingAssetWithSameType = await assetRepo.findOne({
+      where: { equipmentType: equipmentType.trim() },
+      relations: ['testTypes'],
+    });
+
+    let initialTestTypes: TestType[] = [];
+    if (existingAssetWithSameType) {
+      initialTestTypes = existingAssetWithSameType.testTypes;
+    } else if (Array.isArray(testTypeIds) && testTypeIds.length > 0) {
+      initialTestTypes = await testTypeRepo.find({
+        where: { id: In(testTypeIds) }
+      });
     }
 
     const asset = assetRepo.create({
@@ -56,6 +73,7 @@ export async function POST(request: Request) {
       mfgYear: mfgYear ? parseInt(mfgYear) : null,
       vectorGroup: vectorGroup ? vectorGroup.trim() : null,
       serialNumber: serialNumber ? serialNumber.trim() : null,
+      testTypes: initialTestTypes,
     });
     await assetRepo.save(asset);
 
@@ -109,9 +127,10 @@ export async function DELETE(request: Request) {
 
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
+    const equipmentType = url.searchParams.get('equipmentType');
 
-    if (!id) {
-      return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
+    if (!id && !equipmentType) {
+      return NextResponse.json({ success: false, error: 'ID or equipmentType is required' }, { status: 400 });
     }
 
     const db = await getDb();
@@ -120,32 +139,70 @@ export async function DELETE(request: Request) {
     const resultRepo = db.getRepository(TestResult);
     const auditRepo = db.getRepository(AuditLog);
 
-    const asset = await assetRepo.findOne({ where: { id }, relations: ['ubp'] });
-    if (!asset) {
-      return NextResponse.json({ success: false, error: 'Asset not found' }, { status: 404 });
+    if (id) {
+      const asset = await assetRepo.findOne({ where: { id }, relations: ['ubp', 'testTypes'] });
+      if (!asset) {
+        return NextResponse.json({ success: false, error: 'Asset not found' }, { status: 404 });
+      }
+
+      // Cascade delete manually
+      const testSessions = await sessionRepo.find({ where: { assetId: id } });
+      for (const s of testSessions) {
+        await resultRepo.delete({ testSessionId: s.id });
+        await sessionRepo.delete({ id: s.id });
+      }
+
+      // Unlink ManyToMany testTypes relation first
+      asset.testTypes = [];
+      await assetRepo.save(asset);
+
+      await assetRepo.delete({ id });
+
+      // Audit log
+      const auditLog = auditRepo.create({
+        userId: session.user.id,
+        action: 'DELETE',
+        entity: 'Asset',
+        entityId: id,
+        beforeData: JSON.stringify({ name: asset.name, equipmentType: asset.equipmentType }),
+        afterData: null,
+      });
+      await auditRepo.save(auditLog);
+
+      return NextResponse.json({ success: true, data: { id } });
+    } else if (equipmentType) {
+      // Find all assets of this equipmentType
+      const assets = await assetRepo.find({ where: { equipmentType: equipmentType.trim() }, relations: ['testTypes'] });
+      
+      for (const asset of assets) {
+        const testSessions = await sessionRepo.find({ where: { assetId: asset.id } });
+        for (const s of testSessions) {
+          await resultRepo.delete({ testSessionId: s.id });
+          await sessionRepo.delete({ id: s.id });
+        }
+        
+        // Unlink ManyToMany testTypes relation first
+        asset.testTypes = [];
+        await assetRepo.save(asset);
+
+        await assetRepo.delete({ id: asset.id });
+      }
+
+      // Audit log
+      const auditLog = auditRepo.create({
+        userId: session.user.id,
+        action: 'DELETE',
+        entity: 'EquipmentType',
+        entityId: equipmentType.trim(),
+        beforeData: JSON.stringify({ equipmentType: equipmentType.trim(), assetCount: assets.length }),
+        afterData: null,
+      });
+      await auditRepo.save(auditLog);
+
+      return NextResponse.json({ success: true, data: { equipmentType: equipmentType.trim(), deletedAssetCount: assets.length } });
     }
 
-    // Cascade delete manually
-    const testSessions = await sessionRepo.find({ where: { assetId: id } });
-    for (const s of testSessions) {
-      await resultRepo.delete({ testSessionId: s.id });
-      await sessionRepo.delete({ id: s.id });
-    }
-
-    await assetRepo.delete({ id });
-
-    // Audit log
-    const auditLog = auditRepo.create({
-      userId: session.user.id,
-      action: 'DELETE',
-      entity: 'Asset',
-      entityId: id,
-      beforeData: JSON.stringify({ name: asset.name, equipmentType: asset.equipmentType }),
-      afterData: null,
-    });
-    await auditRepo.save(auditLog);
-
-    return NextResponse.json({ success: true, data: { id } });
+    return NextResponse.json({ success: false, error: 'Invalid request parameters' }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal Server Error';
     return NextResponse.json({ success: false, error: message }, { status: 500 });

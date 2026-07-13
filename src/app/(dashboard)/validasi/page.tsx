@@ -20,26 +20,31 @@ async function fetchSessionDetail(sessionId: string) {
 }
 
 const TEST_TYPE_ORDER = [
-  'Insulation Resistance',
-  'Polarity Index',
-  'Turn to Turn Ratio',
-  'Winding Resistance HV',
-  'Winding Resistance LV',
-  'Excitation Current',
-  'SFRA Open HV',
-  'SFRA Shorted HV',
-  'SFRA Open LV',
-  'SFRA Shorted LV',
-  'Tan Delta Winding',
-  'Tan Delta Bushing',
-  'Watt Loss Bushing',
-  'Grounding Resistance',
-  'Dirana Moisture',
-  'Oil Conductivity',
-  'Arrester Grounding',
-  'Arrester Insulation Resistance',
-  'Arrester Leakage Current',
-  'Arrester Watt Loss',
+  'INSULATION RESISTANCE',
+  'POLARITY INDEX',
+  'TURN TO TURN RATIO',
+  'WINDING RESISTANCE HV',
+  'WINDING RESISTANCE LV',
+  'SFRA HV OPEN',
+  'SFRA HV SHORTED',
+  'SFRA LV OPEN',
+  'SFRA LV SHORTED',
+  'EXC CURRENT',
+  'TAN DELTA WINDING',
+  'TAN DELTA BUSHING',
+  'WATT LOSS BUSHING BUSHING',
+  'GROUNDING RESISTANCE',
+  'DIRANA MOISTURE',
+  'DIRANA OIL CONDUCT',
+  'ARRESTER GROUND',
+  'ARRESTER IR',
+  'ARRESTER WATT LOSS',
+  'VISUAL INSPECTION',
+  'OTI ',
+  'WTI',
+  'DGA',
+  'OIL ANALYSIS',
+  'RLA'
 ];
 
 export default function ValidasiPage() {
@@ -125,8 +130,8 @@ export default function ValidasiPage() {
   const sortedDetails = useMemo(() => {
     if (!details) return [];
     return [...details].sort((a: any, b: any) => {
-      const typeA = a.parameter?.testType?.name || '';
-      const typeB = b.parameter?.testType?.name || '';
+      const typeA = (a.parameter?.testType?.name || '').trim().toUpperCase();
+      const typeB = (b.parameter?.testType?.name || '').trim().toUpperCase();
       
       if (typeA !== typeB) {
         const idxA = TEST_TYPE_ORDER.indexOf(typeA);
@@ -264,26 +269,25 @@ export default function ValidasiPage() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-surface-container-low border-b border-surface-border text-left">
-                  <th className="px-6 py-4 text-xs font-bold text-outline uppercase tracking-wider">Unit Pembangkit</th>
-                  <th className="px-6 py-4 text-xs font-bold text-outline uppercase tracking-wider">Jenis Pengujian</th>
-                  <th className="px-6 py-4 text-xs font-bold text-outline uppercase tracking-wider text-center">Status</th>
-                  <th className="px-6 py-4 text-xs font-bold text-outline uppercase tracking-wider">Diinput oleh</th>
-                  <th className="px-6 py-4 text-xs font-bold text-outline uppercase tracking-wider">Tanggal Submit</th>
-                  <th className="px-6 py-4 text-xs font-bold text-outline uppercase tracking-wider text-right">Aksi</th>
+                  <th className="px-6 py-4 text-xs font-bold text-outline uppercase tracking-wider w-[30%]">Unit Pembangkit</th>
+                  <th className="px-6 py-4 text-xs font-bold text-outline uppercase tracking-wider w-[25%]">Diinput oleh</th>
+                  <th className="px-6 py-4 text-xs font-bold text-outline uppercase tracking-wider text-center w-[20%]">Tanggal Submit</th>
+                  <th className="px-6 py-4 text-xs font-bold text-outline uppercase tracking-wider text-center w-[15%]">Status</th>
+                  <th className="px-6 py-4 text-xs font-bold text-outline uppercase tracking-wider text-center w-[10%]">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
                 {queue.map((item: any) => (
-                  <tr key={item.sessionId} className="hover:bg-surface-container-low transition-colors group">
+                  <tr 
+                    key={item.sessionId} 
+                    onClick={() => setSelectedReviewItem(item)}
+                    className="hover:bg-surface-container-low transition-colors group cursor-pointer"
+                  >
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
                         <span className="font-bold text-primary text-sm">{item.assetName}</span>
                         <span className="text-[11px] text-outline font-medium uppercase">{item.ubpName}</span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-on-surface-variant font-medium">{item.testTypeName}</td>
-                    <td className="px-6 py-4 text-center">
-                      <StatusBadge status={item.status} size="sm" />
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -293,17 +297,21 @@ export default function ValidasiPage() {
                         <span className="text-sm font-medium">{item.createdByName}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-on-surface-variant">
+                    <td className="px-6 py-4 text-sm text-on-surface-variant text-center">
                       {new Date(item.submittedAt).toLocaleDateString('id-ID', {
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric',
                       })}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-end opacity-60 group-hover:opacity-100 transition-opacity">
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex justify-center">
+                        <StatusBadge status={item.status} size="sm" />
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex justify-center opacity-60 group-hover:opacity-100 transition-opacity">
                         <button 
-                          onClick={() => setSelectedReviewItem(item)}
                           className="px-3 py-1 bg-surface-container hover:bg-surface-container-high border border-surface-border text-primary text-[10px] font-bold rounded transition-colors cursor-pointer"
                         >
                           Detail
@@ -437,7 +445,7 @@ export default function ValidasiPage() {
                               <td className="px-4 py-2 font-semibold text-on-surface">{r.parameter?.testType?.name}</td>
                               <td className="px-4 py-2 text-on-surface-variant font-medium">{r.parameter?.name}</td>
                               <td className="px-4 py-2 font-mono text-on-surface">
-                                {r.isNotApplicable ? <span className="text-outline/40">N/A</span> : r.value}
+                                {r.displayValue || (r.isNotApplicable ? <span className="text-outline/40">N/A</span> : r.value)}
                               </td>
                               <td className="px-4 py-2 text-center">
                                 <StatusBadge judgement={r.judgement} size="sm" showIcon={false} />
@@ -579,32 +587,6 @@ export default function ValidasiPage() {
         </div>
       )}
 
-      {/* Help Section */}
-      <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-12 lg:col-span-8 bg-surface-container-low/50 p-6 rounded-xl border border-dashed border-outline-variant flex gap-6 items-start">
-          <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-primary border border-surface-border shadow-sm shrink-0">
-            <span className="material-symbols-outlined">info</span>
-          </div>
-          <div>
-            <h4 className="font-bold text-primary mb-2">Panduan Validasi Teknis</h4>
-            <p className="text-sm text-on-surface-variant leading-relaxed mb-4">
-              Setiap data yang masuk telah melalui <span className="font-bold text-on-surface">Auto-Threshold Calculation</span>. Sebagai validator, Anda wajib melakukan cross-check terhadap kurva tren historis sebelum memberikan approval final.
-            </p>
-            <div className="flex gap-4">
-              {[
-                { color: '#3B82F6', label: 'Menunggu Validasi (QC)' },
-                { color: '#22C55E', label: 'Tervalidasi (Approved)' },
-                { color: '#EF4444', label: 'Ditolak (Rejected)' },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center gap-2 text-[11px] font-bold text-outline uppercase tracking-wider">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                  {item.label}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

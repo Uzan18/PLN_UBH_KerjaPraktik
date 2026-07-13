@@ -65,8 +65,8 @@ async function main() {
     allowedUbpIds: null,
   });
 
-  const inputUser = await upsertUser('budi.santoso@plnip.co.id', {
-    name: 'Budi Santoso',
+  const inputUser = await upsertUser('input@plnip.co.id', {
+    name: 'Input',
     passwordHash: inputPassword,
     role: 'INPUT',
     allowedUbpIds: null,
@@ -481,7 +481,7 @@ async function main() {
   console.log('');
   console.log('📋 Login credentials:');
   console.log('  Admin:  admin@plnip.co.id / admin123');
-  console.log('  Input:  budi.santoso@plnip.co.id / input123');
+  console.log('  Input:  input@plnip.co.id / input123');
   console.log('  QC:     qc@plnip.co.id / qc123');
   console.log('  Viewer: viewer@plnip.co.id / viewer123');
 }

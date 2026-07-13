@@ -156,7 +156,7 @@ export default function InformasiAssetPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-surface-border pb-3">
         <div className="flex flex-col gap-0.5">
-          <h1 className="text-xl font-bold text-on-surface">Informasi Spesifikasi Aset</h1>
+          <h1 className="text-xl font-bold text-on-surface">Informasi Aset</h1>
           <p className="text-xs text-on-surface-variant">
             {level === 4 && activeAsset ? `Spesifikasi teknis & pengujian terakhir ${activeAsset.equipmentType} — ${activeAsset.name}.`
               : level === 3 ? `Pilih peralatan pada ${selectedUnitName}.`
@@ -443,7 +443,14 @@ export default function InformasiAssetPage() {
                                 <div key={test.testTypeId} className="bg-white rounded-lg overflow-hidden border border-surface-border shadow-sm">
                                   <button onClick={() => toggleTestExpand(test.testTypeId)}
                                     className="w-full flex items-center justify-between p-3.5 bg-white hover:bg-surface-container-low transition-colors text-left focus:outline-none cursor-pointer">
-                                    <span className="font-semibold text-on-surface text-xs">{test.testTypeName}</span>
+                                    <div className="flex flex-col">
+                                      <span className="font-semibold text-on-surface text-xs">{test.testTypeName}</span>
+                                      {test.standard && (
+                                        <span className="text-[10px] text-on-surface-variant font-mono mt-0.5 font-medium uppercase tracking-wider">
+                                          Std: {test.standard}
+                                        </span>
+                                      )}
+                                    </div>
                                     <div className="flex items-center gap-2">
                                       <StatusBadge judgement={test.judgement} size="sm" />
                                       {hasParameters && (
@@ -471,7 +478,7 @@ export default function InformasiAssetPage() {
                                               <tr key={param.parameterId} className={idx % 2 === 1 ? 'bg-surface-background' : ''}>
                                                 <td className="p-2 border-b border-surface-border font-bold text-on-surface">{param.parameterName}</td>
                                                 <td className="p-2 border-b border-surface-border text-center font-mono font-semibold text-primary">
-                                                  {param.isNotApplicable ? 'N/A' : param.value !== null ? param.value : '—'}
+                                                  {param.displayValue || (param.isNotApplicable ? 'N/A' : param.value !== null ? param.value : '—')}
                                                 </td>
                                                 <td className="p-2 border-b border-surface-border text-center text-on-surface-variant">{param.unit || '—'}</td>
                                                 <td className="p-2 border-b border-surface-border text-center">

@@ -4,8 +4,11 @@ import { getDb } from '@/lib/db';
 import { ReportDirectory } from '@/entities/ReportDirectory';
 import { ReportFile } from '@/entities/ReportFile';
 import { AuditLog } from '@/entities/AuditLog';
+import { Ubp } from '@/entities/Ubp';
+import { Asset } from '@/entities/Asset';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
+import { IsNull } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -29,6 +32,97 @@ export async function GET(request: Request) {
     const db = await getDb();
     const dirRepo = db.getRepository(ReportDirectory);
     const fileRepo = db.getRepository(ReportFile);
+    const ubpRepo = db.getRepository(Ubp);
+    const assetRepo = db.getRepository(Asset);
+
+    // Dynamic Synchronization of UBPs and Assets into ReportDirectory structure
+    if (parentId === null) {
+      // Sync root level directories with UBP table
+      const ubps = await ubpRepo.find();
+      const rootDirs = await dirRepo.find({ where: { parentId: IsNull() } });
+
+      // Group rootDirs by trimmed name
+      const dirMap = new Map<string, ReportDirectory[]>();
+      for (const d of rootDirs) {
+        const name = d.name.trim();
+        if (!dirMap.has(name)) {
+          dirMap.set(name, []);
+        }
+        dirMap.get(name)!.push(d);
+      }
+
+      // Create missing or deduplicate existing UBP folders
+      const ubpNames = new Set(ubps.map((u) => u.name.trim()));
+      for (const ubp of ubps) {
+        const uName = ubp.name.trim();
+        const dirs = dirMap.get(uName) || [];
+
+        if (dirs.length === 0) {
+          const newDir = dirRepo.create({ name: ubp.name, parentId: null });
+          await dirRepo.save(newDir);
+        } else if (dirs.length > 1) {
+          // Deduplicate: keep the first one, delete others recursively
+          for (let i = 1; i < dirs.length; i++) {
+            await deleteDirectoryRecursive(dirs[i].id, dirRepo, fileRepo);
+          }
+        }
+      }
+
+      // Remove orphaned UBP folders
+      for (const [name, dirs] of dirMap.entries()) {
+        if (!ubpNames.has(name)) {
+          for (const d of dirs) {
+            await deleteDirectoryRecursive(d.id, dirRepo, fileRepo);
+          }
+        }
+      }
+    } else {
+      // Sync Level 2 directories with Asset table (if parent directory represents a UBP)
+      const currentDir = await dirRepo.findOne({ where: { id: parentId } });
+      if (currentDir && currentDir.parentId === null) {
+        const ubp = await ubpRepo.findOne({ where: { name: currentDir.name } });
+        if (ubp) {
+          const assets = await assetRepo.find({ where: { ubpId: ubp.id } });
+          const subDirs = await dirRepo.find({ where: { parentId } });
+
+          // Group subDirs by trimmed name
+          const subDirMap = new Map<string, ReportDirectory[]>();
+          for (const d of subDirs) {
+            const name = d.name.trim();
+            if (!subDirMap.has(name)) {
+              subDirMap.set(name, []);
+            }
+            subDirMap.get(name)!.push(d);
+          }
+
+          // Process unique unit names from assets
+          const assetUnitNames = new Set(assets.map((a) => a.name.trim()));
+
+          // Create missing or deduplicate existing Unit Pembangkit folders
+          for (const unitName of assetUnitNames) {
+            const dirs = subDirMap.get(unitName) || [];
+            if (dirs.length === 0) {
+              const newDir = dirRepo.create({ name: unitName, parentId });
+              await dirRepo.save(newDir);
+            } else if (dirs.length > 1) {
+              // Deduplicate: keep the first one, delete others recursively
+              for (let i = 1; i < dirs.length; i++) {
+                await deleteDirectoryRecursive(dirs[i].id, dirRepo, fileRepo);
+              }
+            }
+          }
+
+          // Remove orphaned Unit Pembangkit folders
+          for (const [name, dirs] of subDirMap.entries()) {
+            if (!assetUnitNames.has(name)) {
+              for (const d of dirs) {
+                await deleteDirectoryRecursive(d.id, dirRepo, fileRepo);
+              }
+            }
+          }
+        }
+      }
+    }
 
     // Fetch current directory info and ancestors to build breadcrumbs
     let currentDir = null;
@@ -176,33 +270,7 @@ export async function DELETE(request: Request) {
 
     const dirName = dir.name;
 
-    // Helper to recursively find and delete files/folders
-    async function deleteDirectoryRecursive(dirId: string) {
-      // Find all files in this directory and delete them from disk
-      const files = await fileRepo.find({ where: { directoryId: dirId } });
-      for (const file of files) {
-        const absolutePath = path.join(process.cwd(), 'public', file.filePath);
-        if (fs.existsSync(absolutePath)) {
-          try {
-            fs.unlinkSync(absolutePath);
-          } catch (e) {
-            console.error(`Failed to delete file from disk: ${absolutePath}`, e);
-          }
-        }
-        await fileRepo.delete(file.id);
-      }
-
-      // Find subdirectories and delete them recursively
-      const subDirs = await dirRepo.find({ where: { parentId: dirId } });
-      for (const sub of subDirs) {
-        await deleteDirectoryRecursive(sub.id);
-      }
-
-      // Delete this directory record
-      await dirRepo.delete(dirId);
-    }
-
-    await deleteDirectoryRecursive(id);
+    await deleteDirectoryRecursive(id, dirRepo, fileRepo);
 
     // Audit log
     const auditLog = auditRepo.create({
@@ -220,4 +288,36 @@ export async function DELETE(request: Request) {
     const message = error instanceof Error ? error.message : 'Internal Server Error';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
+}
+
+/**
+ * Helper to recursively find and delete files/folders from disk and DB.
+ */
+async function deleteDirectoryRecursive(
+  dirId: string,
+  dirRepo: import('typeorm').Repository<ReportDirectory>,
+  fileRepo: import('typeorm').Repository<ReportFile>
+) {
+  // Find all files in this directory and delete them from disk
+  const files = await fileRepo.find({ where: { directoryId: dirId } });
+  for (const file of files) {
+    const absolutePath = path.join(process.cwd(), 'public', file.filePath);
+    if (fs.existsSync(absolutePath)) {
+      try {
+        fs.unlinkSync(absolutePath);
+      } catch (e) {
+        console.error(`Failed to delete file from disk: ${absolutePath}`, e);
+      }
+    }
+    await fileRepo.delete(file.id);
+  }
+
+  // Find subdirectories and delete them recursively
+  const subDirs = await dirRepo.find({ where: { parentId: dirId } });
+  for (const sub of subDirs) {
+    await deleteDirectoryRecursive(sub.id, dirRepo, fileRepo);
+  }
+
+  // Delete this directory record
+  await dirRepo.delete(dirId);
 }

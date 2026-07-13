@@ -47,6 +47,45 @@ function parseThresholdBound(value: string | null): { min: number | null; max: n
   return null;
 }
 
+export function mapQualitativeValueToNumber(valStr: string): number | null {
+  const clean = valStr.trim().toUpperCase();
+  if (clean === 'TIDAK ADA' || clean === 'TIDAK' || clean === 'NORMAL' || clean === 'NORMAL WINDING') {
+    return 0;
+  }
+  if (clean === 'ADA' || clean === 'YA' || clean === 'ABNORMAL' || clean === 'SLIGHT DEFORMATION') {
+    return 1;
+  }
+  if (clean === 'OBVIOUS DEFORMATION') {
+    return 2;
+  }
+  if (clean === 'SEVERE DEFORMATION') {
+    return 3;
+  }
+  if (clean === 'GOOD') {
+    return 5;
+  }
+  if (clean === 'FAIR') {
+    return 4;
+  }
+  if (clean === 'POOR') {
+    return 2;
+  }
+  if (clean === 'BAD') {
+    return 1;
+  }
+  return null;
+}
+
+export function evaluateQualitative(numValue: number, criteriaStr: string | null): boolean {
+  if (!criteriaStr) return false;
+  const mapped = mapQualitativeValueToNumber(criteriaStr);
+  if (mapped === null) {
+    const parsed = parseFloat(criteriaStr);
+    return !isNaN(parsed) && numValue === parsed;
+  }
+  return numValue === mapped;
+}
+
 /**
  * Calculate score for a test result based on the parameter value and criteria thresholds.
  * 
@@ -87,6 +126,8 @@ export function calculateScore(
     if (good.min !== null && good.max === null && numValue >= good.min) return 5;
     if (good.max !== null && good.min === null && numValue <= good.max) return 5;
     if (good.min !== null && good.max !== null && numValue >= good.min && numValue <= good.max) return 5;
+  } else if (goodValue) {
+    if (evaluateQualitative(numValue, goodValue)) return 5;
   }
 
   // Check Fair
@@ -94,6 +135,8 @@ export function calculateScore(
     if (fair.min !== null && fair.max !== null && numValue >= fair.min && numValue <= fair.max) return 4;
     if (fair.min !== null && fair.max === null && numValue >= fair.min) return 4;
     if (fair.max !== null && fair.min === null && numValue <= fair.max) return 4;
+  } else if (fairValue) {
+    if (evaluateQualitative(numValue, fairValue)) return 4;
   }
 
   // Check Poor
@@ -101,6 +144,8 @@ export function calculateScore(
     if (poor.min !== null && poor.max !== null && numValue >= poor.min && numValue <= poor.max) return 2;
     if (poor.min !== null && poor.max === null && numValue >= poor.min) return 2;
     if (poor.max !== null && poor.min === null && numValue <= poor.max) return 2;
+  } else if (poorValue) {
+    if (evaluateQualitative(numValue, poorValue)) return 2;
   }
 
   // Check Bad
@@ -108,6 +153,8 @@ export function calculateScore(
     if (bad.max !== null && bad.min === null && numValue < bad.max) return 1;
     if (bad.min !== null && bad.max === null && numValue >= bad.min) return 1;
     if (bad.min !== null && bad.max !== null && numValue >= bad.min && numValue <= bad.max) return 1;
+  } else if (badValue) {
+    if (evaluateQualitative(numValue, badValue)) return 1;
   }
 
   // Default: if value didn't match any range, consider it Bad (worst case, safe default)

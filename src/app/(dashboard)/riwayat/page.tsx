@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import Link from 'next/link';
@@ -22,26 +22,31 @@ async function fetchSessionDetail(sessionId: string) {
 }
 
 const TEST_TYPE_ORDER = [
-  'Insulation Resistance',
-  'Polarity Index',
-  'Turn to Turn Ratio',
-  'Winding Resistance HV',
-  'Winding Resistance LV',
-  'Excitation Current',
-  'SFRA Open HV',
-  'SFRA Shorted HV',
-  'SFRA Open LV',
-  'SFRA Shorted LV',
-  'Tan Delta Winding',
-  'Tan Delta Bushing',
-  'Watt Loss Bushing',
-  'Grounding Resistance',
-  'Dirana Moisture',
-  'Oil Conductivity',
-  'Arrester Grounding',
-  'Arrester Insulation Resistance',
-  'Arrester Leakage Current',
-  'Arrester Watt Loss',
+  'INSULATION RESISTANCE',
+  'POLARITY INDEX',
+  'TURN TO TURN RATIO',
+  'WINDING RESISTANCE HV',
+  'WINDING RESISTANCE LV',
+  'SFRA HV OPEN',
+  'SFRA HV SHORTED',
+  'SFRA LV OPEN',
+  'SFRA LV SHORTED',
+  'EXC CURRENT',
+  'TAN DELTA WINDING',
+  'TAN DELTA BUSHING',
+  'WATT LOSS BUSHING BUSHING',
+  'GROUNDING RESISTANCE',
+  'DIRANA MOISTURE',
+  'DIRANA OIL CONDUCT',
+  'ARRESTER GROUND',
+  'ARRESTER IR',
+  'ARRESTER WATT LOSS',
+  'VISUAL INSPECTION',
+  'OTI ',
+  'WTI',
+  'DGA',
+  'OIL ANALYSIS',
+  'RLA'
 ];
 
 const STATUS_LABELS: Record<string, string> = {
@@ -113,6 +118,15 @@ export default function RiwayatPage() {
   const [selectedUbpId, setSelectedUbpId] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedUbpId, selectedYear, selectedStatus]);
 
   // Fetch list of sessions
   const { data: sessions, isLoading, error } = useQuery({
@@ -204,6 +218,14 @@ export default function RiwayatPage() {
     });
   }, [sessions, searchQuery, selectedUbpId, selectedYear, selectedStatus]);
 
+  // Paginated Sessions
+  const totalPages = Math.ceil(filteredSessions.length / itemsPerPage);
+
+  const paginatedSessions = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredSessions.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredSessions, currentPage]);
+
   // Query detail for modal when selectedSession is set
   const { data: sessionDetails, isLoading: isDetailLoading } = useQuery({
     queryKey: ['session-detail', selectedSession?.id],
@@ -214,8 +236,8 @@ export default function RiwayatPage() {
   const sortedDetails = useMemo(() => {
     if (!sessionDetails) return [];
     return [...sessionDetails].sort((a: any, b: any) => {
-      const nameA = a.parameter?.testType?.name || '';
-      const nameB = b.parameter?.testType?.name || '';
+      const nameA = (a.parameter?.testType?.name || '').trim().toUpperCase();
+      const nameB = (b.parameter?.testType?.name || '').trim().toUpperCase();
       const idxA = TEST_TYPE_ORDER.indexOf(nameA);
       const idxB = TEST_TYPE_ORDER.indexOf(nameB);
       const posA = idxA !== -1 ? idxA : 999;
@@ -237,11 +259,11 @@ export default function RiwayatPage() {
       <div className="flex items-center gap-2 text-xs text-outline mb-2">
         <span>Menu Utama</span>
         <span className="material-symbols-outlined text-xs">chevron_right</span>
-        <span className="text-primary font-semibold">Riwayat Pengujian</span>
+        <span className="text-primary font-semibold">Riwayat Uji</span>
       </div>
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-semibold text-primary">Riwayat Pengujian</h2>
+          <h2 className="text-2xl font-semibold text-primary">Riwayat Uji</h2>
           <p className="text-on-surface-variant mt-1 text-sm">
             Daftar seluruh sesi pengujian yang telah diinput dan status validasinya.
           </p>
@@ -365,61 +387,117 @@ export default function RiwayatPage() {
               <p>Coba ubah filter pencarian atau pilihan dropdown Anda.</p>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-surface-container-low border-b border-surface-border">
-                  <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[5%] text-center">No</th>
-                  <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[25%]">Unit Pembangkit / Asset</th>
-                  <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[20%] text-center">Equipment</th>
-                  <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[10%] text-center">Tahun Uji</th>
-                  <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[15%]">Tanggal Input</th>
-                  <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[15%] text-center">Status</th>
-                  <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[10%] text-center">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-border/40">
-                {filteredSessions.map((session: any, idx: number) => (
-                  <tr 
-                    key={session.id} 
-                    className="hover:bg-surface-container-low/20 transition-colors cursor-pointer"
-                    onClick={() => setSelectedSession(session)}
-                  >
-                    <td className="px-6 py-3 text-center text-on-surface-variant font-mono">{idx + 1}</td>
-                    <td className="px-6 py-3 font-semibold text-on-surface">
-                      <div>
-                        <div>{session.asset?.name}</div>
-                        <div className="text-[10px] font-mono text-outline font-normal uppercase mt-0.5">{session.asset?.ubp?.name}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3 text-on-surface-variant text-center">{session.asset?.equipmentType}</td>
-                    <td className="px-6 py-3 text-center font-mono font-bold text-primary">{session.testYear}</td>
-                    <td className="px-6 py-3 text-on-surface-variant font-mono">
-                      {new Date(session.createdAt).toLocaleDateString('id-ID', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </td>
-                    <td className="px-6 py-3 text-center">
-                      <StatusBadge status={session.status} size="sm" />
-                    </td>
-                    <td className="px-6 py-3 text-center">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedSession(session);
-                        }}
-                        className="px-3 py-1 bg-surface-container hover:bg-surface-container-high border border-surface-border text-primary text-[10px] font-bold rounded transition-colors cursor-pointer"
-                      >
-                        Detail
-                      </button>
-                    </td>
+            <>
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-surface-container-low border-b border-surface-border">
+                    <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[5%] text-center">No</th>
+                    <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[25%]">Unit Pembangkit / Asset</th>
+                    <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[20%] text-center">Equipment</th>
+                    <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[10%] text-center">Tahun Uji</th>
+                    <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[15%] text-center">Tanggal Input</th>
+                    <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[15%] text-center">Status</th>
+                    <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[10%] text-center">Aksi</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-surface-border/40">
+                  {paginatedSessions.map((session: any, idx: number) => (
+                    <tr 
+                      key={session.id} 
+                      className="hover:bg-surface-container-low/20 transition-colors cursor-pointer"
+                      onClick={() => setSelectedSession(session)}
+                    >
+                      <td className="px-6 py-3 text-center text-on-surface-variant font-mono">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                      <td className="px-6 py-3 font-semibold text-on-surface">
+                        <div>
+                          <div>{session.asset?.name}</div>
+                          <div className="text-[10px] font-mono text-outline font-normal uppercase mt-0.5">{session.asset?.ubp?.name}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-3 text-on-surface-variant text-center">{session.asset?.equipmentType}</td>
+                      <td className="px-6 py-3 text-center font-mono font-bold text-primary">{session.testYear}</td>
+                      <td className="px-6 py-3 text-on-surface-variant font-mono text-center">
+                        {new Date(session.createdAt).toLocaleDateString('id-ID', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </td>
+                      <td className="px-6 py-3 text-center">
+                        <div className="flex justify-center">
+                          <StatusBadge status={session.status} size="sm" />
+                        </div>
+                      </td>
+                      <td className="px-6 py-3 text-center">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedSession(session);
+                          }}
+                          className="px-3 py-1 bg-surface-container hover:bg-surface-container-high border border-surface-border text-primary text-[10px] font-bold rounded transition-colors cursor-pointer"
+                        >
+                          Detail
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Pagination Controls */}
+              <div className="border-t border-surface-border px-6 py-3 flex items-center justify-between bg-surface-container-low/30 text-xs">
+                <span className="text-on-surface-variant">
+                  Menampilkan {((currentPage - 1) * itemsPerPage) + 1}–{Math.min(currentPage * itemsPerPage, filteredSessions.length)} dari {filteredSessions.length} data
+                </span>
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage <= 1}
+                      className="px-3 py-1.5 rounded-md border border-surface-border bg-white text-xs font-bold text-on-surface hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+                    >
+                      Sebelumnya
+                    </button>
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum: number;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      if (pageNum < 1 || pageNum > totalPages) return null;
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                            pageNum === currentPage
+                              ? 'bg-primary text-white border border-primary'
+                              : 'border border-surface-border bg-white text-on-surface hover:bg-surface-container'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage >= totalPages}
+                      className="px-3 py-1.5 rounded-md border border-surface-border bg-white text-xs font-bold text-on-surface hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+                    >
+                      Selanjutnya
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -558,7 +636,9 @@ export default function RiwayatPage() {
                               <td className="px-4 py-2 font-semibold text-on-surface">{r.parameter?.testType?.name}</td>
                               <td className="px-4 py-2 text-on-surface-variant font-medium">{r.parameter?.name}</td>
                               <td className="px-4 py-2 font-mono text-on-surface">
-                                {r.isNotApplicable ? (
+                                {r.displayValue ? (
+                                  <span>{r.displayValue} <span className="text-[9px] text-outline font-sans uppercase font-bold">{r.parameter?.unit}</span></span>
+                                ) : r.isNotApplicable ? (
                                   <span className="text-outline/60 italic text-[11px]">N/A</span>
                                 ) : (
                                   <span>{r.value} <span className="text-[9px] text-outline font-sans uppercase font-bold">{r.parameter?.unit}</span></span>

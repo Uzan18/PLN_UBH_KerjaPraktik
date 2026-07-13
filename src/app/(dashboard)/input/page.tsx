@@ -5,6 +5,29 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import type { JudgementLabel } from '@/types';
+import { mapQualitativeValueToNumber } from '@/lib/scoring/calculateScore';
+
+function getQualitativeChoices(criteria: any): string[] | null {
+  const criteriaList = Array.isArray(criteria) ? criteria : [criteria];
+  const c = criteriaList[0];
+  if (!c) return null;
+  
+  const values = [c.goodValue, c.fairValue, c.poorValue, c.badValue]
+    .filter(Boolean)
+    .map((v) => String(v).trim().toUpperCase());
+    
+  if (values.includes('TIDAK ADA') || values.includes('ADA')) {
+    return ['TIDAK ADA', 'ADA'];
+  }
+  if (values.includes('GOOD') || values.includes('FAIR') || values.includes('POOR') || values.includes('BAD')) {
+    return ['GOOD', 'FAIR', 'POOR', 'BAD'];
+  }
+  if (values.includes('NORMAL WINDING') || values.includes('SLIGHT DEFORMATION') || values.includes('OBVIOUS DEFORMATION') || values.includes('SEVERE DEFORMATION')) {
+    return ['Normal winding', 'Slight Deformation', 'Obvious Deformation', 'Severe Deformation'];
+  }
+  
+  return null;
+}
 
 // Fetch helpers
 async function fetchUbpAssets() {
@@ -22,26 +45,31 @@ async function fetchTestTypes() {
 }
 
 const TEST_TYPE_ORDER = [
-  'Insulation Resistance',
-  'Polarity Index',
-  'Turn to Turn Ratio',
-  'Winding Resistance HV',
-  'Winding Resistance LV',
-  'Excitation Current',
-  'SFRA Open HV',
-  'SFRA Shorted HV',
-  'SFRA Open LV',
-  'SFRA Shorted LV',
-  'Tan Delta Winding',
-  'Tan Delta Bushing',
-  'Watt Loss Bushing',
-  'Grounding Resistance',
-  'Dirana Moisture',
-  'Oil Conductivity',
-  'Arrester Grounding',
-  'Arrester Insulation Resistance',
-  'Arrester Leakage Current',
-  'Arrester Watt Loss',
+  'INSULATION RESISTANCE',
+  'POLARITY INDEX',
+  'TURN TO TURN RATIO',
+  'WINDING RESISTANCE HV',
+  'WINDING RESISTANCE LV',
+  'SFRA HV OPEN',
+  'SFRA HV SHORTED',
+  'SFRA LV OPEN',
+  'SFRA LV SHORTED',
+  'EXC CURRENT',
+  'TAN DELTA WINDING',
+  'TAN DELTA BUSHING',
+  'WATT LOSS BUSHING BUSHING',
+  'GROUNDING RESISTANCE',
+  'DIRANA MOISTURE',
+  'DIRANA OIL CONDUCT',
+  'ARRESTER GROUND',
+  'ARRESTER IR',
+  'ARRESTER WATT LOSS',
+  'VISUAL INSPECTION',
+  'OTI ',
+  'WTI',
+  'DGA',
+  'OIL ANALYSIS',
+  'RLA'
 ];
 
 function InputForm() {
@@ -157,8 +185,12 @@ function InputForm() {
           // Map testResults to inputValues and calculatedStatuses
           const vals: Record<string, string> = {};
           const stats: Record<string, { score: number | null, judgement: JudgementLabel }> = {};
+          const activeTypeIds = new Set<string>();
           
           session.testResults?.forEach((r: any) => {
+            if (r.parameter?.testType?.id) {
+              activeTypeIds.add(r.parameter.testType.id);
+            }
             vals[r.parameterId] = r.isNotApplicable ? '' : String(r.value !== null ? r.value : '');
             if (r.score !== null && r.score !== undefined) {
               stats[r.parameterId] = {
@@ -170,6 +202,7 @@ function InputForm() {
           
           setInputValues(vals);
           setCalculatedStatuses(stats);
+          setSelectedTestTypeIds(Array.from(activeTypeIds));
 
           // Populate additionalInfo from pending or asset
           let info = {
@@ -212,6 +245,7 @@ function InputForm() {
           setSessionStatus(null);
           setInputValues({});
           setCalculatedStatuses({});
+          setSelectedTestTypeIds([]);
 
           // No session: load from asset directly
           if (selectedAsset) {
@@ -274,8 +308,10 @@ function InputForm() {
     }
     // Sort according to TEST_TYPE_ORDER
     return [...filtered].sort((a: any, b: any) => {
-      const idxA = TEST_TYPE_ORDER.indexOf(a.name);
-      const idxB = TEST_TYPE_ORDER.indexOf(b.name);
+      const nameA = (a.name || '').trim().toUpperCase();
+      const nameB = (b.name || '').trim().toUpperCase();
+      const idxA = TEST_TYPE_ORDER.indexOf(nameA);
+      const idxB = TEST_TYPE_ORDER.indexOf(nameB);
       const posA = idxA !== -1 ? idxA : 999;
       const posB = idxB !== -1 ? idxB : 999;
       return posA - posB;
@@ -284,13 +320,11 @@ function InputForm() {
 
   // Set default selected test type when availableTestTypes changes
   useEffect(() => {
-    if (availableTestTypes.length > 0) {
-      // Select all by default when availableTestTypes changes
-      setSelectedTestTypeIds(availableTestTypes.map((tt: any) => tt.id));
-    } else {
+    // DO NOT select all by default. Start with none selected (empty array)
+    if (!activeSessionId) {
       setSelectedTestTypeIds([]);
     }
-  }, [availableTestTypes]);
+  }, [availableTestTypes, activeSessionId]);
 
   // Sync selectedUnitName with selectedAsset when it changes
   useEffect(() => {
@@ -366,8 +400,11 @@ function InputForm() {
     }
 
     // Embed client-side preview of scoring if criteria is present
-    const parsedVal = parseFloat(val);
-    if (isNaN(parsedVal)) {
+    let parsedVal = parseFloat(val);
+    const qualMapped = mapQualitativeValueToNumber(val);
+    if (qualMapped !== null) {
+      parsedVal = qualMapped;
+    } else if (isNaN(parsedVal)) {
       setCalculatedStatuses((prev) => {
         const copy = { ...prev };
         delete copy[parameterId];
@@ -394,6 +431,16 @@ function InputForm() {
         return null;
       };
 
+      const evalQual = (numVal: number, critStr: string | null) => {
+        if (!critStr) return false;
+        const mapped = mapQualitativeValueToNumber(critStr);
+        if (mapped === null) {
+          const parsed = parseFloat(critStr);
+          return !isNaN(parsed) && numVal === parsed;
+        }
+        return numVal === mapped;
+      };
+
       const good = parseBound(c.goodValue);
       const fair = parseBound(c.fairValue);
       const poor = parseBound(c.poorValue);
@@ -402,13 +449,29 @@ function InputForm() {
       let score: number | null = 1;
       let judgement: JudgementLabel = 'BAD';
 
-      if (good && ((good.min === null || parsedVal >= good.min) && (good.max === null || parsedVal <= good.max))) {
+      const isGoodMatch = good 
+        ? ((good.min === null || parsedVal >= good.min) && (good.max === null || parsedVal <= good.max))
+        : (c.goodValue ? evalQual(parsedVal, c.goodValue) : false);
+
+      const isFairMatch = fair
+        ? ((fair.min === null || parsedVal >= fair.min) && (fair.max === null || parsedVal <= fair.max))
+        : (c.fairValue ? evalQual(parsedVal, c.fairValue) : false);
+
+      const isPoorMatch = poor
+        ? ((poor.min === null || parsedVal >= poor.min) && (poor.max === null || parsedVal <= poor.max))
+        : (c.poorValue ? evalQual(parsedVal, c.poorValue) : false);
+
+      const isBadMatch = bad
+        ? ((bad.min === null || parsedVal >= bad.min) && (bad.max === null || parsedVal <= bad.max))
+        : (c.badValue ? evalQual(parsedVal, c.badValue) : false);
+
+      if (isGoodMatch) {
         score = 5; judgement = 'GOOD';
-      } else if (fair && ((fair.min === null || parsedVal >= fair.min) && (fair.max === null || parsedVal <= fair.max))) {
+      } else if (isFairMatch) {
         score = 4; judgement = 'FAIR';
-      } else if (poor && ((poor.min === null || parsedVal >= poor.min) && (poor.max === null || parsedVal <= poor.max))) {
+      } else if (isPoorMatch) {
         score = 2; judgement = 'POOR';
-      } else if (bad && ((bad.min === null || parsedVal >= bad.min) && (bad.max === null || parsedVal <= bad.max))) {
+      } else if (isBadMatch) {
         score = 1; judgement = 'BAD';
       }
 
@@ -438,11 +501,20 @@ function InputForm() {
         setSessionStatus(session.status);
       }
 
-      const results = Object.entries(inputValues).map(([parameterId, val]) => ({
-        parameterId,
-        value: val ? parseFloat(val) : null,
-        isNotApplicable: !val,
-      }));
+      const results = Object.entries(inputValues).map(([parameterId, val]) => {
+        let numericValue = val ? parseFloat(val) : null;
+        if (val) {
+          const qualMapped = mapQualitativeValueToNumber(val);
+          if (qualMapped !== null) {
+            numericValue = qualMapped;
+          }
+        }
+        return {
+          parameterId,
+          value: val && isNaN(numericValue as number) ? null : numericValue,
+          isNotApplicable: !val,
+        };
+      });
 
       await saveResultsMutation.mutateAsync({ sessionId: sessionId!, results });
       if (sessionStatus === 'REJECTED') {
@@ -473,11 +545,20 @@ function InputForm() {
         setSessionStatus(session.status);
       }
 
-      const results = Object.entries(inputValues).map(([parameterId, val]) => ({
-        parameterId,
-        value: val ? parseFloat(val) : null,
-        isNotApplicable: !val,
-      }));
+      const results = Object.entries(inputValues).map(([parameterId, val]) => {
+        let numericValue = val ? parseFloat(val) : null;
+        if (val) {
+          const qualMapped = mapQualitativeValueToNumber(val);
+          if (qualMapped !== null) {
+            numericValue = qualMapped;
+          }
+        }
+        return {
+          parameterId,
+          value: val && isNaN(numericValue as number) ? null : numericValue,
+          isNotApplicable: !val,
+        };
+      });
 
       await saveResultsMutation.mutateAsync({ sessionId: sessionId!, results });
       await submitSessionMutation.mutateAsync(sessionId!);
@@ -756,20 +837,43 @@ function InputForm() {
                                     {/* Input Value */}
                                     <td className="px-4 py-1.5">
                                       <div className="relative max-w-md">
-                                        <input
-                                          className="w-full bg-white border border-surface-border rounded py-1 pl-2.5 pr-12 text-xs focus:ring-1 focus:ring-primary focus:border-primary font-mono disabled:bg-surface-container-low disabled:text-outline/80"
-                                          type="number"
-                                          step="any"
-                                          value={inputValues[param.id] || ''}
-                                          onChange={(e) => handleValueChange(param.id, e.target.value, param.criteria)}
-                                          disabled={sessionStatus === 'VALIDATED' || sessionStatus === 'SUBMITTED'}
-                                          placeholder="—"
-                                        />
-                                        {param.unit && (
-                                          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center text-outline select-none pointer-events-none">
-                                            <span className="text-[9px] font-bold uppercase">{param.unit}</span>
-                                          </div>
-                                        )}
+                                        {(() => {
+                                          const choices = getQualitativeChoices(param.criteria);
+                                          if (choices) {
+                                            return (
+                                              <select
+                                                className="w-full bg-white border border-surface-border rounded py-1 px-2 text-xs focus:ring-1 focus:ring-primary focus:border-primary disabled:bg-surface-container-low disabled:text-outline/80 font-mono"
+                                                value={inputValues[param.id] || ''}
+                                                onChange={(e) => handleValueChange(param.id, e.target.value, param.criteria)}
+                                                disabled={sessionStatus === 'VALIDATED' || sessionStatus === 'SUBMITTED'}
+                                              >
+                                                <option value="">-- Pilih --</option>
+                                                {choices.map((choice) => (
+                                                  <option key={choice} value={choice}>{choice}</option>
+                                                ))}
+                                              </select>
+                                            );
+                                          }
+
+                                          return (
+                                            <>
+                                              <input
+                                                className="w-full bg-white border border-surface-border rounded py-1 pl-2.5 pr-12 text-xs focus:ring-1 focus:ring-primary focus:border-primary font-mono disabled:bg-surface-container-low disabled:text-outline/80"
+                                                type="number"
+                                                step="any"
+                                                value={inputValues[param.id] || ''}
+                                                onChange={(e) => handleValueChange(param.id, e.target.value, param.criteria)}
+                                                disabled={sessionStatus === 'VALIDATED' || sessionStatus === 'SUBMITTED'}
+                                                placeholder="—"
+                                              />
+                                              {param.unit && (
+                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center text-outline select-none pointer-events-none">
+                                                  <span className="text-[9px] font-bold uppercase">{param.unit}</span>
+                                                </div>
+                                              )}
+                                            </>
+                                          );
+                                        })()}
                                       </div>
                                     </td>
                                     {/* Status Badge */}
@@ -819,19 +923,14 @@ function InputForm() {
           ) : sessionStatus === 'SUBMITTED' ? (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-xs font-semibold">
               <span className="material-symbols-outlined text-base animate-pulse">pending</span>
-              <span>Sesi pengujian tahun {testYear} telah dikirim (SUBMITTED) & menunggu verifikasi QC.</span>
+              <span>Sesi pengujian tahun {testYear} telah dikirim (SUBMITTED) & menunggu verifikasi Validator.</span>
             </div>
           ) : sessionStatus === 'REJECTED' ? (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-semibold">
               <span className="material-symbols-outlined text-base">error_outline</span>
-              <span>Sesi pengujian tahun {testYear} DITOLAK oleh QC. Silakan perbaiki data di bawah lalu kirim ulang.</span>
+              <span>Sesi pengujian tahun {testYear} DITOLAK oleh Validator. Silakan perbaiki data di bawah lalu kirim ulang.</span>
             </div>
-          ) : (
-            <div className="flex items-center gap-2 text-on-surface-variant">
-              <span className="material-symbols-outlined text-status-good" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
-              <span className="text-sm">Sistem secara otomatis menghitung skor berdasarkan ambang batas standar PLN.</span>
-            </div>
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-4">
           <button 
