@@ -28,9 +28,47 @@ async function main() {
     await AppDataSource.initialize();
   }
 
-  // Synchronize database schema (create tables if they do not exist)
+  console.log('  Preparing database for synchronization (Raw SQL Clean)...');
+  const tables = [
+    'report_file',
+    'report_directory',
+    'audit_log',
+    'test_result',
+    'test_session',
+    'criteria',
+    'parameter',
+    'test_type',
+    'asset',
+    'ubp',
+    'app_user',
+    'siat_user'
+  ];
+
+  // 1. Break self-referencing hierarchy in report_directory
+  try {
+    await AppDataSource.query('UPDATE "report_directory" SET "parent_id" = NULL');
+  } catch (e) {}
+
+  // 2. Delete all records from tables in dependency order
+  for (const table of tables) {
+    try {
+      await AppDataSource.query(`DELETE FROM "${table}"`);
+      console.log(`    Deleted all records from ${table}`);
+    } catch (e) {
+      // Ignore if table does not exist yet
+    }
+  }
+
+  // 3. Drop old siat_user if it exists to avoid conflicts
+  try {
+    await AppDataSource.query('DROP TABLE "siat_user" CASCADE CONSTRAINTS');
+    console.log('    Dropped old siat_user table');
+  } catch (e) {}
+
+  // Synchronize database schema (create/modify tables)
   console.log('  Synchronizing database schema...');
   await AppDataSource.synchronize();
+  console.log('  ✅ Database schema synchronized');
 
   const userRepo = AppDataSource.getRepository(User);
   const ubpRepo = AppDataSource.getRepository(Ubp);
@@ -425,9 +463,6 @@ async function main() {
   const reportDirRepo = AppDataSource.getRepository(ReportDirectory);
   const reportFileRepo = AppDataSource.getRepository(ReportFile);
 
-  // Clear existing
-  await reportFileRepo.createQueryBuilder().delete().execute();
-  await reportDirRepo.createQueryBuilder().delete().execute();
 
   // Ensure uploads directory exists
   const fs = await import('fs');
