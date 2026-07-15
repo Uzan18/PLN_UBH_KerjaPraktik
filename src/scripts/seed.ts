@@ -139,11 +139,15 @@ async function main() {
   }
 
   const ubps = await Promise.all([
-    upsertUbp('UBP Suralaya'),
-    upsertUbp('UBP Lontar'),
-    upsertUbp('UBP Grati'),
-    upsertUbp('UBP Paiton'),
-    upsertUbp('UBP Cirata'),
+    upsertUbp('UBP ASAM ASAM'),
+    upsertUbp('UBP BALI'),
+    upsertUbp('UBP BANTEN SURALAYA'),
+    upsertUbp('UBP BUKIT TINGGI'),
+    upsertUbp('UBP CILEGON'),
+    upsertUbp('UBP LABUAN'),
+    upsertUbp('UBP LONTAR'),
+    upsertUbp('UBP PELABUHAN RATU'),
+    upsertUbp('UBP SURALAYA'),
   ]);
 
   console.log('  ✅ UBPs seeded');
@@ -152,16 +156,206 @@ async function main() {
   // 3. ASSETS
   // ==============================
   const assetsData = [
-    { ubpIdx: 0, name: 'PLTU Banten Suralaya Unit 4', equipmentType: 'Main Trafo', mfgYear: 2009, vectorGroup: 'YNd11', serialNumber: '20093S13' },
-    { ubpIdx: 0, name: 'PLTU Banten Suralaya Unit 5', equipmentType: 'Main Trafo', mfgYear: 2010, vectorGroup: 'YNd11', serialNumber: '20103S14' },
-    { ubpIdx: 0, name: 'PLTU Banten Suralaya Unit 4 Arrester', equipmentType: 'Arrester', mfgYear: 2009, vectorGroup: null, serialNumber: 'ARR-04-A' },
-    { ubpIdx: 1, name: 'PLTU Lontar Unit 1', equipmentType: 'Main Trafo', mfgYear: 2011, vectorGroup: 'YNd11', serialNumber: 'LT-01-MT' },
-    { ubpIdx: 1, name: 'PLTU Lontar Unit 2', equipmentType: 'Main Trafo', mfgYear: 2012, vectorGroup: 'YNd11', serialNumber: 'LT-02-MT' },
-    { ubpIdx: 2, name: 'PLTG Grati Unit 1', equipmentType: 'Main Trafo', mfgYear: 2005, vectorGroup: 'Dyn11', serialNumber: 'GR-01-MT' },
-    { ubpIdx: 2, name: 'PLTG Grati Unit 2', equipmentType: 'Main Trafo', mfgYear: 2006, vectorGroup: 'Dyn11', serialNumber: 'GR-02-MT' },
-    { ubpIdx: 3, name: 'PLTU Paiton Unit 9', equipmentType: 'Main Trafo', mfgYear: 2013, vectorGroup: 'YNd11', serialNumber: 'PT-09-MT' },
-    { ubpIdx: 4, name: 'PLTA Cirata Unit 3', equipmentType: 'Main Trafo', mfgYear: 2000, vectorGroup: 'YNd11', serialNumber: 'CR-03-MT' },
-    { ubpIdx: 4, name: 'PLTA Cirata Unit 4', equipmentType: 'Main Trafo', mfgYear: 2001, vectorGroup: 'YNd11', serialNumber: 'CR-04-MT' },
+    {
+      "ubpIdx": 7,
+      "name": "PLTU PELABUHAN RATU 3",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2009,
+      "vectorGroup": "YNd11",
+      "serialNumber": "20093S13"
+    },
+    {
+      "ubpIdx": 6,
+      "name": "PLTU BANTEN 3 LONTAR 2",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2009,
+      "vectorGroup": "YNd1",
+      "serialNumber": "200812127"
+    },
+    {
+      "ubpIdx": 6,
+      "name": "PLTU BANTEN LONTAR 1",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2009,
+      "vectorGroup": "YNd1",
+      "serialNumber": "200906053"
+    },
+    {
+      "ubpIdx": 1,
+      "name": "PLTG PESANGGARAN 4",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 1993,
+      "vectorGroup": "YNd1",
+      "serialNumber": "T 933035"
+    },
+    {
+      "ubpIdx": 1,
+      "name": "PLTDB PESANGGARAN1",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2010,
+      "vectorGroup": "YNd11",
+      "serialNumber": "10132529"
+    },
+    {
+      "ubpIdx": 1,
+      "name": "PLTDG PESANGGARAN BLOK 2",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2014,
+      "vectorGroup": "YNd11",
+      "serialNumber": "M-197"
+    },
+    {
+      "ubpIdx": 1,
+      "name": "PLTDG PESANGGARAN BLOK 1",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2014,
+      "vectorGroup": "YNd11",
+      "serialNumber": "M-186"
+    },
+    {
+      "ubpIdx": 1,
+      "name": "PLTDG PESANGGARAN BLOK 3",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2014,
+      "vectorGroup": "YNd11",
+      "serialNumber": "M-207"
+    },
+    {
+      "ubpIdx": 1,
+      "name": "PLTDG PESANGGARAN BLOK 4",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2014,
+      "vectorGroup": "YNd11",
+      "serialNumber": "M-212"
+    },
+    {
+      "ubpIdx": 1,
+      "name": "PLTG PESANGGARAN 1",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 1982,
+      "vectorGroup": "YNd11",
+      "serialNumber": "H68180-0"
+    },
+    {
+      "ubpIdx": 1,
+      "name": "PLTG PESANGGARAN 2",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 1993,
+      "vectorGroup": "YNd1",
+      "serialNumber": "GEK-41435"
+    },
+    {
+      "ubpIdx": 1,
+      "name": "PLTG GILIMANUK 1",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 1997,
+      "vectorGroup": "YNd1",
+      "serialNumber": "409061"
+    },
+    {
+      "ubpIdx": 4,
+      "name": "PLTGU CILEGON GT 1.1",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2018,
+      "vectorGroup": "YNd1",
+      "serialNumber": "3011170115"
+    },
+    {
+      "ubpIdx": 0,
+      "name": "PLTU ASAM ASAM 2",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 1997,
+      "vectorGroup": "YNd11",
+      "serialNumber": "141417"
+    },
+    {
+      "ubpIdx": 0,
+      "name": "PLTU ASAM ASAM 3",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2010,
+      "vectorGroup": "YNd1",
+      "serialNumber": "100144321"
+    },
+    {
+      "ubpIdx": 0,
+      "name": "PLTU ASAM ASAM 4",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2010,
+      "vectorGroup": "YNd1",
+      "serialNumber": "10144331"
+    },
+    {
+      "ubpIdx": 2,
+      "name": "PLTU BANTEN  SURALAYA UNIT 8",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2008,
+      "vectorGroup": "YNd1",
+      "serialNumber": "20088S23"
+    },
+    {
+      "ubpIdx": 5,
+      "name": "PLTU BANTEN 2 LABUAN UNIT 1",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2008,
+      "vectorGroup": "YNd1",
+      "serialNumber": "20093S13"
+    },
+    {
+      "ubpIdx": 5,
+      "name": "PLTU BANTEN 2 LABUAN UNIT 2",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2013,
+      "vectorGroup": "YNd1",
+      "serialNumber": "3011120055"
+    },
+    {
+      "ubpIdx": 1,
+      "name": "PLTG BALI PEMARON UNIT 1",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2004,
+      "vectorGroup": "YNd1d1",
+      "serialNumber": "M100636/S0181"
+    },
+    {
+      "ubpIdx": 8,
+      "name": "PLTU BANTEN SURALAYA UNIT 1",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 1983,
+      "vectorGroup": "YNd1",
+      "serialNumber": "8334950102"
+    },
+    {
+      "ubpIdx": 8,
+      "name": "PLTU BANTEN SURALAYA UNIT 2",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2015,
+      "vectorGroup": "YNd1",
+      "serialNumber": "881336"
+    },
+    {
+      "ubpIdx": 8,
+      "name": "PLTU BANTEN SURALAYA UNIT 4",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2013,
+      "vectorGroup": "YNd1",
+      "serialNumber": "121273171"
+    },
+    {
+      "ubpIdx": 8,
+      "name": "PLTU BANTEN SURALAYA UNIT 5",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 2008,
+      "vectorGroup": "YNd1",
+      "serialNumber": "20083S13"
+    },
+    {
+      "ubpIdx": 3,
+      "name": "PLTA SINGKARAK UNIT 2",
+      "equipmentType": "Main Trafo",
+      "mfgYear": 1993,
+      "vectorGroup": "YNd5",
+      "serialNumber": "KDO5200/170"
+    }
   ];
 
   const assets: Asset[] = [];
@@ -496,7 +690,7 @@ async function main() {
       await reportDirRepo.save(assetFolder);
 
       // If UBP Suralaya and Asset is Unit 4, add a mock file directly under the Asset folder
-      if (ubp.name === 'UBP Suralaya' && asset.name.includes('Unit 4') && !asset.name.includes('Arrester')) {
+      if (ubp.name.toUpperCase() === 'UBP SURALAYA' && asset.name.toUpperCase().includes('UNIT 4') && !asset.name.toUpperCase().includes('ARRESTER')) {
         const mockFile = reportFileRepo.create({
           name: 'Laporan Bulanan Suralaya Unit 4 - 2024.pdf',
           filePath: '/uploads/reports/mock_monthly_report_suralaya.pdf',
