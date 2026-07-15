@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistem Digitalisasi Assesment Peralatan Utama Pembangkit Listrik (SIAT)
+PT PLN Indonesia Power – Unit Bisnis Pemeliharaan
 
-## Getting Started
+## Deskripsi
+Sistem Informasi Assesment Terpadu (SIAT) adalah platform berbasis web untuk reporting, trending, dan visualisasi hasil assessment peralatan utama pembangkit listrik di lingkungan PT PLN Indonesia Power Unit Bisnis Pemeliharaan.
 
-First, run the development server:
+## Prasyarat Sistem
+Sebelum memulai instalasi, pastikan lingkungan pengembangan telah memenuhi persyaratan berikut:
+1. **Runtime & Package Manager**:
+   - Node.js versi 18.x atau lebih tinggi (disarankan versi 20.x LTS)
+   - npm versi 9.x atau lebih tinggi
+2. **Database**:
+   - Oracle Database (versi 19c atau 21c)
+   - Oracle Instant Client (diperlukan jika berjalan di Windows/macOS tanpa Docker)
+3. **Containerization (Opsional untuk Development)**:
+   - Docker & Docker Compose (untuk menjalankan container database Oracle XE secara lokal)
 
+## Konfigurasi Lingkungan (Environment Variables)
+Salin berkas template konfigurasi `.env.example` menjadi `.env` di root direktori proyek:
+```bash
+cp .env.example .env
+```
+Sesuaikan nilai variabel berikut di dalam berkas `.env`:
+- `ORACLE_HOST`: Alamat host database Oracle (misal: localhost)
+- `ORACLE_PORT`: Port database (default: 1521)
+- `ORACLE_SID` atau `ORACLE_SERVICE_NAME`: Service Name database Oracle (default: XEPDB1)
+- `ORACLE_USER`: Username database (default: siat_admin)
+- `ORACLE_PASSWORD`: Password database
+- `NEXTAUTH_URL`: URL host aplikasi (misal: http://localhost:3000)
+- `NEXTAUTH_SECRET`: Kunci rahasia untuk otentikasi session
+
+## Langkah Instalasi
+
+1. **Instalasi Dependensi**:
+   Unduh paket Node.js yang diperlukan:
+   ```bash
+   npm install
+   ```
+
+2. **Menjalankan Database (Development)**:
+   Jika menggunakan Docker untuk database lokal, jalankan container Oracle XE:
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Sinkronisasi Schema Database**:
+   Jalankan script untuk sinkronisasi schema database dengan entitas ORM:
+   ```bash
+   npx tsx src/scripts/sync-db.ts
+   ```
+
+4. **Seeding Data Awal**:
+   Jalankan script seed untuk memasukkan data awal master dan user administrator default:
+   ```bash
+   npm run seed
+   ```
+
+5. **Seeding Data Damage Mechanisms**:
+   Jalankan script seed tambahan untuk inisialisasi damage mechanisms pada parameter:
+   ```bash
+   npx tsx src/scripts/seed-mechanisms.ts
+   ```
+
+## Menjalankan Aplikasi
+
+### Mode Pengembangan (Development)
+Menjalankan server Next.js lokal dengan fitur hot-reload:
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
+Aplikasi dapat diakses melalui browser pada alamat http://localhost:3000.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Mode Produksi (Production Build & Start)
+1. Lakukan kompilasi kode dan optimasi produksi:
+   ```bash
+   npm run build
+   ```
+2. Jalankan aplikasi hasil kompilasi:
+   ```bash
+   npm run start
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Struktur Direktori Utama
+- `src/app`: Kontroler routing halaman dan endpoint API Next.js (App Router)
+- `src/components`: Komponen UI modular
+- `src/entities`: Definisi skema dan entitas TypeORM untuk Oracle Database
+- `src/lib`: Modul eksternal seperti auth helper, konfigurasi db client, dan scoring logic
+- `src/scripts`: Skrip migrasi data, seeding database, dan pemeliharaan skema
+- `public`: Aset statis seperti gambar, dokumen, dan logo instansi
