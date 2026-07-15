@@ -54,7 +54,7 @@ export const AppDataSource = globalForDataSource.appDataSource || new DataSource
     ReportDirectory,
     ReportFile,
   ],
-  synchronize: process.env.NODE_ENV === 'development', // Auto-create tables in dev
+  synchronize: false, // Disabled to speed up dev load (seed.ts synchronizes explicitly)
   logging: process.env.NODE_ENV === 'development' ? ['query', 'error'] : ['error'],
   // Oracle-specific options
   extra: {

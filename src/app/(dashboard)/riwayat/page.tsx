@@ -559,11 +559,10 @@ export default function RiwayatPage() {
                       </thead>
                       <tbody className="divide-y divide-surface-border">
                         {[
-                          { key: 'manufacture', label: 'Manufacture' },
                           { key: 'type', label: 'Type' },
                           { key: 'serialNumber', label: 'Serial Number' },
                           { key: 'mfgYear', label: 'Year of Manufacturing' },
-                          { key: 'vectorGroup', label: 'Vector Grup' },
+                          { key: 'vectorGroup', label: 'Manufacture' },
                           { key: 'coolingMethod', label: 'Cooling Method' },
                           { key: 'ratedPower', label: 'Rated Power' },
                           { key: 'frequency', label: 'Frequency' },

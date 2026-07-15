@@ -66,7 +66,7 @@ interface NewParamInput {
 
 export default function CombinedManagePengujianPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'pemetaan' | 'kriteria' | 'import'>('pemetaan');
+  const [activeTab, setActiveTab] = useState<'pemetaan' | 'kriteria' | 'damage-mechanism' | 'import'>('pemetaan');
 
   // ==========================================
   // STATE: 1. Pemetaan Tab
@@ -115,6 +115,15 @@ export default function CombinedManagePengujianPage() {
   } | null>(null);
 
   // ==========================================
+  // STATE: 3.2 Export Tab Filters
+  // ==========================================
+  const [exportUbpId, setExportUbpId] = useState('ALL');
+  const [exportUnitName, setExportUnitName] = useState('ALL');
+  const [exportAssetId, setExportAssetId] = useState('ALL');
+  const [exportJudgement, setExportJudgement] = useState('ALL');
+  const [exportEquipmentType, setExportEquipmentType] = useState('ALL');
+
+  // ==========================================
   // QUERIES
   // ==========================================
   const { data: ubps, isLoading: isUbpsLoading } = useQuery<Ubp[]>({
@@ -134,6 +143,61 @@ export default function CombinedManagePengujianPage() {
     queryFn: () => fetchCriteria(activeCriteriaTestTypeId),
     enabled: !!activeCriteriaTestTypeId && activeTab === 'kriteria',
   });
+
+  // Memo fields for dynamic export filters
+  const exportSelectedUbp = useMemo(() => {
+    if (!ubps || !exportUbpId || exportUbpId === 'ALL') return null;
+    return ubps.find((u) => u.id === exportUbpId) || null;
+  }, [ubps, exportUbpId]);
+
+  const exportUniqueUnits = useMemo(() => {
+    if (exportUbpId === 'ALL') {
+      if (!ubps) return [];
+      const names = new Set<string>();
+      ubps.forEach((u) => {
+        u.assets?.forEach((a: any) => {
+          if (a.name) names.add(a.name.trim());
+        });
+      });
+      return Array.from(names).sort();
+    }
+    if (!exportSelectedUbp?.assets) return [];
+    const names = new Set<string>();
+    exportSelectedUbp.assets.forEach((a: any) => {
+      if (a.name) names.add(a.name.trim());
+    });
+    return Array.from(names).sort();
+  }, [ubps, exportUbpId, exportSelectedUbp]);
+
+  const exportAssetsList = useMemo(() => {
+    if (!ubps) return [];
+    let list: any[] = [];
+    if (exportUbpId === 'ALL') {
+      ubps.forEach((u) => {
+        if (u.assets) list.push(...u.assets);
+      });
+    } else if (exportSelectedUbp?.assets) {
+      list = exportSelectedUbp.assets;
+    }
+
+    if (exportUnitName && exportUnitName !== 'ALL') {
+      list = list.filter((a: any) => a.name === exportUnitName);
+    }
+    return list;
+  }, [ubps, exportUbpId, exportSelectedUbp, exportUnitName]);
+
+  const exportEquipmentTypes = useMemo(() => {
+    if (!ubps) return [];
+    const types = new Set<string>();
+    for (const ubp of ubps) {
+      for (const asset of ubp.assets || []) {
+        if (asset.equipmentType) {
+          types.add(asset.equipmentType.trim());
+        }
+      }
+    }
+    return Array.from(types).sort();
+  }, [ubps]);
 
   // Calculate unique Equipment Types from all assets + custom local types
   const equipmentGroups = useMemo(() => {
@@ -186,8 +250,11 @@ export default function CombinedManagePengujianPage() {
           } else {
             const existing = map.get(typeKey)!;
             existing.assetIds.push(asset.id);
-            // Prefer testTypes from an asset that has them configured
-            if (existing.testTypes.length === 0 && asset.testTypes && asset.testTypes.length > 0) {
+            // If this group was pre-populated from defaultTypes/localMappings, but now we find it has assets in the database,
+            // we should prioritize the actual database asset.testTypes over the localStorage template.
+            if (existing.assetIds.length === 1) {
+              existing.testTypes = asset.testTypes || [];
+            } else if (existing.testTypes.length === 0 && asset.testTypes && asset.testTypes.length > 0) {
               existing.testTypes = asset.testTypes;
             }
           }
@@ -256,6 +323,261 @@ export default function CombinedManagePengujianPage() {
       setStandardText(activeTestType?.standard || '');
     }
   }, [activeCriteriaTestTypeId, testTypes]);
+
+
+  // ==========================================
+  // STATE: 4. Damage Mechanism Tab
+  // ==========================================
+  // STATE: 4. Damage Mechanism Tab
+  const [selectedDmGroup, setSelectedDmGroup] = useState<EquipmentTypeGroup | null>(null);
+  const [selectedMechanism, setSelectedMechanism] = useState<string | null>(null);
+  const [selectedDmTestTypeIds, setSelectedDmTestTypeIds] = useState<string[]>([]);
+  const [searchDmTestQuery, setSearchDmTestQuery] = useState('');
+
+  // Modals for CRUD
+  const [isAddDmModalOpen, setIsAddDmModalOpen] = useState(false);
+  const [newDmName, setNewDmName] = useState('');
+  const [isEditDmModalOpen, setIsEditDmModalOpen] = useState(false);
+  const [dmToEdit, setDmToEdit] = useState<string | null>(null);
+  const [editDmName, setEditDmName] = useState('');
+
+  // Queries
+  const { data: dmData, isLoading: isDmLoading } = useQuery({
+    queryKey: ['damage-mechanisms'],
+    queryFn: async () => {
+      const res = await fetch('/api/master/damage-mechanisms');
+      if (!res.ok) throw new Error('Gagal mengambil data damage mechanism');
+      const json = await res.json();
+      return json.data as { mechanisms: string[]; testTypes: any[] };
+    },
+    enabled: activeTab === 'damage-mechanism',
+  });
+
+  // Auto-select first group
+  useEffect(() => {
+    if (equipmentGroups.length > 0 && !selectedDmGroup) {
+      setSelectedDmGroup(equipmentGroups[0]);
+    } else if (selectedDmGroup) {
+      const current = equipmentGroups.find((g) => g.name === selectedDmGroup.name);
+      if (current) setSelectedDmGroup(current);
+    }
+  }, [equipmentGroups, selectedDmGroup]);
+
+  // Auto-select first mechanism
+  useEffect(() => {
+    if (dmData?.mechanisms && dmData.mechanisms.length > 0 && !selectedMechanism) {
+      setSelectedMechanism(dmData.mechanisms[0]);
+    }
+  }, [dmData, selectedMechanism]);
+
+  // Sync test type checkbox states when mechanism or selected group changes
+  useEffect(() => {
+    if (selectedMechanism && dmData?.testTypes && selectedDmGroup) {
+      const activeGroupTestTypes = selectedDmGroup.testTypes || [];
+      
+      const checkedIds: string[] = [];
+      for (const tt of activeGroupTestTypes) {
+        const fullTt = dmData.testTypes.find((t) => t.id === tt.id);
+        if (fullTt && fullTt.parameters && fullTt.parameters.length > 0) {
+          const hasMech = fullTt.parameters.some((p: any) => {
+            const currentMechs = p.damageMechanisms
+              ? p.damageMechanisms.split(',').map((m: string) => m.trim())
+              : [];
+            return currentMechs.includes(selectedMechanism);
+          });
+          if (hasMech) {
+            checkedIds.push(tt.id);
+          }
+        }
+      }
+      setSelectedDmTestTypeIds(checkedIds);
+    } else {
+      setSelectedDmTestTypeIds([]);
+    }
+  }, [selectedMechanism, selectedDmGroup, dmData]);
+
+  // CRUD Mutations
+  const createDmMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await fetch('/api/master/damage-mechanisms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', name }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Gagal menambahkan damage mechanism');
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['damage-mechanisms'] });
+      setIsAddDmModalOpen(false);
+      setNewDmName('');
+      setSelectedMechanism(data.data.name);
+      alert(`Damage Mechanism "${data.data.name}" berhasil ditambahkan.`);
+    },
+    onError: (error: any) => {
+      alert(error.message || 'Terjadi kesalahan saat menambahkan.');
+    },
+  });
+
+  const updateDmMutation = useMutation({
+    mutationFn: async (payload: { oldName: string; newName: string }) => {
+      const res = await fetch('/api/master/damage-mechanisms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update', ...payload }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Gagal mengubah nama damage mechanism');
+      }
+      return res.json();
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['damage-mechanisms'] });
+      setIsEditDmModalOpen(false);
+      setDmToEdit(null);
+      setEditDmName('');
+      setSelectedMechanism(variables.newName);
+      alert(`Damage Mechanism "${variables.oldName}" berhasil diubah menjadi "${variables.newName}".`);
+    },
+    onError: (error: any) => {
+      alert(error.message || 'Terjadi kesalahan saat mengubah nama.');
+    },
+  });
+
+  const deleteDmMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await fetch('/api/master/damage-mechanisms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', name }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Gagal menghapus damage mechanism');
+      }
+      return res.json();
+    },
+    onSuccess: (data, name) => {
+      queryClient.invalidateQueries({ queryKey: ['damage-mechanisms'] });
+      setSelectedMechanism(null);
+      alert(`Damage Mechanism "${name}" berhasil dihapus.`);
+    },
+    onError: (error: any) => {
+      alert(error.message || 'Terjadi kesalahan saat menghapus.');
+    },
+  });
+
+  const saveDmMutation = useMutation({
+    mutationFn: async (payload: { mechanism: string; parameterIds: string[] }) => {
+      const res = await fetch('/api/master/damage-mechanisms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Gagal menyimpan pemetaan');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['damage-mechanisms'] });
+      alert('Konfigurasi Damage Mechanism berhasil disimpan!');
+    },
+    onError: (error: any) => {
+      alert(error.message || 'Terjadi kesalahan saat menyimpan.');
+    },
+  });
+
+  // Calculate counts of parameters mapped to each mechanism
+  const dmCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!dmData?.mechanisms || !dmData?.testTypes) return counts;
+    
+    for (const m of dmData.mechanisms) {
+      counts[m] = 0;
+    }
+    
+    for (const tt of dmData.testTypes) {
+      for (const p of tt.parameters || []) {
+        const currentMechs = p.damageMechanisms
+          ? p.damageMechanisms.split(',').map((mech: string) => mech.trim())
+          : [];
+        for (const m of currentMechs) {
+          if (m in counts) {
+            counts[m]++;
+          }
+        }
+      }
+    }
+    return counts;
+  }, [dmData]);
+
+  const activeGroupTestTypes = useMemo(() => {
+    return selectedDmGroup ? selectedDmGroup.testTypes || [] : [];
+  }, [selectedDmGroup]);
+
+  const activeGroupTestTypeIds = useMemo(() => {
+    return activeGroupTestTypes.map((t) => t.id);
+  }, [activeGroupTestTypes]);
+
+  const isAllDmTestTypesSelected = useMemo(() => {
+    return (
+      activeGroupTestTypeIds.length > 0 &&
+      activeGroupTestTypeIds.every((id) => selectedDmTestTypeIds.includes(id))
+    );
+  }, [activeGroupTestTypeIds, selectedDmTestTypeIds]);
+
+  const handleToggleAllDmTestTypes = () => {
+    if (isAllDmTestTypesSelected) {
+      setSelectedDmTestTypeIds((prev) => prev.filter((id) => !activeGroupTestTypeIds.includes(id)));
+    } else {
+      setSelectedDmTestTypeIds((prev) => Array.from(new Set([...prev, ...activeGroupTestTypeIds])));
+    }
+  };
+
+  const handleToggleDmTestType = (id: string) => {
+    setSelectedDmTestTypeIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSaveDmPemetaan = () => {
+    if (!selectedMechanism || !selectedDmGroup || !dmData?.testTypes) return;
+
+    const finalParamIds: string[] = [];
+
+    for (const tt of dmData.testTypes) {
+      // If this test type is NOT mapped to the selected Equipment Type, keep its parameters' current mappings
+      if (!activeGroupTestTypeIds.includes(tt.id)) {
+        for (const p of tt.parameters || []) {
+          const currentMechs = p.damageMechanisms
+            ? p.damageMechanisms.split(',').map((m: string) => m.trim())
+            : [];
+          if (currentMechs.includes(selectedMechanism)) {
+            finalParamIds.push(p.id);
+          }
+        }
+      } else {
+        // If this test type IS mapped to the selected Equipment Type, include all its parameters if it is checked
+        const isChecked = selectedDmTestTypeIds.includes(tt.id);
+        if (isChecked) {
+          for (const p of tt.parameters || []) {
+            finalParamIds.push(p.id);
+          }
+        }
+      }
+    }
+
+    saveDmMutation.mutate({
+      mechanism: selectedMechanism,
+      parameterIds: finalParamIds,
+    });
+  };
 
   // ==========================================
   // MUTATIONS & HANDLERS: 1. Pemetaan Tab
@@ -412,7 +734,7 @@ export default function CombinedManagePengujianPage() {
           mappings[selectedGroup.name] = selectedTestTypeIds;
           localStorage.setItem('siat_custom_equipment_type_mappings', JSON.stringify(mappings));
           
-          alert(`Konfigurasi pengujian untuk jenis aset "${selectedGroup.name}" berhasil disimpan sebagai template! Konfigurasi ini akan otomatis diterapkan saat Anda menambahkan unit aset baru dengan jenis tersebut di menu Master UBP & Aset.`);
+          alert(`Konfigurasi pengujian untuk jenis aset "${selectedGroup.name}" berhasil disimpan sebagai template! Konfigurasi ini akan otomatis diterapkan saat Anda menambahkan unit pembangkit baru dengan jenis tersebut di menu Master UBP & Aset.`);
           queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
         } catch (e) {
           console.error(e);
@@ -658,7 +980,13 @@ export default function CombinedManagePengujianPage() {
             <div className="flex items-center">
               <span className="material-symbols-outlined text-sm text-on-surface-variant mx-1 select-none">chevron_right</span>
               <span className="text-primary font-mono text-xs font-bold">
-                {activeTab === 'pemetaan' ? 'Pemetaan Pengujian' : activeTab === 'kriteria' ? 'Kriteria Parameter' : 'Import Excel'}
+                {activeTab === 'pemetaan' 
+                  ? 'Pengaturan Pengujian' 
+                  : activeTab === 'kriteria' 
+                    ? 'Kriteria Parameter' 
+                    : activeTab === 'damage-mechanism'
+                      ? 'Faktor Damage Mechanism'
+                      : 'Import Excel'}
               </span>
             </div>
           </li>
@@ -671,14 +999,6 @@ export default function CombinedManagePengujianPage() {
           <h2 className="text-xl font-bold text-on-surface mb-1">Kriteria Standard</h2>
           <p className="text-xs text-on-surface-variant">Konfigurasikan pengujian yang berlaku bagi jenis aset, sesuaikan standardisasi kriteria ambang batas parameter, dan import berkas Excel.</p>
         </div>
-        {activeTab === 'pemetaan' && (
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2 bg-primary text-white hover:brightness-110 rounded-lg text-xs font-bold shadow flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shrink-0"
-          >
-            <span className="material-symbols-outlined text-[16px]">add_circle</span> Tambah Pengujian Baru
-          </button>
-        )}
       </div>
 
       {/* Tab Selectors */}
@@ -691,7 +1011,7 @@ export default function CombinedManagePengujianPage() {
               : 'border-transparent text-on-surface-variant hover:text-on-surface'
           }`}
         >
-          Pemetaan Pengujian Aset
+          Pengaturan Pengujian
         </button>
         <button
           onClick={() => setActiveTab('kriteria')}
@@ -702,6 +1022,16 @@ export default function CombinedManagePengujianPage() {
           }`}
         >
           Kriteria Ambang Batas (Threshold)
+        </button>
+        <button
+          onClick={() => setActiveTab('damage-mechanism')}
+          className={`pb-3 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer ${
+            activeTab === 'damage-mechanism'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-on-surface-variant hover:text-on-surface'
+          }`}
+        >
+          Faktor Damage Mechanism
         </button>
         <button
           onClick={() => setActiveTab('import')}
@@ -755,7 +1085,7 @@ export default function CombinedManagePengujianPage() {
                         <div className="flex flex-col gap-0.5 overflow-hidden">
                           <span className="text-xs font-bold truncate">{group.name}</span>
                           <span className="text-[9px] text-on-surface-variant/80 font-medium">
-                            Digunakan oleh {assetCount} unit aset
+                            Digunakan oleh {assetCount} unit pembangkit
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -771,7 +1101,7 @@ export default function CombinedManagePengujianPage() {
                               e.stopPropagation();
                               handleDeleteEquipmentType(group);
                             }}
-                            className="p-1 text-outline hover:text-status-bad hover:bg-status-bad/5 rounded opacity-0 group-hover/item:opacity-100 transition-all cursor-pointer flex items-center justify-center"
+                            className="p-1 text-outline hover:text-status-bad hover:bg-status-bad/5 rounded transition-all cursor-pointer flex items-center justify-center"
                             title="Hapus Jenis Aset"
                           >
                             <span className="material-symbols-outlined text-[15px] select-none">delete</span>
@@ -797,9 +1127,9 @@ export default function CombinedManagePengujianPage() {
           </div>
 
           {/* Right Panel: Checkbox Map */}
-          <div className="col-span-12 lg:col-span-8 h-full">
+          <div className="col-span-12 lg:col-span-8 min-h-[50vh] max-h-[70vh] flex flex-col">
             {selectedGroup ? (
-              <div className="bg-white rounded-xl border border-surface-border p-5 shadow-sm space-y-5 h-full flex flex-col justify-between">
+              <div className="bg-white rounded-xl border border-surface-border p-5 shadow-sm space-y-5 flex-1 flex flex-col justify-between overflow-hidden">
                 <div className="bg-surface-container-low p-3.5 rounded-lg border border-surface-border flex justify-between items-center shrink-0">
                   <div>
                     <span className="bg-primary/10 text-primary text-[9px] font-bold uppercase px-2 py-0.5 rounded-full">
@@ -813,7 +1143,7 @@ export default function CombinedManagePengujianPage() {
                   </div>
                 </div>
 
-                <div className="space-y-3 flex-1 flex flex-col">
+                <div className="space-y-3 flex-1 flex flex-col min-h-0">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1.5 border-b border-surface-border">
                     <h3 className="text-xs font-bold text-on-surface uppercase tracking-wide">Pilih Jenis Pengujian yang Berlaku</h3>
                     <div className="flex items-center gap-2.5">
@@ -829,7 +1159,7 @@ export default function CombinedManagePengujianPage() {
                           placeholder="Cari pengujian..."
                           value={searchTestQuery}
                           onChange={(e) => setSearchTestQuery(e.target.value)}
-                          className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1 px-8 pr-3 focus:ring-primary focus:border-primary"
+                          className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1 px-8 pr-3 focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
                         />
                         <span className="material-symbols-outlined text-outline absolute left-2 top-1/2 -translate-y-1/2 text-sm select-none">
                           search
@@ -839,15 +1169,15 @@ export default function CombinedManagePengujianPage() {
                   </div>
 
                   {isLoading ? (
-                    <div className="flex items-center justify-center py-20">
+                    <div className="flex items-center justify-center py-20 flex-1">
                       <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
                     </div>
                   ) : !filteredTestTypes || filteredTestTypes.length === 0 ? (
-                    <div className="text-center py-20 text-on-surface-variant font-medium text-xs">
+                    <div className="text-center py-20 text-on-surface-variant font-medium text-xs flex-1 flex items-center justify-center">
                       {searchTestQuery ? 'Tidak ada jenis pengujian yang cocok.' : 'Tidak ada jenis pengujian tersedia.'}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 overflow-y-auto custom-scrollbar pr-1 flex-1 min-h-[300px] max-h-[50vh]">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 content-start overflow-y-auto custom-scrollbar pr-1 pb-4 flex-1 min-h-0">
                       {filteredTestTypes.map((test) => {
                         const isChecked = selectedTestTypeIds.includes(test.id);
 
@@ -879,7 +1209,7 @@ export default function CombinedManagePengujianPage() {
                                   e.stopPropagation();
                                   handleDeleteTestType(test);
                                 }}
-                                className="p-1 text-outline hover:text-status-bad hover:bg-status-bad/5 rounded opacity-0 group-hover/checkbox-row:opacity-100 transition-all cursor-pointer flex items-center justify-center"
+                                className="p-1 text-outline hover:text-status-bad hover:bg-status-bad/5 rounded transition-all cursor-pointer flex items-center justify-center"
                                 title="Hapus Jenis Pengujian"
                               >
                                 <span className="material-symbols-outlined text-[14px] select-none">delete</span>
@@ -892,24 +1222,32 @@ export default function CombinedManagePengujianPage() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-surface-border">
+                <div className="flex items-center justify-between pt-4 border-t border-surface-border">
                   <button
-                    onClick={() => handleSelectGroup(selectedGroup)}
-                    disabled={saveMutation.isPending}
-                    className="px-4 py-2 border border-surface-border hover:bg-surface-container-low rounded-lg font-bold text-xs text-on-surface-variant transition-colors disabled:opacity-50 cursor-pointer"
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="px-4 py-2 bg-primary text-white hover:brightness-110 rounded-lg text-xs font-bold shadow flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shrink-0"
                   >
-                    Reset Pilihan
+                    <span className="material-symbols-outlined text-[16px] select-none">add_circle</span> Tambah Pengujian Baru
                   </button>
-                  <button
-                    onClick={handleSavePemetaan}
-                    disabled={saveMutation.isPending}
-                    className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
-                  >
-                    {saveMutation.isPending ? 'Menyimpan...' : 'Simpan Konfigurasi'}
-                    {!saveMutation.isPending && (
-                      <span className="material-symbols-outlined text-sm select-none">save</span>
-                    )}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleSelectGroup(selectedGroup)}
+                      disabled={saveMutation.isPending}
+                      className="px-4 py-2 border border-surface-border hover:bg-surface-container-low rounded-lg font-bold text-xs text-on-surface-variant transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      Reset Pilihan
+                    </button>
+                    <button
+                      onClick={handleSavePemetaan}
+                      disabled={saveMutation.isPending}
+                      className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                    >
+                      {saveMutation.isPending ? 'Menyimpan...' : 'Simpan Konfigurasi'}
+                      {!saveMutation.isPending && (
+                        <span className="material-symbols-outlined text-sm select-none">save</span>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1075,7 +1413,270 @@ export default function CombinedManagePengujianPage() {
       )}
 
       {/* ==========================================
-          TAB CONTENT: 3. Import Data Real (Excel)
+          TAB CONTENT: 4. Damage Mechanism Mapping
+          ========================================== */}
+      {activeTab === 'damage-mechanism' && (
+        <div className="grid grid-cols-12 gap-6 items-stretch animate-fade-in">
+          {/* Left Sidebar: Equipment Types List */}
+          <div className="col-span-12 lg:col-span-4">
+            <div className="bg-white rounded-xl border border-surface-border p-4 shadow-sm h-full flex flex-col justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-on-surface mb-3 shrink-0">
+                  Daftar Jenis Aset (Equipment Type)
+                </h3>
+                
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-10 flex-1">
+                    <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                  </div>
+                ) : equipmentGroups.length === 0 ? (
+                  <div className="text-center py-10 text-on-surface-variant font-medium text-xs flex-1 flex items-center justify-center">
+                    Tidak ada data jenis aset.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 overflow-y-auto custom-scrollbar pr-1 flex-1 min-h-[300px] max-h-[60vh]">
+                    {equipmentGroups.map((group) => {
+                      const isSelected = selectedDmGroup?.name === group.name;
+                      const assetCount = group.assetIds?.length || 0;
+
+                      return (
+                        <button
+                          key={group.name}
+                          onClick={() => setSelectedDmGroup(group)}
+                          className={`w-full text-left p-3 rounded-lg border flex items-center justify-between transition-all cursor-pointer group/item ${
+                            isSelected
+                              ? 'bg-primary-container/20 border-primary text-primary-text font-semibold'
+                              : 'bg-white border-surface-border hover:bg-surface-container-low text-on-surface'
+                          }`}
+                        >
+                          <div className="flex flex-col gap-0.5 overflow-hidden">
+                            <span className="text-xs font-bold truncate">{group.name}</span>
+                            <span className="text-[9px] text-on-surface-variant/80 font-medium">
+                              Digunakan oleh {assetCount} unit pembangkit
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel: Damage Mechanism Selection & Test Type checklist */}
+          <div className="col-span-12 lg:col-span-8 min-h-[50vh] max-h-[70vh] flex flex-col">
+            {selectedDmGroup ? (
+              <div className="bg-white rounded-xl border border-surface-border p-5 shadow-sm space-y-5 flex-1 flex flex-col justify-between overflow-hidden">
+                
+                {/* Top Section: active asset */}
+                <div className="bg-surface-container-low p-4 rounded-lg border border-surface-border flex flex-col gap-4 shrink-0">
+                  <div className="flex justify-between items-center border-b border-surface-border/50 pb-2">
+                    <div>
+                      <span className="bg-primary/10 text-primary text-[9px] font-bold uppercase px-2 py-0.5 rounded-full">
+                        Jenis Asset aktif
+                      </span>
+                      <h4 className="text-base font-bold text-on-surface mt-1">{selectedDmGroup.name}</h4>
+                    </div>
+                    
+                    <button
+                      onClick={() => {
+                        setNewDmName('');
+                        setIsAddDmModalOpen(true);
+                      }}
+                      className="px-3.5 py-1.5 bg-primary text-white hover:brightness-110 rounded-lg text-xs font-bold shadow flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                    >
+                      <span className="material-symbols-outlined text-[15px] select-none">add_circle</span>
+                      Tambah Damage Mechanism
+                    </button>
+                  </div>
+
+                  {/* Dropdown Selector for Damage Mechanism */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex flex-col gap-1 w-full sm:w-auto flex-1">
+                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+                        Damage Mechanism
+                      </label>
+                      {isDmLoading ? (
+                        <div className="h-8 w-48 bg-surface-container rounded animate-pulse" />
+                      ) : !dmData?.mechanisms || dmData.mechanisms.length === 0 ? (
+                        <span className="text-xs text-on-surface-variant">Tidak ada damage mechanism.</span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={selectedMechanism || ''}
+                            onChange={(e) => setSelectedMechanism(e.target.value)}
+                            className="bg-white border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:outline-none focus:border-primary font-semibold text-on-surface cursor-pointer flex-1 sm:max-w-xs"
+                          >
+                            {dmData.mechanisms.map((mech) => (
+                              <option key={mech} value={mech}>
+                                {mech}
+                              </option>
+                            ))}
+                          </select>
+
+                          {selectedMechanism && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => {
+                                  setDmToEdit(selectedMechanism);
+                                  setEditDmName(selectedMechanism);
+                                  setIsEditDmModalOpen(true);
+                                }}
+                                className="p-1.5 text-outline hover:text-primary hover:bg-primary/5 rounded border border-surface-border transition-all cursor-pointer flex items-center justify-center bg-white"
+                                title="Edit Nama Damage Mechanism"
+                              >
+                                <span className="material-symbols-outlined text-[16px] select-none">edit</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm(`Apakah Anda yakin ingin menghapus Damage Mechanism "${selectedMechanism}"?\nSemua pemetaan parameter untuk mekanisme ini akan dihapus.`)) {
+                                    deleteDmMutation.mutate(selectedMechanism);
+                                  }
+                                }}
+                                className="p-1.5 text-outline hover:text-status-bad hover:bg-status-bad/5 rounded border border-surface-border transition-all cursor-pointer flex items-center justify-center bg-white"
+                                title="Hapus Damage Mechanism"
+                              >
+                                <span className="material-symbols-outlined text-[16px] select-none">delete</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Checklist Section */}
+                <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1.5 border-b border-surface-border shrink-0">
+                    <h3 className="text-xs font-bold text-on-surface uppercase tracking-wide">
+                      Pilih Jenis Pengujian yang Sesuai
+                    </h3>
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        onClick={handleToggleAllDmTestTypes}
+                        className="text-xs font-semibold text-primary hover:underline focus:outline-none cursor-pointer"
+                      >
+                        {isAllDmTestTypesSelected ? 'Batal Semua' : 'Pilih Semua'}
+                      </button>
+                      <div className="relative w-44">
+                        <input
+                          type="text"
+                          placeholder="Cari pengujian..."
+                          value={searchDmTestQuery}
+                          onChange={(e) => setSearchDmTestQuery(e.target.value)}
+                          className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1 px-8 pr-3 focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
+                        />
+                        <span className="material-symbols-outlined text-outline absolute left-2 top-1/2 -translate-y-1/2 text-sm select-none">
+                          search
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* List of Mapped Test Types */}
+                  {isDmLoading ? (
+                    <div className="flex items-center justify-center py-20 flex-1">
+                      <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    </div>
+                  ) : activeGroupTestTypes.length === 0 ? (
+                    <div className="text-center py-20 text-on-surface-variant font-medium text-xs flex-1 flex items-center justify-center">
+                      Tidak ada jenis pengujian yang dipetakan ke jenis aset "{selectedDmGroup.name}".
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 content-start overflow-y-auto custom-scrollbar pr-1 pb-4 flex-1 min-h-0">
+                      {activeGroupTestTypes
+                        .filter((tt) => tt.name.toLowerCase().includes(searchDmTestQuery.toLowerCase()))
+                        .map((tt) => {
+                          const isChecked = selectedDmTestTypeIds.includes(tt.id);
+                          return (
+                            <div
+                              key={tt.id}
+                              onClick={() => handleToggleDmTestType(tt.id)}
+                              className={`p-2.5 rounded-lg border flex items-center justify-between cursor-pointer select-none transition-all group/checkbox-row ${
+                                isChecked
+                                  ? 'border-primary bg-primary-container/5 text-primary-text font-semibold'
+                                  : 'border-surface-border bg-white text-on-surface hover:bg-surface-container-low'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 overflow-hidden mr-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  readOnly
+                                  className="h-4 w-4 text-primary border-surface-border rounded focus:ring-primary cursor-pointer shrink-0"
+                                />
+                                <span className="text-xs font-semibold truncate leading-none">{tt.name}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer Save / Reset Actions */}
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-surface-border shrink-0">
+                  <button
+                    onClick={() => {
+                      if (selectedMechanism && dmData?.testTypes && selectedDmGroup) {
+                        const activeGroupTestTypes = selectedDmGroup.testTypes || [];
+                        
+                        const checkedIds: string[] = [];
+                        for (const tt of activeGroupTestTypes) {
+                          const fullTt = dmData.testTypes.find((t) => t.id === tt.id);
+                          if (fullTt && fullTt.parameters && fullTt.parameters.length > 0) {
+                            const hasMech = fullTt.parameters.some((p: any) => {
+                              const currentMechs = p.damageMechanisms
+                                ? p.damageMechanisms.split(',').map((m: string) => m.trim())
+                                : [];
+                              return currentMechs.includes(selectedMechanism);
+                            });
+                            if (hasMech) {
+                              checkedIds.push(tt.id);
+                            }
+                          }
+                        }
+                        setSelectedDmTestTypeIds(checkedIds);
+                        alert('Pilihan di-reset.');
+                      }
+                    }}
+                    disabled={saveDmMutation.isPending}
+                    className="px-4 py-2 border border-surface-border hover:bg-surface-container-low rounded-lg font-bold text-xs text-on-surface-variant transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Reset Pilihan
+                  </button>
+                  <button
+                    onClick={handleSaveDmPemetaan}
+                    disabled={saveDmMutation.isPending}
+                    className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {saveDmMutation.isPending ? 'Menyimpan...' : 'Simpan Konfigurasi'}
+                    {!saveDmMutation.isPending && (
+                      <span className="material-symbols-outlined text-sm select-none">save</span>
+                    )}
+                  </button>
+                </div>
+
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-surface-border p-12 shadow-sm text-center flex flex-col items-center justify-center h-full min-h-[50vh]">
+                <div className="h-16 w-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-4">
+                  <span className="material-symbols-outlined text-3xl select-none">fact_check</span>
+                </div>
+                <h3 className="text-base font-bold text-on-surface mb-2">Pilih Jenis Asset Terlebih Dahulu</h3>
+                <p className="text-xs text-on-surface-variant max-w-sm">
+                  Silakan pilih salah satu jenis aset di daftar sebelah kiri untuk mengonfigurasi jenis pengujian yang sesuai.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          TAB CONTENT: 5. Import Data Real (Excel)
           ========================================== */}
       {activeTab === 'import' && (
         <div className="space-y-6 animate-fade-in">
@@ -1200,10 +1801,10 @@ export default function CombinedManagePengujianPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateTestType} className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={handleCreateTestType} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-[10px] font-bold font-mono uppercase tracking-wider text-on-surface-variant mb-1">
+                  <label className="block text-xs font-semibold text-on-surface-variant mb-2">
                     Nama Pengujian <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -1212,11 +1813,11 @@ export default function CombinedManagePengujianPage() {
                     value={newTestName}
                     onChange={(e) => setNewTestName(e.target.value)}
                     placeholder="Contoh: Insulation Resistance Winding"
-                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all"
+                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold font-mono uppercase tracking-wider text-on-surface-variant mb-1">
+                  <label className="block text-xs font-semibold text-on-surface-variant mb-2">
                     Standard Referensi
                   </label>
                   <input
@@ -1224,7 +1825,7 @@ export default function CombinedManagePengujianPage() {
                     value={newTestStandard}
                     onChange={(e) => setNewTestStandard(e.target.value)}
                     placeholder="Contoh: IEEE Std C57.152-2013"
-                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all"
+                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm"
                   />
                 </div>
               </div>
@@ -1336,21 +1937,21 @@ export default function CombinedManagePengujianPage() {
                 ))}
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-surface-border">
+              <div className="flex items-center justify-end gap-3 pt-5 border-t border-surface-border">
                 <button
                   type="button"
                   onClick={() => {
                     setIsCreateModalOpen(false);
                     resetCreateModalState();
                   }}
-                  className="px-4 py-2 border border-surface-border hover:bg-surface-container-low rounded-lg font-bold text-xs text-on-surface-variant transition-colors cursor-pointer"
+                  className="px-4.5 py-2 border border-outline-variant rounded-lg font-bold text-xs text-on-surface hover:bg-surface-container-low transition-all active:scale-95 cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={createTestTypeMutation.isPending}
-                  className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow-md shadow-primary/10 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   {createTestTypeMutation.isPending && (
                     <span className="material-symbols-outlined animate-spin text-[14px] select-none">progress_activity</span>
@@ -1434,8 +2035,8 @@ export default function CombinedManagePengujianPage() {
       {/* Modal: Tambah Jenis Aset Baru dari Sidebar */}
       {isAddEquipmentTypeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl border border-surface-border p-6 max-w-md w-full mx-4 animate-fade-in space-y-4">
-            <h3 className="text-sm font-bold text-on-surface mb-1">
+          <div className="bg-white rounded-2xl shadow-2xl border border-surface-border p-7 max-w-md w-full mx-4 animate-fade-in">
+            <h3 className="text-base font-bold text-on-surface mb-5">
               Tambah Jenis Aset Baru (Equipment Type)
             </h3>
             
@@ -1469,10 +2070,10 @@ export default function CombinedManagePengujianPage() {
                 setNewEquipmentTypeName('');
                 alert(`Jenis aset baru "${newName}" berhasil ditambahkan! Silakan tentukan jenis pengujian yang berlaku.`);
               }}
-              className="space-y-4 text-xs"
+              className="space-y-6 text-xs"
             >
               <div>
-                <label className="block text-[10px] font-bold font-mono uppercase tracking-wider text-on-surface-variant mb-1">
+                <label className="block text-xs font-semibold text-on-surface-variant mb-2">
                   Nama Jenis Aset <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -1481,23 +2082,127 @@ export default function CombinedManagePengujianPage() {
                   placeholder="Contoh: Trafo Start, Generator, dll"
                   value={newEquipmentTypeName}
                   onChange={(e) => setNewEquipmentTypeName(e.target.value)}
-                  className="w-full bg-surface-container-low border border-surface-border rounded-lg py-2 px-3 text-xs focus:ring-primary focus:border-primary"
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-surface-border">
+              <div className="flex justify-end gap-3 pt-5 border-t border-surface-border">
                 <button
                   type="button"
                   onClick={() => setIsAddEquipmentTypeOpen(false)}
-                  className="px-4 py-2 border border-outline-variant rounded-lg text-xs font-semibold hover:bg-surface-container-low transition-colors cursor-pointer"
+                  className="px-4.5 py-2 border border-outline-variant rounded-lg text-xs font-bold text-on-surface hover:bg-surface-container-low transition-all active:scale-95 cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-semibold hover:brightness-110 transition-colors active:scale-95 cursor-pointer"
+                  className="px-5 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:brightness-110 shadow-md shadow-primary/10 transition-all active:scale-95 cursor-pointer"
                 >
                   Simpan Jenis Aset
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Tambah Damage Mechanism Baru */}
+      {isAddDmModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-surface-border p-7 max-w-md w-full mx-4 animate-fade-in">
+            <h3 className="text-base font-bold text-on-surface mb-5">
+              Tambah Damage Mechanism Baru
+            </h3>
+            
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const name = newDmName.trim();
+                if (!name) return;
+                createDmMutation.mutate(name);
+              }}
+              className="space-y-6 text-xs"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-2">
+                  Nama Damage Mechanism <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Thermal Problem, Mechanical Defect, dll"
+                  value={newDmName}
+                  onChange={(e) => setNewDmName(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-5 border-t border-surface-border">
+                <button
+                  type="button"
+                  onClick={() => setIsAddDmModalOpen(false)}
+                  className="px-4.5 py-2 border border-outline-variant rounded-lg text-xs font-bold text-on-surface hover:bg-surface-container-low transition-all active:scale-95 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={createDmMutation.isPending}
+                  className="px-5 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:brightness-110 shadow-md shadow-primary/10 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  {createDmMutation.isPending ? 'Menyimpan...' : 'Simpan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Damage Mechanism Name */}
+      {isEditDmModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-surface-border p-7 max-w-md w-full mx-4 animate-fade-in">
+            <h3 className="text-base font-bold text-on-surface mb-5">
+              Edit Nama Damage Mechanism
+            </h3>
+            
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const newName = editDmName.trim();
+                if (!newName || !dmToEdit) return;
+                updateDmMutation.mutate({ oldName: dmToEdit, newName });
+              }}
+              className="space-y-6 text-xs"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-2">
+                  Nama Baru Damage Mechanism <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Thermal Problem, Mechanical Defect, dll"
+                  value={editDmName}
+                  onChange={(e) => setEditDmName(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-5 border-t border-surface-border">
+                <button
+                  type="button"
+                  onClick={() => setIsEditDmModalOpen(false)}
+                  className="px-4.5 py-2 border border-outline-variant rounded-lg text-xs font-bold text-on-surface hover:bg-surface-container-low transition-all active:scale-95 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateDmMutation.isPending}
+                  className="px-5 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:brightness-110 shadow-md shadow-primary/10 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  {updateDmMutation.isPending ? 'Menyimpan...' : 'Simpan'}
                 </button>
               </div>
             </form>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { KpiCard } from '@/components/dashboard/KpiCard';
@@ -35,11 +35,12 @@ function getAbbreviation(name: string): string {
 }
 
 // Fetch helpers
-async function fetchSummary(year: string, ubpId: string, assetId: string) {
+async function fetchSummary(year: string, ubpId: string, assetId: string, equipmentType: string) {
   const params = new URLSearchParams();
   if (year) params.append('year', year);
   if (ubpId) params.append('ubpId', ubpId);
   if (assetId) params.append('assetId', assetId);
+  if (equipmentType) params.append('equipmentType', equipmentType);
   
   const res = await fetch(`/api/dashboard/summary?${params.toString()}`);
   if (!res.ok) throw new Error('Gagal mengambil data ringkasan');
@@ -47,11 +48,12 @@ async function fetchSummary(year: string, ubpId: string, assetId: string) {
   return json.data;
 }
 
-async function fetchMatrix(year: string, ubpId: string, assetId: string) {
+async function fetchMatrix(year: string, ubpId: string, assetId: string, equipmentType: string) {
   const params = new URLSearchParams();
   if (year) params.append('year', year);
   if (ubpId) params.append('ubpId', ubpId);
   if (assetId) params.append('assetId', assetId);
+  if (equipmentType) params.append('equipmentType', equipmentType);
 
   const res = await fetch(`/api/dashboard/matrix?${params.toString()}`);
   if (!res.ok) throw new Error('Gagal mengambil data matriks');
@@ -74,12 +76,14 @@ export default function DashboardPage() {
   const [ubpId, setUbpId] = useState('');
   const [assetId, setAssetId] = useState('');
   const [testTypeId, setTestTypeId] = useState('');
+  const [equipmentType, setEquipmentType] = useState('');
   const [matrixPage, setMatrixPage] = useState(1);
+  const [showAllDms, setShowAllDms] = useState(false);
 
   // Reset page when filters change
   useEffect(() => {
     setMatrixPage(1);
-  }, [year, ubpId, assetId, testTypeId]);
+  }, [year, ubpId, assetId, testTypeId, equipmentType]);
 
   // Queries
   const { data: ubps, isLoading: isUbpsLoading } = useQuery({
@@ -98,19 +102,33 @@ export default function DashboardPage() {
   });
 
   const { data: summary, isLoading: isSummaryLoading } = useQuery({
-    queryKey: ['summary', year, ubpId, assetId],
-    queryFn: () => fetchSummary(year, ubpId, assetId),
+    queryKey: ['summary', year, ubpId, assetId, equipmentType],
+    queryFn: () => fetchSummary(year, ubpId, assetId, equipmentType),
   });
 
   const { data: matrix, isLoading: isMatrixLoading } = useQuery({
-    queryKey: ['matrix', year, ubpId, assetId],
-    queryFn: () => fetchMatrix(year, ubpId, assetId),
+    queryKey: ['matrix', year, ubpId, assetId, equipmentType],
+    queryFn: () => fetchMatrix(year, ubpId, assetId, equipmentType),
   });
 
   const isLoading = isSummaryLoading || isMatrixLoading || isUbpsLoading;
 
   // Find selected UBP to list its assets
   const selectedUbp = ubps?.find((u: any) => u.id === ubpId);
+
+  // Get all unique equipment types from available assets
+  const equipmentTypes = useMemo(() => {
+    if (!ubps) return [];
+    const types = new Set<string>();
+    for (const ubp of ubps) {
+      for (const asset of ubp.assets || []) {
+        if (asset.equipmentType) {
+          types.add(asset.equipmentType.trim());
+        }
+      }
+    }
+    return Array.from(types).sort();
+  }, [ubps]);
 
   // Pagination variables for the matrix table
   const PAGE_SIZE = 10;
@@ -119,6 +137,20 @@ export default function DashboardPage() {
   const paginatedRows = matrix?.rows
     ? matrix.rows.slice((matrixPage - 1) * PAGE_SIZE, matrixPage * PAGE_SIZE)
     : [];
+
+  // Compact list of damage mechanisms
+  const displayedDms = useMemo(() => {
+    if (!summary?.damageMechanisms) return [];
+    if (showAllDms) return summary.damageMechanisms;
+    
+    // Show only the ones with actual findings
+    const withFindings = summary.damageMechanisms.filter((dm: any) => dm.count > 0);
+    // If no active findings, show the first 3 to prevent empty table UI
+    if (withFindings.length === 0) {
+      return summary.damageMechanisms.slice(0, 3);
+    }
+    return withFindings;
+  }, [summary?.damageMechanisms, showAllDms]);
 
   // Handle row click -> drill down to asset page with specific session
   function handleRowClick(assetId: string, sessionId?: string) {
@@ -133,6 +165,7 @@ export default function DashboardPage() {
     if (ubpId) params.append('ubpId', ubpId);
     if (assetId) params.append('assetId', assetId);
     if (testTypeId) params.append('testTypeId', testTypeId);
+    if (equipmentType) params.append('equipmentType', equipmentType);
     window.open(`/api/export/excel?${params.toString()}`, '_blank');
   }
 
@@ -186,6 +219,26 @@ export default function DashboardPage() {
           </select>
         </div>
 
+        <div className="h-4 w-px bg-surface-border" />
+
+        {/* Tipe Alat Filter */}
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs tracking-wider text-on-surface-variant">Tipe Alat:</span>
+          <select 
+            value={equipmentType}
+            onChange={(e) => {
+              setEquipmentType(e.target.value);
+              setAssetId(''); // Reset asset filter on equipment type change
+            }}
+            className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 cursor-pointer text-on-surface"
+          >
+            <option value="">Semua Tipe</option>
+            {equipmentTypes.map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Asset Filter (Visible when UBP is selected) */}
         {ubpId && selectedUbp?.assets && selectedUbp.assets.length > 0 && (
           <>
@@ -198,9 +251,11 @@ export default function DashboardPage() {
                 className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 cursor-pointer text-on-surface"
               >
                 <option value="">Semua Aset</option>
-                {selectedUbp.assets.map((asset: { id: string; name: string; equipmentType: string }) => (
-                  <option key={asset.id} value={asset.id}>{asset.name} ({asset.equipmentType})</option>
-                ))}
+                {selectedUbp.assets
+                  .filter((asset: any) => !equipmentType || asset.equipmentType === equipmentType)
+                  .map((asset: { id: string; name: string; equipmentType: string }) => (
+                    <option key={asset.id} value={asset.id}>{asset.name} ({asset.equipmentType})</option>
+                  ))}
               </select>
             </div>
           </>
@@ -252,10 +307,10 @@ export default function DashboardPage() {
         <div className="px-6 py-4 border-b border-surface-border flex justify-between items-center">
           <div>
             <h3 className="text-xl font-semibold text-on-surface">
-              Kondisi Trafo per Unit x Jenis Pengujian
+              Kondisi Asset per Unit x Jenis Pengujian
             </h3>
             <p className="text-sm text-on-surface-variant mt-0.5">
-              Ringkasan status pengujian transformer terbaru per unit pembangkit.
+              Ringkasan status pengujian asset terbaru per unit pembangkit.
             </p>
           </div>
           <button 
@@ -414,90 +469,228 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* Dynamic Damage Mechanism Summary Table (Full Width) */}
-      <section className="bg-white rounded-lg border border-surface-border shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-surface-border flex justify-between items-center">
-          <div>
-            <h3 className="text-xl font-semibold text-on-surface">
-              Rekap Indikasi Kerusakan per Mekanisme (Damage Mechanism)
-            </h3>
-            <p className="text-sm text-on-surface-variant mt-0.5">
-              Mekanisme kegagalan trafo yang terdeteksi berdasarkan kriteria penilaian terendah per jenis uji.
-            </p>
-          </div>
+      {/* Bottom Section: Damage Mechanism Table + Recent Reports */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+        {/* Dynamic Damage Mechanism Summary Table (Left Column, 2/3 Width) */}
+        <div className="lg:col-span-2">
+          <section className="bg-white rounded-lg border border-surface-border shadow-sm overflow-hidden h-full flex flex-col justify-between">
+            <div>
+              <div className="px-5 py-3 border-b border-surface-border flex justify-between items-center">
+                <div>
+                  <h3 className="text-base font-semibold text-on-surface">
+                    Rekap Indikasi Kerusakan per Mekanisme (Damage Mechanism)
+                  </h3>
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    Mekanisme kegagalan trafo yang terdeteksi berdasarkan kriteria penilaian terendah per jenis uji.
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-separate border-spacing-0">
+                  <thead>
+                    <tr className="bg-surface-container-low">
+                      <th className="px-3 py-2 font-mono text-[10px] tracking-wider font-semibold text-on-surface-variant uppercase border-b border-r border-surface-border w-[50px] text-center">
+                        No
+                      </th>
+                      <th className="px-3 py-2 font-mono text-[10px] tracking-wider font-semibold text-on-surface-variant uppercase border-b border-r border-surface-border min-w-[180px]">
+                        Mekanisme Kerusakan
+                      </th>
+                      <th className="px-3 py-2 font-mono text-[10px] tracking-wider font-semibold text-on-surface-variant uppercase border-b border-r border-surface-border text-center w-[120px]">
+                        Temuan
+                      </th>
+                      <th className="px-3 py-2 font-mono text-[10px] tracking-wider font-semibold text-on-surface-variant uppercase border-b border-surface-border">
+                        Unit dengan Temuan
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayedDms.map((dm: any, idx: number) => (
+                      <tr 
+                        key={dm.name} 
+                        className={`hover:bg-surface-container-low transition-colors ${
+                          idx % 2 === 1 ? 'bg-surface-background' : 'bg-white'
+                        }`}
+                      >
+                        <td className="px-3 py-1.5 text-center font-mono text-[11px] text-on-surface-variant border-b border-r border-surface-border">
+                          {idx + 1}
+                        </td>
+                        <td className="px-3 py-1.5 text-[11px] font-bold text-on-surface border-b border-r border-surface-border">
+                          {dm.name}
+                        </td>
+                        <td className="px-3 py-1.5 text-center border-b border-r border-surface-border">
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] border inline-block ${
+                            dm.count > 0 
+                              ? 'bg-red-50 text-red-700 border-red-200' 
+                              : 'bg-green-50 text-green-700 border-green-200'
+                          }`}>
+                            {dm.count} Asset
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5 text-[11px] border-b border-surface-border">
+                          {dm.affectedAssets && dm.affectedAssets.length > 0 ? (
+                            <div className="flex flex-wrap gap-1 items-center">
+                              {dm.affectedAssets.slice(0, 5).map((asset: { id: string; name: string }) => (
+                                <button
+                                  key={asset.id}
+                                  onClick={() => router.push(`/unit/${asset.id}`)}
+                                  className="px-1.5 py-0.5 bg-primary/5 hover:bg-primary/10 text-primary font-semibold text-[10px] rounded transition-all active:scale-95 border border-primary/10 cursor-pointer"
+                                >
+                                  {asset.name}
+                                </button>
+                              ))}
+                              {dm.affectedAssets.length > 5 && (
+                                <span 
+                                  className="px-1.5 py-0.5 bg-surface-container text-on-surface-variant font-bold text-[9px] rounded border border-surface-border/80 cursor-help"
+                                  title={dm.affectedAssets.slice(5).map((a: any) => a.name).join(', ')}
+                                >
+                                  +{dm.affectedAssets.length - 5} Unit Lainnya
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-on-surface-variant/40 text-[10px]">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {displayedDms.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="text-center py-6 text-on-surface-variant font-medium text-xs">
+                          Tidak ada data mekanisme kerusakan.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {summary?.damageMechanisms && summary.damageMechanisms.length > displayedDms.length && (
+              <div className="px-4 py-2 border-t border-surface-border text-center bg-surface-container-low/50">
+                <button
+                  onClick={() => setShowAllDms(true)}
+                  className="text-[11px] font-bold text-primary hover:underline flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                >
+                  Lihat Semua Mekanisme ({summary.damageMechanisms.length})
+                  <span className="material-symbols-outlined text-[13px] select-none">expand_more</span>
+                </button>
+              </div>
+            )}
+            {showAllDms && summary?.damageMechanisms && summary.damageMechanisms.length > 3 && (
+              <div className="px-4 py-2 border-t border-surface-border text-center bg-surface-container-low/50">
+                <button
+                  onClick={() => setShowAllDms(false)}
+                  className="text-[11px] font-bold text-primary hover:underline flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                >
+                  Sembunyikan Mekanisme Tanpa Temuan
+                  <span className="material-symbols-outlined text-[13px] select-none">expand_less</span>
+                </button>
+              </div>
+            )}
+          </section>
         </div>
 
-        <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left border-separate border-spacing-0">
-            <thead>
-              <tr className="bg-surface-container-low">
-                <th className="px-4 py-3 font-mono text-xs tracking-wider font-medium text-on-surface-variant uppercase border-b border-r border-surface-border w-[60px] text-center">
-                  No
-                </th>
-                <th className="px-4 py-3 font-mono text-xs tracking-wider font-medium text-on-surface-variant uppercase border-b border-r border-surface-border min-w-[200px]">
-                  Mekanisme Kerusakan
-                </th>
-                <th className="px-4 py-3 font-mono text-xs tracking-wider font-medium text-on-surface-variant uppercase border-b border-r border-surface-border text-center w-[150px]">
-                  Jumlah Temuan
-                </th>
-                <th className="px-4 py-3 font-mono text-xs tracking-wider font-medium text-on-surface-variant uppercase border-b border-surface-border">
-                  Unit dengan Temuan
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {summary?.damageMechanisms?.map((dm: any, idx: number) => (
-                <tr 
-                  key={dm.name} 
-                  className={`hover:bg-surface-container-low transition-colors ${
-                    idx % 2 === 1 ? 'bg-surface-background' : 'bg-white'
-                  }`}
-                >
-                  <td className="px-4 py-3 text-center font-mono text-[12px] text-on-surface-variant border-b border-r border-surface-border">
-                    {idx + 1}
-                  </td>
-                  <td className="px-4 py-3 text-[12px] font-bold text-on-surface border-b border-r border-surface-border">
-                    {dm.name}
-                  </td>
-                  <td className="px-4 py-3 text-center border-b border-r border-surface-border">
-                    <span className={`px-3 py-1 rounded-full font-bold text-[11px] ${
-                      dm.count > 0 
-                        ? 'bg-red-50 text-red-700 border border-red-200' 
-                        : 'bg-green-50 text-green-700 border border-green-200'
-                    }`}>
-                      {dm.count} Asset
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-[12px] border-b border-surface-border">
-                    {dm.affectedAssets && dm.affectedAssets.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {dm.affectedAssets.map((asset: { id: string; name: string }) => (
-                          <button
-                            key={asset.id}
-                            onClick={() => router.push(`/unit/${asset.id}`)}
-                            className="px-2 py-1 bg-primary/5 hover:bg-primary/10 text-primary font-semibold text-[11px] rounded-md transition-all active:scale-95 border border-primary/20 cursor-pointer"
-                          >
-                            {asset.name}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-on-surface-variant/40">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {(!summary?.damageMechanisms || summary.damageMechanisms.length === 0) && (
-                <tr>
-                  <td colSpan={4} className="text-center py-8 text-on-surface-variant font-medium">
-                    Tidak ada data mekanisme kerusakan.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        {/* Laporan Terbaru Diunggah Card (Right Column, 1/3 Width) */}
+        <div className="lg:col-span-1">
+          <section className="bg-white rounded-lg border border-surface-border shadow-sm overflow-hidden h-full flex flex-col justify-between">
+            <div className="flex flex-col h-full justify-between">
+              <div className="px-4 py-3 border-b border-surface-border flex items-center gap-2 shrink-0">
+                <span className="material-symbols-outlined text-primary text-lg select-none">notifications</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-on-surface">
+                    Laporan Baru Diunggah
+                  </h3>
+                  <p className="text-[11px] text-on-surface-variant mt-0.5">
+                    Berkas dokumen yang baru ditambahkan ke sistem.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 overflow-y-auto flex-1 custom-scrollbar min-h-[220px]">
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <div className="w-5 h-5 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                  </div>
+                ) : !summary?.recentReports || summary.recentReports.length === 0 ? (
+                  <div className="text-center py-10 text-on-surface-variant/60 text-[11px] font-medium flex flex-col items-center justify-center gap-1.5 h-full">
+                    <span className="material-symbols-outlined text-2xl text-on-surface-variant/30 select-none">folder_open</span>
+                    Belum ada laporan yang diunggah.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {summary.recentReports.map((report: any) => {
+                      const isPdf = report.name.toLowerCase().endsWith('.pdf');
+                      const isExcel = report.name.toLowerCase().endsWith('.xlsx') || report.name.toLowerCase().endsWith('.xls');
+                      const fileIcon = isPdf ? 'picture_as_pdf' : isExcel ? 'table_view' : 'description';
+                      const iconColor = isPdf ? 'text-red-500' : isExcel ? 'text-green-600' : 'text-blue-500';
+
+                      // Format date (e.g. 14 Jul 2026)
+                      const dateStr = report.createdAt 
+                        ? new Date(report.createdAt).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric'
+                          })
+                        : '—';
+
+                      // Format file size
+                      const sizeStr = report.fileSize 
+                        ? (report.fileSize / 1024).toFixed(1) + ' KB'
+                        : '—';
+
+                      return (
+                        <div key={report.id} className="flex items-center gap-2.5 p-2 bg-surface-container-lowest hover:bg-surface-container-low border border-surface-border/50 rounded-lg transition-all group">
+                          <span className={`material-symbols-outlined text-lg shrink-0 ${iconColor} select-none`}>
+                            {fileIcon}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span
+                                className="block text-[11px] font-bold text-on-surface truncate flex-1 pr-1"
+                                title={report.name}
+                              >
+                                {report.name}
+                              </span>
+                              <span className="text-[9px] font-mono text-outline shrink-0 mr-1">
+                                {sizeStr}
+                              </span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <a
+                                  href={`/api/reports/files/${report.id}/download?inline=true`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1 hover:bg-surface-container rounded text-on-surface-variant flex items-center justify-center transition-all"
+                                  title="Lihat Berkas"
+                                >
+                                  <span className="material-symbols-outlined text-[12px] font-bold">visibility</span>
+                                </a>
+                                <a
+                                  href={`/api/reports/files/${report.id}/download`}
+                                  className="p-1 hover:bg-primary-container/20 rounded text-primary flex items-center justify-center transition-all"
+                                  title="Unduh Berkas"
+                                >
+                                  <span className="material-symbols-outlined text-[12px] font-bold">download</span>
+                                </a>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center justify-between text-[9px] text-on-surface-variant/80 mt-0.5">
+                              <span className="truncate max-w-[125px]">
+                                Folder: {report.directoryName} • Oleh: {report.uploadedBy}
+                              </span>
+                              <span className="shrink-0 text-outline">{dateStr}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
 
       {/* Bottom Charts Row */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">

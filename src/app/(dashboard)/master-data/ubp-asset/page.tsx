@@ -191,8 +191,8 @@ export default function UbpAssetManagementPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-semibold text-primary mb-1">Kelola UBP & Aset Trafo</h2>
-          <p className="text-sm text-on-surface-variant">Kelola daftar Unit Bisnis Pembangkit (UBP) beserta aset transformatornya.</p>
+          <h2 className="text-2xl font-semibold text-primary mb-1">Kelola UBP & Asset</h2>
+          <p className="text-sm text-on-surface-variant">Kelola daftar Unit Bisnis Pembangkit (UBP) beserta asetnya.</p>
         </div>
         <button
           onClick={() => {
@@ -294,12 +294,12 @@ export default function UbpAssetManagementPage() {
                                   <table className="w-full text-left border-collapse">
                                     <thead>
                                       <tr className="bg-surface-container-low font-mono text-[10px] text-on-surface-variant uppercase tracking-wider border-b border-surface-border">
-                                        <th className="px-4 py-2">Nama Aset / Trafo</th>
-                                        <th className="px-4 py-2 w-[180px] text-center">Jenis Peralatan</th>
-                                        <th className="px-4 py-2 w-[120px] text-center">Tahun Pembuatan</th>
-                                        <th className="px-4 py-2 w-[120px] text-center">Vector Group</th>
-                                        <th className="px-4 py-2 w-[150px]">Nomor Seri</th>
-                                        <th className="px-4 py-2 w-[100px] text-right">Aksi</th>
+                                        <th className="px-4 py-2 w-[25%]">Nama Unit</th>
+                                        <th className="px-4 py-2 w-[20%] text-center">Jenis Asset</th>
+                                        <th className="px-4 py-2 w-[15%] text-center">Tahun Pembuatan</th>
+                                        <th className="px-4 py-2 w-[15%] text-center">Manufacture</th>
+                                        <th className="px-4 py-2 w-[15%] text-center">Nomor Seri</th>
+                                        <th className="px-4 py-2 w-[10%] text-center">Aksi</th>
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-surface-border text-xs text-on-surface">
@@ -310,8 +310,8 @@ export default function UbpAssetManagementPage() {
                                             <td className="px-4 py-3 text-on-surface-variant text-center">{asset.equipmentType}</td>
                                             <td className="px-4 py-3 text-center font-mono">{asset.mfgYear ?? '—'}</td>
                                             <td className="px-4 py-3 text-center font-mono">{asset.vectorGroup ?? '—'}</td>
-                                            <td className="px-4 py-3 font-mono">{asset.serialNumber ?? '—'}</td>
-                                            <td className="px-4 py-3 text-right">
+                                            <td className="px-4 py-3 text-center font-mono">{asset.serialNumber ?? '—'}</td>
+                                            <td className="px-4 py-3 text-center">
                                               <button
                                                 onClick={() => {
                                                   if (confirm(`Apakah Anda yakin ingin menghapus aset "${asset.name}"? Semua data pengujian terkait akan ikut dihapus.`)) {
@@ -529,11 +529,11 @@ export default function UbpAssetManagementPage() {
                       className="w-full bg-surface-container-low border border-surface-border rounded-lg text-sm py-2.5 px-3 focus:ring-primary focus:border-primary"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">Vector Group</label>
+                   <div className="space-y-2">
+                    <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">Manufacture</label>
                     <input
                       type="text"
-                      placeholder="Contoh: YNd11"
+                      placeholder="Contoh: Siemens, Trafoindo"
                       value={vectorGroup}
                       onChange={(e) => setVectorGroup(e.target.value)}
                       className="w-full bg-surface-container-low border border-surface-border rounded-lg text-sm py-2.5 px-3 focus:ring-primary focus:border-primary"

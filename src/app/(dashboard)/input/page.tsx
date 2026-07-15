@@ -76,14 +76,22 @@ function InputForm() {
   const searchParams = useSearchParams();
   const paramAssetId = searchParams.get('assetId');
   const paramTestYear = searchParams.get('testYear');
+  const paramTestEvent = searchParams.get('testEvent');
 
   // Filters/selections state
   const [testYear, setTestYear] = useState(String(new Date().getFullYear()));
+  const [testEvent, setTestEvent] = useState('default');
+  const [existingEvents, setExistingEvents] = useState<string[]>([]);
+  const [isCustomEvent, setIsCustomEvent] = useState(false);
+  const [customEventName, setCustomEventName] = useState('');
+  
   const [selectedUbpId, setSelectedUbpId] = useState('');
   const [selectedUnitName, setSelectedUnitName] = useState('');
   const [selectedAssetId, setSelectedAssetId] = useState('');
   const [selectedTestTypeIds, setSelectedTestTypeIds] = useState<string[]>([]);
   const [sessionStatus, setSessionStatus] = useState<string | null>(null);
+
+  const sessionDisplayName = `tahun ${testYear}${testEvent && testEvent !== 'default' ? ` (${testEvent})` : ''}`;
 
   // Values input state: parameterId -> string value
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -128,6 +136,11 @@ function InputForm() {
   useEffect(() => {
     if (paramAssetId && paramTestYear) {
       setTestYear(paramTestYear);
+      if (paramTestEvent) {
+        setTestEvent(paramTestEvent);
+      } else {
+        setTestEvent('default');
+      }
       if (ubps) {
         let foundUbpId = '';
         let foundUnitName = '';
@@ -146,7 +159,31 @@ function InputForm() {
         }
       }
     }
-  }, [paramAssetId, paramTestYear, ubps]);
+  }, [paramAssetId, paramTestYear, paramTestEvent, ubps]);
+
+  // Fetch existing events for the selected asset and year
+  useEffect(() => {
+    if (!selectedAssetId || !testYear) {
+      setExistingEvents([]);
+      return;
+    }
+    async function loadEvents() {
+      try {
+        const res = await fetch(`/api/test-sessions?assetId=${selectedAssetId}&testYear=${testYear}`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          const events = json.data
+            .map((s: any) => s.testEvent || 'default')
+            .filter((val: string, idx: number, self: string[]) => self.indexOf(val) === idx);
+          setExistingEvents(events);
+        }
+      } catch (e) {
+        console.error('Error loading events:', e);
+      }
+    }
+    loadEvents();
+  }, [selectedAssetId, testYear, activeSessionId]);
 
   // Load existing session and results when selectedAssetId or testYear changes
   useEffect(() => {
@@ -174,7 +211,7 @@ function InputForm() {
 
     async function loadExistingSession() {
       try {
-        const res = await fetch(`/api/test-sessions?assetId=${selectedAssetId}&testYear=${testYear}`);
+        const res = await fetch(`/api/test-sessions?assetId=${selectedAssetId}&testYear=${testYear}&testEvent=${encodeURIComponent(testEvent)}`);
         if (!res.ok) return;
         const json = await res.json();
         if (json.success && json.data) {
@@ -271,7 +308,7 @@ function InputForm() {
     }
 
     loadExistingSession();
-  }, [selectedAssetId, testYear, selectedAsset]);
+  }, [selectedAssetId, testYear, testEvent, selectedAsset]);
 
   // Load initial asset info when selectedAsset changes (if no session active)
   useEffect(() => {
@@ -339,7 +376,12 @@ function InputForm() {
       const res = await fetch('/api/test-sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetId: selectedAssetId, testYear, additionalInfo }),
+        body: JSON.stringify({
+          assetId: selectedAssetId,
+          testYear,
+          testEvent: testEvent === 'default' ? null : testEvent,
+          additionalInfo
+        }),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
@@ -574,13 +616,15 @@ function InputForm() {
     <div className="pb-32 animate-fade-in">
       {/* Form Header */}
       <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-primary mb-1">Input Hasil Pengujian Trafo</h2>
-        <p className="text-sm text-on-surface-variant">Masukkan data hasil inspeksi dan pemeliharaan rutin trafo.</p>
+        <h2 className="text-2xl font-semibold text-primary mb-1">
+          Input Hasil Pengujian {selectedAsset ? selectedAsset.name : 'Alat'}
+        </h2>
+        <p className="text-sm text-on-surface-variant">Masukkan data hasil inspeksi dan pemeliharaan rutin alat.</p>
       </div>
 
       {/* Selection Section */}
       <section className="bg-white border border-surface-border rounded-xl p-4 mb-4 shadow-sm space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="space-y-1">
             <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Tahun Pengujian</label>
             {(() => {
@@ -596,7 +640,7 @@ function InputForm() {
                 <select 
                   value={testYear}
                   onChange={(e) => setTestYear(e.target.value)}
-                  className="w-full bg-surface-container-low border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary"
+                  className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary"
                 >
                   {years.map((y) => (
                     <option key={y} value={y}>{y}</option>
@@ -605,6 +649,81 @@ function InputForm() {
               );
             })()}
           </div>
+
+          <div className="space-y-1">
+            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Event Pengujian</label>
+            {isCustomEvent ? (
+              <div key="event-input-mode" className="flex items-center gap-1.5 w-full">
+                <input
+                  type="text"
+                  required
+                  value={customEventName}
+                  onChange={(e) => setCustomEventName(e.target.value)}
+                  placeholder="Nama Event Baru..."
+                  className="flex-1 min-w-0 bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:ring-primary font-semibold text-primary animate-fade-in h-[30px]"
+                />
+                <button
+                  key="btn-cancel-custom"
+                  type="button"
+                  onClick={() => {
+                    setIsCustomEvent(false);
+                    setTestEvent('default');
+                  }}
+                  className="text-on-surface-variant hover:text-on-surface hover:bg-surface-container border border-surface-border rounded-lg h-[30px] w-[30px] flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+                  title="Batal"
+                >
+                  <span className="material-symbols-outlined text-[16px]">close</span>
+                </button>
+                <button
+                  key="btn-apply-custom"
+                  type="button"
+                  onClick={() => {
+                    const trimmed = customEventName.trim();
+                    if (trimmed) {
+                      setTestEvent(trimmed);
+                      setIsCustomEvent(false);
+                      if (!existingEvents.includes(trimmed)) {
+                        setExistingEvents(prev => [...prev, trimmed]);
+                      }
+                    }
+                  }}
+                  disabled={!customEventName.trim()}
+                  className="text-primary hover:text-primary-dark hover:bg-surface-container border border-surface-border rounded-lg h-[30px] w-[30px] flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-40 transition-colors"
+                  title="Terapkan"
+                >
+                  <span className="material-symbols-outlined text-[16px] font-bold">check</span>
+                </button>
+              </div>
+            ) : (
+              <div key="event-select-mode" className="flex items-center gap-1.5 w-full">
+                <select 
+                  value={testEvent}
+                  onChange={(e) => setTestEvent(e.target.value)}
+                  className="flex-1 min-w-0 bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:ring-primary font-semibold text-primary cursor-pointer"
+                >
+                  <option value="default">Rutin (Default)</option>
+                  {existingEvents
+                    .filter((e) => e !== 'default' && e !== '')
+                    .map((evt) => (
+                      <option key={evt} value={evt}>{evt}</option>
+                    ))}
+                </select>
+                <button
+                  key="btn-add-custom"
+                  type="button"
+                  onClick={() => {
+                    setIsCustomEvent(true);
+                    setCustomEventName('');
+                  }}
+                  className="text-primary hover:text-primary/80 font-bold select-none cursor-pointer flex items-center shrink-0 p-1 bg-surface-container-low hover:bg-surface-container border border-surface-border rounded-lg h-[30px] w-[30px] justify-center transition-colors"
+                  title="Tambah Event Baru"
+                >
+                  <span className="material-symbols-outlined text-[18px]">add</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="space-y-1">
             <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">UBP</label>
             <select 
@@ -614,7 +733,7 @@ function InputForm() {
                 setSelectedUnitName('');
                 setSelectedAssetId('');
               }}
-              className="w-full bg-surface-container-low border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary"
+              className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary"
             >
               <option value="">Pilih UBP</option>
               {ubps?.map((ubp: any) => (
@@ -642,7 +761,7 @@ function InputForm() {
                 }
               }}
               disabled={!selectedUbpId}
-              className="w-full bg-surface-container-low border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary disabled:opacity-50"
+              className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary disabled:opacity-50"
             >
               <option value="">Pilih Unit</option>
               {(() => {
@@ -665,7 +784,7 @@ function InputForm() {
                   <select
                     value={selectedAssetId}
                     onChange={(e) => setSelectedAssetId(e.target.value)}
-                    className="w-full bg-surface-container-low border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary"
+                    className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary"
                   >
                     <option value="">Pilih Equipment</option>
                     {assetsForUnit.map((asset: any) => (
@@ -679,7 +798,7 @@ function InputForm() {
                     type="text"
                     readOnly
                     value={selectedAsset ? selectedAsset.equipmentType : (assetsForUnit.length === 1 ? assetsForUnit[0].equipmentType : '—')}
-                    className="w-full bg-surface-container-low border-surface-border rounded-lg text-xs py-1.5 px-3 focus:outline-none"
+                    className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:outline-none"
                   />
                 );
               }
@@ -918,17 +1037,17 @@ function InputForm() {
           {sessionStatus === 'VALIDATED' ? (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg text-xs font-semibold">
               <span className="material-symbols-outlined text-base">verified</span>
-              <span>Sesi pengujian tahun {testYear} telah disetujui (VALIDATED). Pengeditan dinonaktifkan.</span>
+              <span>Sesi pengujian {sessionDisplayName} telah disetujui (VALIDATED). Pengeditan dinonaktifkan.</span>
             </div>
           ) : sessionStatus === 'SUBMITTED' ? (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-xs font-semibold">
               <span className="material-symbols-outlined text-base animate-pulse">pending</span>
-              <span>Sesi pengujian tahun {testYear} telah dikirim (SUBMITTED) & menunggu verifikasi Validator.</span>
+              <span>Sesi pengujian {sessionDisplayName} telah dikirim (SUBMITTED) & menunggu verifikasi Validator.</span>
             </div>
           ) : sessionStatus === 'REJECTED' ? (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-semibold">
               <span className="material-symbols-outlined text-base">error_outline</span>
-              <span>Sesi pengujian tahun {testYear} DITOLAK oleh Validator. Silakan perbaiki data di bawah lalu kirim ulang.</span>
+              <span>Sesi pengujian {sessionDisplayName} DITOLAK oleh Validator. Silakan perbaiki data di bawah lalu kirim ulang.</span>
             </div>
           ) : null}
         </div>

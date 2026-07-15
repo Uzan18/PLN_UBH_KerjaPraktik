@@ -6,6 +6,7 @@ import { TestSession } from '@/entities/TestSession';
 import { TestResult } from '@/entities/TestResult';
 import { TestType } from '@/entities/TestType';
 import { Parameter } from '@/entities/Parameter';
+import { ReportFile } from '@/entities/ReportFile';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
 import { aggregateAssetStatus } from '@/lib/scoring/aggregateAssetStatus';
@@ -16,6 +17,7 @@ interface TestResultWithParam {
   score: number | null;
   parameter?: {
     name?: string;
+    damageMechanisms?: string | null;
     testType?: {
       name?: string;
     };
@@ -29,53 +31,11 @@ function getMechanismScoreForSession(session: TestSession, mechanism: string): n
   for (const r of results) {
     if (r.isNotApplicable || r.score === null || r.score === undefined) continue;
 
-    const ttName = r.parameter?.testType?.name?.toUpperCase() || '';
-    const pName = r.parameter?.name?.toUpperCase() || '';
+    const damageMechs = r.parameter?.damageMechanisms
+      ? r.parameter.damageMechanisms.split(',').map((m) => m.trim().toUpperCase())
+      : [];
 
-    let match = false;
-    switch (mechanism) {
-      case 'Bushing-Electrical defect':
-        match = ttName.includes('TAN DELTA BUSHING') || ttName.includes('WATT LOSS BUSHING');
-        break;
-      case 'Bushing-Mechanical defect':
-        match = ttName.includes('VISUAL INSPECTION') && (pName.includes('BUSHING DEFECT') || pName.includes('CONTAMINANT'));
-        break;
-      case 'Deformation':
-        match = ttName.includes('SFRA HV OPEN') || ttName.includes('SFRA HV SHORTED') || ttName.includes('SFRA LV OPEN') || ttName.includes('SFRA LV SHORTED');
-        break;
-      case 'Winding & Connection':
-        match = ttName.includes('TURN TO TURN RATIO') || ttName.includes('WINDING RESISTANCE');
-        break;
-      case 'Core defect':
-        match = ttName.includes('EXC CURRENT');
-        break;
-      case 'Dielectric Problem':
-        match = ttName.includes('INSULATION RESISTANCE') || ttName.includes('TAN DELTA WINDING') || ttName.includes('DIRANA MOISTURE');
-        break;
-      case 'Oil Problem':
-        match = (ttName.includes('OIL ANALYSIS') && (pName.includes('STATUS') || pName.includes('BDV'))) || ttName.includes('DIRANA OIL CONDUCT') || ttName.includes('OIL CONDUCTIVITY');
-        break;
-      case 'Leakage':
-        match = ttName.includes('VISUAL INSPECTION') && (pName.includes('BUSHING LEAKAGE') || pName.includes('BODY & RADIATOR LEAKAGE') || pName.includes('BODY & RADIATOR'));
-        break;
-      case 'Thermal Problem':
-        match = (ttName.includes('DGA') && (pName.includes('STATUS') || pName.includes('DAMAGE MECHANISME') || pName.includes('DAMAGE'))) || (ttName.includes('OIL ANALYSIS') && pName.includes('STATUS'));
-        break;
-      case 'OTI/WTI Problem':
-        match = ttName.includes('OTI') || ttName.includes('WTI');
-        break;
-      case 'Grounding Problem':
-        match = ttName.includes('GROUNDING RESISTANCE');
-        break;
-      case 'Breating system':
-        match = ttName.includes('VISUAL INSPECTION') && (pName.includes('SILICA GEL') || pName.includes('SILICA GEL PUDAR'));
-        break;
-      case 'LA Problem':
-        match = ttName.includes('ARRESTER');
-        break;
-    }
-
-    if (match) {
+    if (damageMechs.includes(mechanism.toUpperCase())) {
       scores.push(Number(r.score));
     }
   }
@@ -101,6 +61,7 @@ export async function GET(request: Request) {
     const year = url.searchParams.get('year') ? parseInt(url.searchParams.get('year')!) : undefined;
     const ubpId = url.searchParams.get('ubpId') || undefined;
     const assetId = url.searchParams.get('assetId') || undefined;
+    const equipmentType = url.searchParams.get('equipmentType') || undefined;
 
     const db = await getDb();
     const assetRepo = db.getRepository(Asset);
@@ -110,6 +71,7 @@ export async function GET(request: Request) {
     const assetQb = assetRepo.createQueryBuilder('asset');
     if (ubpId) assetQb.where('asset.ubp_id = :ubpId', { ubpId });
     if (assetId) assetQb.andWhere('asset.id = :assetId', { assetId });
+    if (equipmentType) assetQb.andWhere('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() });
     const totalAssets = await assetQb.getCount();
 
     // Get validated sessions with results and asset relationship loaded
@@ -126,6 +88,9 @@ export async function GET(request: Request) {
     }
     if (assetId) {
       sessQb.andWhere('ts.asset_id = :assetId', { assetId });
+    }
+    if (equipmentType) {
+      sessQb.andWhere('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() });
     }
 
     const validatedSessions = await sessQb.getMany();
@@ -149,21 +114,27 @@ export async function GET(request: Request) {
     }
 
     // Dynamic Damage Mechanism aggregation
-    const mechanisms = [
-      'Deformation',
-      'Dielectric Problem',
-      'OTI/WTI Problem',
-      'Leakage',
-      'LA Problem',
-      'Core defect',
-      'Bushing-Electrical defect',
-      'Oil Problem',
-      'Grounding Problem',
-      'Bushing-Mechanical defect',
-      'Winding & Connection',
-      'Thermal Problem',
-      'Breating system',
-    ];
+    let mechanisms: string[] = [];
+    try {
+      const mechanismsRes = await db.query(`SELECT name FROM damage_mechanism ORDER BY name ASC`);
+      mechanisms = mechanismsRes.map((r: any) => r.NAME || r.name);
+    } catch (e) {
+      mechanisms = [
+        'Deformation',
+        'Dielectric Problem',
+        'OTI/WTI Problem',
+        'Leakage',
+        'LA Problem',
+        'Core defect',
+        'Bushing-Electrical defect',
+        'Oil Problem',
+        'Grounding Problem',
+        'Bushing-Mechanical defect',
+        'Winding & Connection',
+        'Thermal Problem',
+        'Breating system',
+      ];
+    }
 
     const damageMechanisms = mechanisms.map((m) => {
       let count = 0;
@@ -204,6 +175,24 @@ export async function GET(request: Request) {
       .getRawMany();
     const availableYears = yearsResult.map((r: { year: number }) => String(r.year));
 
+    // Fetch latest 5 uploaded report files
+    const fileRepo = db.getRepository(ReportFile);
+    const recentReports = await fileRepo.find({
+      relations: ['uploadedBy', 'directory'],
+      order: { createdAt: 'DESC' },
+      take: 5,
+    });
+
+    const recentReportsData = recentReports.map((file) => ({
+      id: file.id,
+      name: file.name,
+      filePath: file.filePath,
+      fileSize: file.fileSize,
+      createdAt: file.createdAt,
+      uploadedBy: file.uploadedBy?.name || 'Sistem',
+      directoryName: file.directory?.name || 'Root',
+    }));
+
     return NextResponse.json({
       success: true,
       data: {
@@ -215,6 +204,7 @@ export async function GET(request: Request) {
         badCount,
         damageMechanisms,
         availableYears,
+        recentReports: recentReportsData,
       },
     });
   } catch (error) {

@@ -26,10 +26,10 @@ export function JudgementMatrixTable({
       <div className="px-6 py-4 border-b border-[#E2E8F0] flex justify-between items-center bg-white">
         <div>
           <h3 className="text-[20px] leading-[28px] font-semibold text-[#111c2d] font-[Hanken_Grotesk]">
-            Kondisi Trafo per Unit x Jenis Pengujian
+            Kondisi Asset per Unit x Jenis Pengujian
           </h3>
           <p className="text-[14px] text-[#434652] mt-0.5">
-            Ringkasan status pengujian transformer terbaru per unit pembangkit.
+            Ringkasan status pengujian asset terbaru per unit pembangkit.
           </p>
         </div>
         {onExport && (

@@ -44,6 +44,7 @@ interface TestResultWithParam {
   score: number | null;
   parameter?: {
     name?: string;
+    damageMechanisms?: string | null;
     testType?: {
       name?: string;
     };
@@ -57,53 +58,11 @@ function getMechanismScoreForSession(session: TestSession, mechanism: string): n
   for (const r of results) {
     if (r.isNotApplicable || r.score === null || r.score === undefined) continue;
 
-    const ttName = r.parameter?.testType?.name?.toUpperCase() || '';
-    const pName = r.parameter?.name?.toUpperCase() || '';
+    const damageMechs = r.parameter?.damageMechanisms
+      ? r.parameter.damageMechanisms.split(',').map((m) => m.trim().toUpperCase())
+      : [];
 
-    let match = false;
-    switch (mechanism) {
-      case 'Bushing-Electrical defect':
-        match = ttName.includes('TAN DELTA BUSHING') || ttName.includes('WATT LOSS BUSHING');
-        break;
-      case 'Bushing-Mechanical defect':
-        match = ttName.includes('VISUAL INSPECTION') && (pName.includes('BUSHING DEFECT') || pName.includes('CONTAMINANT'));
-        break;
-      case 'Deformation':
-        match = ttName.includes('SFRA HV OPEN') || ttName.includes('SFRA HV SHORTED') || ttName.includes('SFRA LV OPEN') || ttName.includes('SFRA LV SHORTED');
-        break;
-      case 'Winding & Connection':
-        match = ttName.includes('TURN TO TURN RATIO') || ttName.includes('WINDING RESISTANCE');
-        break;
-      case 'Core defect':
-        match = ttName.includes('EXC CURRENT');
-        break;
-      case 'Dielectric Problem':
-        match = ttName.includes('INSULATION RESISTANCE') || ttName.includes('TAN DELTA WINDING') || ttName.includes('DIRANA MOISTURE');
-        break;
-      case 'Oil Problem':
-        match = (ttName.includes('OIL ANALYSIS') && (pName.includes('STATUS') || pName.includes('BDV'))) || ttName.includes('DIRANA OIL CONDUCT') || ttName.includes('OIL CONDUCTIVITY');
-        break;
-      case 'Leakage':
-        match = ttName.includes('VISUAL INSPECTION') && (pName.includes('BUSHING LEAKAGE') || pName.includes('BODY & RADIATOR LEAKAGE') || pName.includes('BODY & RADIATOR'));
-        break;
-      case 'Thermal Problem':
-        match = (ttName.includes('DGA') && (pName.includes('STATUS') || pName.includes('DAMAGE MECHANISME') || pName.includes('DAMAGE'))) || (ttName.includes('OIL ANALYSIS') && pName.includes('STATUS'));
-        break;
-      case 'OTI/WTI Problem':
-        match = ttName.includes('OTI') || ttName.includes('WTI');
-        break;
-      case 'Grounding Problem':
-        match = ttName.includes('GROUNDING RESISTANCE');
-        break;
-      case 'Breating system':
-        match = ttName.includes('VISUAL INSPECTION') && (pName.includes('SILICA GEL') || pName.includes('SILICA GEL PUDAR'));
-        break;
-      case 'LA Problem':
-        match = ttName.includes('ARRESTER');
-        break;
-    }
-
-    if (match) {
+    if (damageMechs.includes(mechanism.toUpperCase())) {
       scores.push(Number(r.score));
     }
   }
@@ -276,21 +235,27 @@ export async function GET(
     }
 
     // Dynamic Damage Mechanism aggregation for this asset and selected session
-    const mechanisms = [
-      'Deformation',
-      'Dielectric Problem',
-      'OTI/WTI Problem',
-      'Leakage',
-      'LA Problem',
-      'Core defect',
-      'Bushing-Electrical defect',
-      'Oil Problem',
-      'Grounding Problem',
-      'Bushing-Mechanical defect',
-      'Winding & Connection',
-      'Thermal Problem',
-      'Breating system',
-    ];
+    let mechanisms: string[] = [];
+    try {
+      const mechanismsRes = await db.query(`SELECT name FROM damage_mechanism ORDER BY name ASC`);
+      mechanisms = mechanismsRes.map((r: any) => r.NAME || r.name);
+    } catch (e) {
+      mechanisms = [
+        'Deformation',
+        'Dielectric Problem',
+        'OTI/WTI Problem',
+        'Leakage',
+        'LA Problem',
+        'Core defect',
+        'Bushing-Electrical defect',
+        'Oil Problem',
+        'Grounding Problem',
+        'Bushing-Mechanical defect',
+        'Winding & Connection',
+        'Thermal Problem',
+        'Breating system',
+      ];
+    }
 
     const damageMechanisms = selectedSession
       ? mechanisms.map((m) => {

@@ -55,13 +55,35 @@ export async function GET(request: Request) {
     const year = url.searchParams.get('year') ? parseInt(url.searchParams.get('year')!) : undefined;
     const ubpId = url.searchParams.get('ubpId') || undefined;
     const assetId = url.searchParams.get('assetId') || undefined;
+    const equipmentType = url.searchParams.get('equipmentType') || undefined;
 
     const db = await getDb();
     const testTypeRepo = db.getRepository(TestType);
     const sessionRepo = db.getRepository(TestSession);
 
-    // Get all test types for headers
-    let testTypes = await testTypeRepo.find({ order: { orderIndex: 'ASC' } });
+    // Get test types for headers (filter by equipmentType if specified)
+    let testTypes: TestType[] = [];
+    if (equipmentType) {
+      const filteredTypes = await testTypeRepo.createQueryBuilder('tt')
+        .innerJoin('tt.assets', 'asset')
+        .where('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() })
+        .getMany();
+
+      const uniqueTypes = [];
+      const seenIds = new Set<string>();
+      for (const t of filteredTypes) {
+        if (!seenIds.has(t.id)) {
+          seenIds.add(t.id);
+          uniqueTypes.push(t);
+        }
+      }
+      testTypes = uniqueTypes;
+    }
+
+    // Fallback if no filtered types or no equipmentType selected
+    if (testTypes.length === 0) {
+      testTypes = await testTypeRepo.find({ order: { orderIndex: 'ASC' } });
+    }
 
     // Sort according to TEST_TYPE_ORDER
     testTypes = [...testTypes].sort((a, b) => {
@@ -88,6 +110,7 @@ export async function GET(request: Request) {
 
     if (ubpId) sessionQb.andWhere('asset.ubp_id = :ubpId', { ubpId });
     if (assetId) sessionQb.andWhere('asset.id = :assetId', { assetId });
+    if (equipmentType) sessionQb.andWhere('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() });
     if (year) sessionQb.andWhere('ts.test_year = :year', { year });
 
     const sessions = await sessionQb.getMany();

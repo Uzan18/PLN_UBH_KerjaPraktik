@@ -49,19 +49,19 @@ function LoginForm() {
 
         <div className="relative z-10">
           <div className="inline-block bg-white/95 px-5 py-3 rounded-2xl shadow-md border border-white/20 backdrop-blur-xs">
-            <img src="/logo.png" alt="PLN Logo" className="h-9 w-auto object-contain" />
+            <img src="/logofix.png" alt="PLN Logo" className="h-9 w-auto object-contain" />
           </div>
         </div>
-
         <div className="relative z-10 my-auto">
-          <h2 className="text-4xl lg:text-5xl font-extrabold text-white leading-[1.15] tracking-tight">
+          <h2 className="text-4xl lg:text-[52px] font-extrabold text-white leading-[1.08] tracking-tight max-w-2xl">
             Sistem Digitalisasi
-            <span className="text-[#FFDE00] block mt-1.5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.15)]">
-              Assessment Trafo
+            <span className="text-[#FFDE00] block mt-3.5 text-2.5xl lg:text-[42px] font-extrabold leading-[1.12] drop-shadow-[0_2px_6px_rgba(0,0,0,0.18)]">
+              Assesment Peralatan Utama
+              <span className="block mt-1.5">Pembangkit Listrik</span>
             </span>
           </h2>
-          <p className="text-sky-100/90 text-base lg:text-lg max-w-lg mt-6 leading-relaxed font-normal">
-            Platform monitoring dan assessment kondisi transformator tenaga untuk PT PLN Indonesia Power — Maintenance Business Unit.
+          <p className="text-sky-100/90 text-sm lg:text-base max-w-lg mt-8 leading-relaxed font-normal">
+            Platform reporting dan trending hasil assessment peralatan utama pembangkit Listrik PT PLN Indonesia Power – Unit Bisnis Pemeliharaan.
           </p>
         </div>
 
@@ -74,7 +74,7 @@ function LoginForm() {
           {/* Mobile Logo */}
           <div className="lg:hidden flex justify-center mb-10">
             <div className="bg-white p-3 rounded-lg shadow-sm">
-              <img src="/logo.png" alt="PLN Logo" className="h-12 w-auto object-contain" />
+              <img src="/logofix.png" alt="PLN Logo" className="h-12 w-auto object-contain" />
             </div>
           </div>
 

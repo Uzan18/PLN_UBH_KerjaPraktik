@@ -9,6 +9,7 @@ import { TestResult } from '@/entities/TestResult';
 import { ReportDirectory } from '@/entities/ReportDirectory';
 import { AuditLog } from '@/entities/AuditLog';
 import { getServerSession } from '@/lib/auth/session';
+import { requirePermission } from '@/lib/auth/rbac';
 import { IsNull, In } from 'typeorm';
 
 /**
@@ -20,9 +21,10 @@ import { IsNull, In } from 'typeorm';
 export async function POST(request: Request) {
   try {
     const session = await getServerSession();
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
+    requirePermission(session.user.role, 'master-data:write');
 
     const body = await request.json();
     const { ubpId, equipmentType, mfgYear, vectorGroup, serialNumber, testTypeIds } = body;
@@ -121,9 +123,10 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const session = await getServerSession();
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
+    requirePermission(session.user.role, 'master-data:write');
 
     const url = new URL(request.url);
     const id = url.searchParams.get('id');

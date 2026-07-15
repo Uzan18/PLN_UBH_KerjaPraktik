@@ -6,6 +6,8 @@ import { TestType } from '@/entities/TestType';
 import * as xlsx from 'xlsx';
 import { aggregateAssetStatus } from '@/lib/scoring/aggregateAssetStatus';
 import type { JudgementLabel } from '@/types';
+import { getServerSession } from '@/lib/auth/session';
+import { requirePermission } from '@/lib/auth/rbac';
 
 const TEST_TYPE_ORDER = [
   'INSULATION RESISTANCE',
@@ -39,20 +41,48 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
+    // Auth + RBAC check (Critical fix: was completely unprotected)
+    const session = await getServerSession();
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    requirePermission(session.user.role, 'export:read');
+
     const { searchParams } = new URL(req.url);
     const year = searchParams.get('year');
     const ubpId = searchParams.get('ubpId');
     const assetId = searchParams.get('assetId');
     const testTypeId = searchParams.get('testTypeId');
+    const equipmentType = searchParams.get('equipmentType');
 
     const connection = await getDb();
     const testSessionRepo = connection.getRepository(TestSession);
     const testTypeRepo = connection.getRepository(TestType);
 
-    // Fetch all test types ordered by index
-    let testTypes = await testTypeRepo.find({
-      order: { orderIndex: 'ASC' },
-    });
+    // Fetch test types (filter by equipmentType if specified)
+    let testTypes: TestType[] = [];
+    if (equipmentType && equipmentType !== 'ALL') {
+      const filteredTypes = await testTypeRepo.createQueryBuilder('tt')
+        .innerJoin('tt.assets', 'asset')
+        .where('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() })
+        .getMany();
+
+      const uniqueTypes = [];
+      const seenIds = new Set<string>();
+      for (const t of filteredTypes) {
+        if (!seenIds.has(t.id)) {
+          seenIds.add(t.id);
+          uniqueTypes.push(t);
+        }
+      }
+      testTypes = uniqueTypes;
+    }
+
+    if (testTypes.length === 0) {
+      testTypes = await testTypeRepo.find({
+        order: { orderIndex: 'ASC' },
+      });
+    }
 
     // Sort according to TEST_TYPE_ORDER
     testTypes = [...testTypes].sort((a, b) => {
@@ -93,6 +123,11 @@ export async function GET(req: Request) {
     // Filter by Asset / Unit
     if (assetId && assetId !== 'ALL') {
       queryBuilder.andWhere('asset.id = :assetId', { assetId });
+    }
+
+    // Filter by Equipment Type
+    if (equipmentType && equipmentType !== 'ALL') {
+      queryBuilder.andWhere('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() });
     }
 
     // Filter by Test Type / Tool
@@ -177,6 +212,10 @@ export async function GET(req: Request) {
     // Generate filename based on filters
     let filterSuffix = 'ALL';
     if (year && year !== 'ALL') filterSuffix = `Tahun_${year}`;
+    if (equipmentType && equipmentType !== 'ALL') {
+      const cleanEquip = equipmentType.replace(/[^a-zA-Z0-9]/g, '_');
+      filterSuffix += `_Tipe_${cleanEquip}`;
+    }
     if (ubpId && ubpId !== 'ALL') {
       const ubpName = sessions[0]?.asset.ubp.name.replace(/[^a-zA-Z0-9]/g, '_') || ubpId;
       filterSuffix += `_UBP_${ubpName}`;

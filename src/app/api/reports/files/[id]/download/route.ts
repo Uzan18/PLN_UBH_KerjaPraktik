@@ -40,13 +40,21 @@ export async function GET(
     // Read file stream
     const fileStream = fs.createReadStream(absolutePath);
     
-    // Set headers for download
+    // Set headers for download / view
+    const { searchParams } = new URL(request.url);
+    const isInline = searchParams.get('inline') === 'true' || searchParams.get('view') === 'true';
+
     const headers = new Headers();
     headers.set('Content-Type', file.mimeType || 'application/octet-stream');
     headers.set('Content-Length', file.fileSize.toString());
     // Safe filename encoding
     const encodedFilename = encodeURIComponent(file.name).replace(/['()]/g, escape);
-    headers.set('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+    
+    if (isInline) {
+      headers.set('Content-Disposition', `inline; filename*=UTF-8''${encodedFilename}`);
+    } else {
+      headers.set('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+    }
 
     // Return stream response (using ReadableStream)
     const stream = new ReadableStream({

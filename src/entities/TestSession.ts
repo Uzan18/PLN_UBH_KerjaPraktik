@@ -32,6 +32,10 @@ export class TestSession {
   testYear!: number;
 
   @Index()
+  @Column({ name: 'test_event', type: 'varchar', length: 100, nullable: true })
+  testEvent!: string | null;
+
+  @Index()
   @Column({
     type: 'varchar',
     length: 20,

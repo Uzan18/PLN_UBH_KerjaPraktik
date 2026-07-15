@@ -6,13 +6,13 @@ import { useSession, signOut } from 'next-auth/react';
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: 'dashboard', label: 'Dashboard', roles: ['VIEWER', 'INPUT', 'QC', 'ADMIN'] },
-  { href: '/informasi-asset', icon: 'info', label: 'Informasi Aset', roles: ['VIEWER', 'INPUT', 'QC', 'ADMIN'] },
+  { href: '/laporan', icon: 'analytics', label: 'Laporan', roles: ['VIEWER', 'INPUT', 'QC', 'ADMIN'] },
+  { href: '/informasi-asset', icon: 'info', label: 'Hasil Pengujian', roles: ['VIEWER', 'INPUT', 'QC', 'ADMIN'] },
   { href: '/input', icon: 'edit_document', label: 'Input Data', roles: ['INPUT'] },
   { href: '/riwayat', icon: 'assignment', label: 'Riwayat Uji', roles: ['INPUT', 'QC', 'ADMIN'] },
   { href: '/validasi', icon: 'rule', label: 'Validasi Data', roles: ['QC'] },
-  { href: '/laporan', icon: 'analytics', label: 'Laporan', roles: ['VIEWER', 'INPUT', 'QC', 'ADMIN'] },
   { href: '/master-data/ubp-asset', icon: 'domain', label: 'Master UBP & Aset', roles: ['ADMIN'] },
-  { href: '/master-data/pengujian', icon: 'fact_check', label: 'Kriteria Standard', roles: ['ADMIN'] },
+  { href: '/master-data/pengujian', icon: 'fact_check', label: 'Master Jenis Pengujian', roles: ['ADMIN'] },
   { href: '/master-data/users', icon: 'group', label: 'Kelola Pengguna', roles: ['ADMIN'] },
   { href: '/log', icon: 'history', label: 'Log Audit', roles: ['ADMIN'] },
 ];
@@ -45,7 +45,7 @@ export default function DashboardLayout({
       <aside className="h-screen w-64 fixed left-0 top-0 bg-surface-container border-r border-surface-border flex flex-col py-6 z-50">
         {/* Logo / Brand */}
         <div className="px-6 mb-8 flex justify-center">
-          <img src="/logo.png" alt="PLN Logo" className="h-10 w-auto object-contain" />
+          <img src="/logofix.png" alt="PLN Logo" className="h-10 w-auto object-contain" />
         </div>
 
         {/* Navigation */}

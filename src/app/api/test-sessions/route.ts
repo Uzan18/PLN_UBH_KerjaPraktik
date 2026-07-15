@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     requirePermission(session.user.role, 'test-session:create');
 
     const body = await request.json();
-    const { assetId, testYear, additionalInfo } = body;
+    const { assetId, testYear, testEvent, additionalInfo } = body;
 
     if (!assetId || !testYear) {
       return NextResponse.json(
@@ -43,6 +43,7 @@ export async function POST(request: Request) {
     const testSession = sessionRepo.create({
       assetId,
       testYear: parseInt(testYear),
+      testEvent: testEvent ? String(testEvent).trim() : null,
       status: 'DRAFT',
       createdById: session.user.id,
       additionalInfoPending: additionalInfo ? JSON.stringify(additionalInfo) : null,
@@ -86,7 +87,7 @@ export async function GET(request: Request) {
     const db = await getDb();
     const sessionRepo = db.getRepository<TestSession>('TestSession');
 
-    // If querying a specific asset and year, return the single session with all results
+    // If querying a specific asset and year, return matching session(s)
     if (assetId && testYear) {
       const qb = sessionRepo.createQueryBuilder('ts')
         .leftJoinAndSelect('ts.testResults', 'tr')
@@ -96,13 +97,26 @@ export async function GET(request: Request) {
         .where('ts.asset_id = :assetId', { assetId })
         .andWhere('ts.test_year = :testYear', { testYear });
       
-      // INPUT users can only see their own sessions
-      if (session.user.role === 'INPUT') {
-        qb.andWhere('ts.created_by_id = :userId', { userId: session.user.id });
+      const testEvent = url.searchParams.get('testEvent');
+      if (testEvent !== null) {
+        if (testEvent === '' || testEvent === 'default') {
+          qb.andWhere('ts.test_event IS NULL');
+        } else {
+          qb.andWhere('ts.test_event = :testEvent', { testEvent: testEvent.trim() });
+        }
+        
+        if (session.user.role === 'INPUT') {
+          qb.andWhere('ts.created_by_id = :userId', { userId: session.user.id });
+        }
+        const singleSession = await qb.getOne();
+        return NextResponse.json({ success: true, data: singleSession });
+      } else {
+        if (session.user.role === 'INPUT') {
+          qb.andWhere('ts.created_by_id = :userId', { userId: session.user.id });
+        }
+        const sessions = await qb.getMany();
+        return NextResponse.json({ success: true, data: sessions });
       }
-
-      const singleSession = await qb.getOne();
-      return NextResponse.json({ success: true, data: singleSession });
     }
 
     const qb = sessionRepo.createQueryBuilder('ts')

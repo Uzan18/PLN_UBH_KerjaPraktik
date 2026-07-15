@@ -5,6 +5,7 @@ import { Asset } from '@/entities/Asset';
 import { TestType } from '@/entities/TestType';
 import { AuditLog } from '@/entities/AuditLog';
 import { getServerSession } from '@/lib/auth/session';
+import { requirePermission } from '@/lib/auth/rbac';
 import { In } from 'typeorm';
 
 /**
@@ -14,9 +15,10 @@ import { In } from 'typeorm';
 export async function POST(request: Request) {
   try {
     const session = await getServerSession();
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
+    requirePermission(session.user.role, 'master-data:write');
 
     const body = await request.json();
     const { equipmentType, testTypeIds } = body;

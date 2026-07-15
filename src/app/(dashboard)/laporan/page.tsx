@@ -566,8 +566,17 @@ export default function LaporanPage() {
                                 <td className="py-3.5 px-4 text-center font-sans">
                                   <div className="flex items-center justify-center gap-2">
                                     <a
+                                      href={`/api/reports/files/${file.id}/download?inline=true`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-1.5 hover:bg-surface-container text-on-surface-variant rounded-md transition-colors flex items-center justify-center"
+                                      title="Lihat Berkas"
+                                    >
+                                      <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                    </a>
+                                    <a
                                       href={`/api/reports/files/${file.id}/download`}
-                                      className="p-1.5 hover:bg-[#dae2ff] text-primary rounded-md transition-colors flex items-center justify-center"
+                                      className="p-1.5 hover:bg-primary-container/20 text-primary rounded-md transition-colors flex items-center justify-center"
                                       title="Unduh Berkas"
                                     >
                                       <span className="material-symbols-outlined text-[18px]">download</span>

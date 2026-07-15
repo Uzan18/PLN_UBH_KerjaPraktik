@@ -19,6 +19,12 @@ export default function InformasiAssetPage() {
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [expandedTests, setExpandedTests] = useState<Record<string, boolean>>({});
 
+  // Export states
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportUbpId, setExportUbpId] = useState('ALL');
+  const [exportUnitName, setExportUnitName] = useState('ALL');
+  const [exportAssetId, setExportAssetId] = useState('ALL');
+
   const { data: ubps, isLoading, error } = useQuery({
     queryKey: ['ubp-assets-info-branched'],
     queryFn: fetchUbpAssets,
@@ -85,6 +91,48 @@ export default function InformasiAssetPage() {
       (a.manufacture || '').toLowerCase().includes(q)
     );
   }, [allAssets, searchQuery]);
+
+  // Memo fields for dynamic export filters
+  const exportSelectedUbp = useMemo(() => {
+    if (!ubps || !exportUbpId || exportUbpId === 'ALL') return null;
+    return ubps.find((u: any) => u.id === exportUbpId) || null;
+  }, [ubps, exportUbpId]);
+
+  const exportUniqueUnits = useMemo(() => {
+    if (exportUbpId === 'ALL') {
+      if (!ubps) return [];
+      const names = new Set<string>();
+      ubps.forEach((u: any) => {
+        u.assets?.forEach((a: any) => {
+          if (a.name) names.add(a.name.trim());
+        });
+      });
+      return Array.from(names).sort();
+    }
+    if (!exportSelectedUbp?.assets) return [];
+    const names = new Set<string>();
+    exportSelectedUbp.assets.forEach((a: any) => {
+      if (a.name) names.add(a.name.trim());
+    });
+    return Array.from(names).sort();
+  }, [ubps, exportUbpId, exportSelectedUbp]);
+
+  const exportAssetsList = useMemo(() => {
+    if (!ubps) return [];
+    let list: any[] = [];
+    if (exportUbpId === 'ALL') {
+      ubps.forEach((u: any) => {
+        if (u.assets) list.push(...u.assets);
+      });
+    } else if (exportSelectedUbp?.assets) {
+      list = exportSelectedUbp.assets;
+    }
+
+    if (exportUnitName && exportUnitName !== 'ALL') {
+      list = list.filter((a: any) => a.name === exportUnitName);
+    }
+    return list;
+  }, [ubps, exportUbpId, exportSelectedUbp, exportUnitName]);
 
   // Navigation
   const handleSelectUbp = (id: string | null) => {
@@ -156,7 +204,7 @@ export default function InformasiAssetPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-surface-border pb-3">
         <div className="flex flex-col gap-0.5">
-          <h1 className="text-xl font-bold text-on-surface">Informasi Aset</h1>
+          <h1 className="text-xl font-bold text-on-surface">Hasil Pengujian</h1>
           <p className="text-xs text-on-surface-variant">
             {level === 4 && activeAsset ? `Spesifikasi teknis & pengujian terakhir ${activeAsset.equipmentType} — ${activeAsset.name}.`
               : level === 3 ? `Pilih peralatan pada ${selectedUnitName}.`
@@ -164,15 +212,25 @@ export default function InformasiAssetPage() {
               : 'Pilih Unit Bisnis Pemeliharaan (UBP) untuk melihat aset transformator.'}
           </p>
         </div>
-        <div className="relative w-full md:w-72 shrink-0">
-          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-xs">search</span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari nama aset, SN, manufacture..."
-            className="w-full bg-white border border-surface-border rounded-md text-xs py-1.5 pl-8 pr-3 focus:ring-1 focus:ring-primary focus:border-primary shadow-sm"
-          />
+        <div className="flex items-center gap-2 w-full md:w-auto shrink-0 justify-end">
+          <button
+            onClick={() => setIsExportModalOpen(true)}
+            className="bg-primary text-white hover:brightness-110 text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+          >
+            <span className="material-symbols-outlined text-xs select-none font-bold">download</span>
+            Ekspor Data
+          </button>
+
+          <div className="relative w-full md:w-64">
+            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-xs">search</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari nama aset, SN, manufacture..."
+              className="w-full bg-white border border-surface-border rounded-md text-xs py-1.5 pl-8 pr-3 focus:ring-1 focus:ring-primary focus:border-primary shadow-sm"
+            />
+          </div>
         </div>
       </div>
 
@@ -360,11 +418,10 @@ export default function InformasiAssetPage() {
                           </div>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 border-t border-surface-border/50">
                             {[
-                              { label: 'Manufacture', value: assetDetail.manufacture || '—' },
                               { label: 'Type', value: assetDetail.type || '—' },
                               { label: 'Serial Number', value: assetDetail.serialNumber || '—' },
                               { label: 'Tahun Buat', value: assetDetail.mfgYear ? String(assetDetail.mfgYear) : '—' },
-                              { label: 'Vector Group', value: assetDetail.vectorGroup || '—' },
+                              { label: 'Manufacture', value: assetDetail.vectorGroup || '—' },
                               { label: 'Cooling Method', value: assetDetail.coolingMethod || '—' },
                               { label: 'Rated Power', value: assetDetail.ratedPower || '—' },
                               { label: 'Frequency', value: assetDetail.frequency || '—' },
@@ -556,6 +613,118 @@ export default function InformasiAssetPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Export Modal Overlay */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl border border-surface-border max-w-md w-full flex flex-col overflow-hidden animate-fade-in">
+            <div className="p-4 border-b border-surface-border bg-surface-background flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary select-none font-bold">download</span>
+                <h3 className="text-sm font-bold text-on-surface uppercase tracking-wider">Ekspor Data</h3>
+              </div>
+              <button
+                onClick={() => setIsExportModalOpen(false)}
+                className="text-on-surface-variant hover:text-on-surface rounded p-1 hover:bg-surface-container transition-all cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg select-none">close</span>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                Unduh seluruh data pengujian yang telah divalidasi ke format berkas Excel yang kompatibel untuk di-import kembali.
+              </p>
+
+              {/* Filter UBP */}
+              <div>
+                <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
+                  Filter UBP
+                </label>
+                <select
+                  value={exportUbpId}
+                  onChange={(e) => {
+                    setExportUbpId(e.target.value);
+                    setExportUnitName('ALL');
+                    setExportAssetId('ALL');
+                  }}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs font-semibold text-primary focus:border-primary focus:ring-0 cursor-pointer transition-all"
+                >
+                  <option value="ALL">SEMUA UBP (ALL)</option>
+                  {isLoading ? (
+                    <option disabled>Memuat data UBP...</option>
+                  ) : (
+                    ubps?.map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              {/* Filter Unit Pembangkit */}
+              <div>
+                <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
+                  Filter Unit Pembangkit
+                </label>
+                <select
+                  value={exportUnitName}
+                  onChange={(e) => {
+                    setExportUnitName(e.target.value);
+                    setExportAssetId('ALL');
+                  }}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs font-semibold text-primary focus:border-primary focus:ring-0 cursor-pointer transition-all"
+                >
+                  <option value="ALL">SEMUA UNIT (ALL)</option>
+                  {exportUniqueUnits.map((name: string) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filter Aset */}
+              <div>
+                <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
+                  Filter Aset / Trafo
+                </label>
+                <select
+                  value={exportAssetId}
+                  onChange={(e) => setExportAssetId(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs font-semibold text-primary focus:border-primary focus:ring-0 cursor-pointer transition-all"
+                >
+                  <option value="ALL">SEMUA ASET (ALL)</option>
+                  {exportAssetsList.map((asset: any) => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.serialNumber ? `${asset.name} (SN: ${asset.serialNumber})` : asset.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-surface-border bg-surface-background flex justify-end gap-3">
+              <button
+                onClick={() => setIsExportModalOpen(false)}
+                className="px-4 py-2 border border-surface-border hover:bg-surface-container rounded-lg font-bold text-xs text-on-surface-variant transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <a
+                href={`/api/master/export?ubpId=${exportUbpId}&unitName=${exportUnitName}&assetId=${exportAssetId}`}
+                download
+                onClick={() => setIsExportModalOpen(false)}
+                className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm select-none font-bold">download</span>
+                Mulai Ekspor
+              </a>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

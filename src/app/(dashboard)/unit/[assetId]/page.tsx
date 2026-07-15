@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import type { JudgementLabel } from '@/types';
 
@@ -19,6 +20,11 @@ async function fetchAssetDetail(assetId: string, year?: string, sessionId?: stri
 }
 
 export default function AssetDetailPage() {
+  const { data: session } = useSession();
+  const userRole = (session?.user as { role?: string })?.role || 'VIEWER';
+  const isViewer = userRole === 'VIEWER';
+  const isInputUser = userRole === 'INPUT';
+
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -74,7 +80,7 @@ export default function AssetDetailPage() {
       </div>
 
       {/* Asset Header (Bento Style) */}
-      <div className="grid grid-cols-12 gap-4 items-start">
+      <div className="grid grid-cols-12 gap-4 items-stretch">
         {/* Left: Asset Info Card */}
         <div className="col-span-12 lg:col-span-8 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col">
           <div>
@@ -117,11 +123,10 @@ export default function AssetDetailPage() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 border-t border-surface-border/50">
             {[
-              { label: 'Manufacture', value: asset.manufacture || '—' },
               { label: 'Type', value: asset.type || '—' },
               { label: 'Serial Number', value: asset.serialNumber || '—' },
               { label: 'Tahun Buat', value: asset.mfgYear ? String(asset.mfgYear) : '—' },
-              { label: 'Vector Group', value: asset.vectorGroup || '—' },
+              { label: 'Manufacture', value: asset.vectorGroup || '—' },
               { label: 'Cooling Method', value: asset.coolingMethod || '—' },
               { label: 'Rated Power', value: asset.ratedPower || '—' },
               { label: 'Frequency', value: asset.frequency || '—' },
@@ -313,15 +318,17 @@ export default function AssetDetailPage() {
           </div>
 
           {/* Quick Actions */}
-          <div className="bg-white p-4 rounded-xl border border-surface-border shadow-sm space-y-3">
-            <h4 className="font-bold text-on-surface mb-2">Tindakan Cepat</h4>
-            <Link 
-              href={`/input?assetId=${assetId}&testYear=${asset.selectedTestYear || new Date().getFullYear()}`}
-              className="w-full py-2 bg-primary text-white rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2 active:scale-95"
-            >
-              <span className="material-symbols-outlined text-sm">add</span> Input Data Baru
-            </Link>
-          </div>
+          {isInputUser && (
+            <div className="bg-white p-4 rounded-xl border border-surface-border shadow-sm space-y-3">
+              <h4 className="font-bold text-on-surface mb-2">Tindakan Cepat</h4>
+              <Link 
+                href={`/input?assetId=${assetId}&testYear=${asset.selectedTestYear || new Date().getFullYear()}`}
+                className="w-full py-2 bg-primary text-white rounded-lg font-bold text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2 active:scale-95"
+              >
+                <span className="material-symbols-outlined text-sm">add</span> Input Data Baru
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>

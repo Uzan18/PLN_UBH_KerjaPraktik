@@ -35,6 +35,9 @@ export class Parameter {
   @Column({ name: 'order_index', type: 'int', default: 0 })
   orderIndex!: number;
 
+  @Column({ name: 'damage_mechanisms', type: 'varchar', length: 1000, nullable: true })
+  damageMechanisms!: string | null;
+
   @OneToMany('Criteria', 'parameter')
   criteria!: Criteria[];
 
