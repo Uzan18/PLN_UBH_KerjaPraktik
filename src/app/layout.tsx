@@ -4,9 +4,9 @@ import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Sistem Digitalisasi Assessment Trafo",
+  title: "Sistem Digitalisasi Assesment Peralatan Utama Pembangkit Listrik",
   description:
-    "Aplikasi web internal PT PLN Indonesia Power untuk digitalisasi assessment kondisi transformator tenaga.",
+    "Aplikasi web internal PT PLN Indonesia Power untuk digitalisasi assessment kondisi peralatan utama pembangkit listrik.",
 };
 
 export default function RootLayout({

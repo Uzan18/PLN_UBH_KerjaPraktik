@@ -5,10 +5,10 @@ import { getDb } from '@/lib/db';
 import { User } from '@/entities/User';
 
 /**
- * Augmented session types for SIAT.
+ * Augmented session types.
  * Extends NextAuth session to include user role and id.
  */
-export interface SiatSession {
+export interface AppSession {
   user: {
     id: string;
     name: string;
@@ -18,37 +18,38 @@ export interface SiatSession {
 }
 
 /**
- * Get the current server-side session with SIAT-specific user fields.
+ * Get the current server-side session with specific user fields.
  * Use this in API route handlers and server components.
  */
-export async function getServerSession(): Promise<SiatSession | null> {
+export async function getServerSession(): Promise<AppSession | null> {
   const session = await nextAuthGetServerSession(authOptions);
-  if (!session?.user) return null;
+  if (!session?.user) {
+    return null;
+  }
 
-  const userId = (session.user as { id?: string }).id;
-  if (!userId) return null;
-
-  // Verify that the user ID exists in the database to prevent stale session errors (e.g. after database reseeding)
+  // Double check user exists and is active in DB to prevent stale session issues
   try {
     const db = await getDb();
     const userRepo = db.getRepository<User>('User');
-    const userExists = await userRepo.findOne({ where: { id: userId } });
-    if (!userExists) {
-      console.warn(`[Session] Stale session detected: user ID ${userId} not found in database. Expiring session.`);
+    const user = await userRepo.findOne({
+      where: { email: session.user.email || '' }
+    });
+
+    if (!user || !user.isActive) {
       return null;
     }
   } catch (err) {
     console.error('[Session] Failed to verify user existence in database:', err);
   }
 
-  return session as unknown as SiatSession;
+  return session as unknown as AppSession;
 }
 
 /**
  * Get the current session or throw 401 if not authenticated.
  * Convenience helper for API route handlers.
  */
-export async function requireSession(): Promise<SiatSession> {
+export async function requireSession(): Promise<AppSession> {
   const session = await getServerSession();
   if (!session) {
     throw new Error('Unauthorized');

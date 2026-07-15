@@ -4,9 +4,9 @@ import type { JudgementLabel, DataStatus } from '@/types';
 import { STATUS_COLORS, DATA_STATUS_COLORS } from '@/types';
 
 /**
- * StatusBadge — unified status badge component for SIAT.
+ * StatusBadge — unified status badge component.
  * 
- * CONVENTION (CLAUDE.md): All status color display MUST go through this component.
+ * All status color display should go through this component.
  * Do NOT hardcode hex colors elsewhere.
  * 
  * Colors:

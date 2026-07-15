@@ -210,7 +210,7 @@ export default function CombinedManagePengujianPage() {
     // Read mappings from localstorage to pre-populate local types
     let localMappings: Record<string, string[]> = {};
     if (typeof window !== 'undefined') {
-      const storedMap = localStorage.getItem('siat_custom_equipment_type_mappings');
+      const storedMap = localStorage.getItem('app_custom_equipment_type_mappings');
       if (storedMap) {
         try {
           localMappings = JSON.parse(storedMap);
@@ -271,7 +271,7 @@ export default function CombinedManagePengujianPage() {
   // Load custom equipment types from localStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('siat_custom_equipment_types');
+      const stored = localStorage.getItem('app_custom_equipment_types');
       if (stored) {
         try {
           setExtraEquipmentTypes(JSON.parse(stored));
@@ -279,7 +279,7 @@ export default function CombinedManagePengujianPage() {
           console.error(e);
         }
       }
-      const storedHidden = localStorage.getItem('siat_hidden_equipment_types');
+      const storedHidden = localStorage.getItem('app_hidden_equipment_types');
       if (storedHidden) {
         try {
           setHiddenEquipmentTypes(JSON.parse(storedHidden));
@@ -619,22 +619,22 @@ export default function CombinedManagePengujianPage() {
       const updatedExtra = extraEquipmentTypes.filter((t) => t !== equipmentType);
       setExtraEquipmentTypes(updatedExtra);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('siat_custom_equipment_types', JSON.stringify(updatedExtra));
+        localStorage.setItem('app_custom_equipment_types', JSON.stringify(updatedExtra));
       }
 
       const updatedHidden = [...hiddenEquipmentTypes, equipmentType];
       setHiddenEquipmentTypes(updatedHidden);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('siat_hidden_equipment_types', JSON.stringify(updatedHidden));
+        localStorage.setItem('app_hidden_equipment_types', JSON.stringify(updatedHidden));
       }
 
       if (typeof window !== 'undefined') {
-        const mappingsStr = localStorage.getItem('siat_custom_equipment_type_mappings');
+        const mappingsStr = localStorage.getItem('app_custom_equipment_type_mappings');
         if (mappingsStr) {
           try {
             const mappings = JSON.parse(mappingsStr);
             delete mappings[equipmentType];
-            localStorage.setItem('siat_custom_equipment_type_mappings', JSON.stringify(mappings));
+            localStorage.setItem('app_custom_equipment_type_mappings', JSON.stringify(mappings));
           } catch (e) {
             console.error(e);
           }
@@ -664,22 +664,22 @@ export default function CombinedManagePengujianPage() {
       const updatedExtra = extraEquipmentTypes.filter((t) => t !== group.name);
       setExtraEquipmentTypes(updatedExtra);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('siat_custom_equipment_types', JSON.stringify(updatedExtra));
+        localStorage.setItem('app_custom_equipment_types', JSON.stringify(updatedExtra));
       }
 
       const updatedHidden = [...hiddenEquipmentTypes, group.name];
       setHiddenEquipmentTypes(updatedHidden);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('siat_hidden_equipment_types', JSON.stringify(updatedHidden));
+        localStorage.setItem('app_hidden_equipment_types', JSON.stringify(updatedHidden));
       }
 
       if (typeof window !== 'undefined') {
-        const mappingsStr = localStorage.getItem('siat_custom_equipment_type_mappings');
+        const mappingsStr = localStorage.getItem('app_custom_equipment_type_mappings');
         if (mappingsStr) {
           try {
             const mappings = JSON.parse(mappingsStr);
             delete mappings[group.name];
-            localStorage.setItem('siat_custom_equipment_type_mappings', JSON.stringify(mappings));
+            localStorage.setItem('app_custom_equipment_type_mappings', JSON.stringify(mappings));
           } catch (e) {
             console.error(e);
           }
@@ -728,11 +728,11 @@ export default function CombinedManagePengujianPage() {
 
     if (selectedGroup.assetIds.length === 0) {
       if (typeof window !== 'undefined') {
-        const mappingsStr = localStorage.getItem('siat_custom_equipment_type_mappings') || '{}';
+        const mappingsStr = localStorage.getItem('app_custom_equipment_type_mappings') || '{}';
         try {
           const mappings = JSON.parse(mappingsStr);
           mappings[selectedGroup.name] = selectedTestTypeIds;
-          localStorage.setItem('siat_custom_equipment_type_mappings', JSON.stringify(mappings));
+          localStorage.setItem('app_custom_equipment_type_mappings', JSON.stringify(mappings));
           
           alert(`Konfigurasi pengujian untuk jenis aset "${selectedGroup.name}" berhasil disimpan sebagai template! Konfigurasi ini akan otomatis diterapkan saat Anda menambahkan unit pembangkit baru dengan jenis tersebut di menu Master UBP & Aset.`);
           queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
@@ -2055,7 +2055,7 @@ export default function CombinedManagePengujianPage() {
                 const updatedList = [...extraEquipmentTypes, newName];
                 setExtraEquipmentTypes(updatedList);
                 if (typeof window !== 'undefined') {
-                  localStorage.setItem('siat_custom_equipment_types', JSON.stringify(updatedList));
+                  localStorage.setItem('app_custom_equipment_types', JSON.stringify(updatedList));
                 }
 
                 const newGroup: EquipmentTypeGroup = {

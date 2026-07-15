@@ -39,7 +39,7 @@ export default function UbpAssetManagementPage() {
   // Load custom equipment types from localStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('siat_custom_equipment_types');
+      const stored = localStorage.getItem('app_custom_equipment_types');
       if (stored) {
         try {
           setLocalCustomTypes(JSON.parse(stored));
@@ -573,7 +573,7 @@ export default function UbpAssetManagementPage() {
 
                     let testTypeIds: string[] | undefined = undefined;
                     if (typeof window !== 'undefined') {
-                      const mappingsStr = localStorage.getItem('siat_custom_equipment_type_mappings');
+                       const mappingsStr = localStorage.getItem('app_custom_equipment_type_mappings');
                       if (mappingsStr) {
                         try {
                           const mappings = JSON.parse(mappingsStr);

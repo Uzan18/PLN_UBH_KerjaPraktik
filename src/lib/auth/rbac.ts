@@ -1,9 +1,7 @@
 import type { UserRole } from '@/types';
 
 /**
- * Role-Based Access Control definitions for SIAT.
- * 
- * CRITICAL RULE (CLAUDE.md Rule #4):
+ * Role-Based Access Control definitions.
  * RBAC MUST be checked at the API layer, not just UI.
  * 
  * Roles:

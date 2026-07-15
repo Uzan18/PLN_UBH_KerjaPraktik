@@ -1,4 +1,4 @@
-// Shared TypeScript types and enums for SIAT
+// Shared TypeScript types and enums
 
 // ---- Status & Judgement ----
 

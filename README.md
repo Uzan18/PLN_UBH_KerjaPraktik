@@ -1,8 +1,8 @@
-# Sistem Digitalisasi Assesment Peralatan Utama Pembangkit Listrik (SIAT)
+# Sistem Digitalisasi Assesment Peralatan Utama Pembangkit Listrik
 PT PLN Indonesia Power – Unit Bisnis Pemeliharaan
 
 ## Deskripsi
-Sistem Informasi Assesment Terpadu (SIAT) adalah platform berbasis web untuk reporting, trending, dan visualisasi hasil assessment peralatan utama pembangkit listrik di lingkungan PT PLN Indonesia Power Unit Bisnis Pemeliharaan.
+Sistem Digitalisasi Assesment Peralatan Utama Pembangkit Listrik adalah platform berbasis web untuk reporting, trending, dan visualisasi hasil assessment peralatan utama pembangkit listrik di lingkungan PT PLN Indonesia Power Unit Bisnis Pemeliharaan.
 
 ## Prasyarat Sistem
 Sebelum memulai instalasi, pastikan lingkungan pengembangan telah memenuhi persyaratan berikut:
@@ -24,7 +24,7 @@ Sesuaikan nilai variabel berikut di dalam berkas `.env`:
 - `ORACLE_HOST`: Alamat host database Oracle (misal: localhost)
 - `ORACLE_PORT`: Port database (default: 1521)
 - `ORACLE_SID` atau `ORACLE_SERVICE_NAME`: Service Name database Oracle (default: XEPDB1)
-- `ORACLE_USER`: Username database (default: siat_admin)
+- `ORACLE_USER`: Username database (default: db_admin)
 - `ORACLE_PASSWORD`: Password database
 - `NEXTAUTH_URL`: URL host aplikasi (misal: http://localhost:3000)
 - `NEXTAUTH_SECRET`: Kunci rahasia untuk otentikasi session

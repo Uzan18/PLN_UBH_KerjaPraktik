@@ -3,16 +3,16 @@ version: '3.8'
 services:
   oracle:
     image: gvenzl/oracle-xe:21-slim
-    container_name: siat-oracle
+    container_name: db-oracle
     restart: unless-stopped
     ports:
       - '1521:1521'
     environment:
-      ORACLE_PASSWORD: siat_secret_2024
-      APP_USER: siat_admin
-      APP_USER_PASSWORD: siat_secret_2024
+      ORACLE_PASSWORD: db_secret_2024
+      APP_USER: db_admin
+      APP_USER_PASSWORD: db_secret_2024
     volumes:
-      - siat_oracledata:/opt/oracle/oradata
+      - db_oracledata:/opt/oracle/oradata
 
 volumes:
-  siat_oracledata:
+  db_oracledata:

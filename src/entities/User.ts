@@ -9,7 +9,7 @@ import {
 import type { TestSession } from './TestSession';
 import type { UserRole } from '@/types';
 
-@Entity('siat_user')
+@Entity('app_user')
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

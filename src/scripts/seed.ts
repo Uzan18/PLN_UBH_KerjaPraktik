@@ -16,12 +16,12 @@ import {
 import { hash } from 'bcryptjs';
 
 /**
- * Seed script for SIAT database (TypeORM + Oracle).
+ * Seed script for database (TypeORM + Oracle).
  *
  * Run with: npm run seed
  */
 async function main() {
-  console.log('🌱 Seeding SIAT database (Oracle)...');
+  console.log('🌱 Seeding database (Oracle)...');
 
   // Initialize connection
   if (!AppDataSource.isInitialized) {
@@ -439,7 +439,7 @@ async function main() {
 
   // Write a mock pdf file to disk
   const mockFilePath = path.join(uploadsDir, 'mock_monthly_report_suralaya.pdf');
-  fs.writeFileSync(mockFilePath, 'SIAT MOCK REPORT PDF CONTENT - UBP SURALAYA MONTHLY ASSESSMENT');
+  fs.writeFileSync(mockFilePath, 'MOCK REPORT PDF CONTENT - UBP SURALAYA MONTHLY ASSESSMENT');
 
   for (const ubp of ubps) {
     // Create root UBP folder

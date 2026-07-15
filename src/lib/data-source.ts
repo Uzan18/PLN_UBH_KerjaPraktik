@@ -39,8 +39,8 @@ export const AppDataSource = globalForDataSource.appDataSource || new DataSource
   host: process.env.ORACLE_HOST || 'localhost',
   port: parseInt(process.env.ORACLE_PORT || '1521'),
   serviceName: process.env.ORACLE_SERVICE_NAME || process.env.ORACLE_SID || 'XEPDB1',
-  username: process.env.ORACLE_USER || 'siat_admin',
-  password: process.env.ORACLE_PASSWORD || 'siat_secret_2024',
+  username: process.env.ORACLE_USER || 'db_admin',
+  password: process.env.ORACLE_PASSWORD || 'db_secret_2024',
   entities: [
     Ubp,
     Asset,
