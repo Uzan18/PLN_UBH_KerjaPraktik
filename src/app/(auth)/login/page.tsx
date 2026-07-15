@@ -49,7 +49,7 @@ function LoginForm() {
 
         <div className="relative z-10">
           <div className="inline-block bg-white/95 px-5 py-3 rounded-2xl shadow-md border border-white/20 backdrop-blur-xs">
-            <img src="/logofix.png" alt="PLN Logo" className="h-9 w-auto object-contain" />
+            <img src="/logofix.webp" alt="PLN Logo" className="h-9 w-auto object-contain" />
           </div>
         </div>
         <div className="relative z-10 my-auto">
@@ -74,7 +74,7 @@ function LoginForm() {
           {/* Mobile Logo */}
           <div className="lg:hidden flex justify-center mb-10">
             <div className="bg-white p-3 rounded-lg shadow-sm">
-              <img src="/logofix.png" alt="PLN Logo" className="h-12 w-auto object-contain" />
+              <img src="/logofix.webp" alt="PLN Logo" className="h-12 w-auto object-contain" />
             </div>
           </div>
 

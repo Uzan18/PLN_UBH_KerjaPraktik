@@ -45,7 +45,7 @@ export default function DashboardLayout({
       <aside className="h-screen w-64 fixed left-0 top-0 bg-surface-container border-r border-surface-border flex flex-col py-6 z-50">
         {/* Logo / Brand */}
         <div className="px-6 mb-8 flex justify-center">
-          <img src="/logofix.png" alt="PLN Logo" className="h-10 w-auto object-contain" />
+          <img src="/logofix.webp" alt="PLN Logo" className="h-10 w-auto object-contain" />
         </div>
 
         {/* Navigation */}
