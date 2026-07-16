@@ -1,12 +1,46 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
+import fs from 'fs';
+import path from 'path';
 
+// Try standard Node env loader
 try {
-  process.loadEnvFile();
+  if (typeof process.loadEnvFile === 'function') {
+    process.loadEnvFile();
+  }
 } catch (e) {
-  // Ignore error if .env file is missing (e.g. in production where env vars are set directly)
+  // Ignore
+}
+
+// Fallback manual env loader for older Node.js versions or custom environments
+try {
+  const envPath = path.resolve(process.cwd(), '.env');
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf8');
+    content.split(/\r?\n/).forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const index = trimmed.indexOf('=');
+        if (index > 0) {
+          const key = trimmed.substring(0, index).trim();
+          let val = trimmed.substring(index + 1).trim();
+          // Strip surrounding quotes
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.substring(1, val.length - 1);
+          }
+          if (key && !process.env[key]) {
+            process.env[key] = val;
+          }
+        }
+      }
+    });
+  }
+} catch (e) {
+  // Ignore manual load errors
 }
 import { Ubp } from '@/entities/Ubp';
+import { UnitPembangkit } from '@/entities/UnitPembangkit';
+import { JenisAsset } from '@/entities/JenisAsset';
 import { Asset } from '@/entities/Asset';
 import { TestType } from '@/entities/TestType';
 import { Parameter } from '@/entities/Parameter';
@@ -43,6 +77,8 @@ export const AppDataSource = globalForDataSource.appDataSource || new DataSource
   password: process.env.ORACLE_PASSWORD || 'db_secret_2024',
   entities: [
     Ubp,
+    UnitPembangkit,
+    JenisAsset,
     Asset,
     TestType,
     Parameter,
