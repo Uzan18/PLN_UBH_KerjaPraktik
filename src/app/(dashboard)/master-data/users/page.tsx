@@ -529,7 +529,7 @@ export default function UserManagementPage() {
                   <input
                     type="text"
                     required
-                    placeholder="Contoh: Budi Santoso"
+                    placeholder="Contoh: Alifirdaus"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full bg-surface-container-low border border-surface-border rounded-lg py-2 px-3 text-xs focus:ring-1 focus:ring-primary focus:border-primary outline-none focus:bg-white transition-all font-medium"
@@ -544,7 +544,7 @@ export default function UserManagementPage() {
                   <input
                     type="email"
                     required
-                    placeholder="budisantoso@pln.co.id"
+                    placeholder="alifirdaus@pln.co.id"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-surface-container-low border border-surface-border rounded-lg py-2 px-3 text-xs focus:ring-1 focus:ring-primary focus:border-primary outline-none focus:bg-white transition-all font-medium"
