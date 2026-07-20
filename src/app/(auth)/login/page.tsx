@@ -11,6 +11,7 @@ function LoginForm() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -109,7 +110,7 @@ function LoginForm() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="nama@plnip.co.id"
+                  placeholder="nama@pln.co.id"
                   required
                   autoComplete="email"
                   className="w-full pl-10 pr-4 py-3 bg-white border-2 border-outline-variant rounded-lg text-sm focus:border-primary focus:ring-0 transition-colors"
@@ -130,14 +131,23 @@ function LoginForm() {
                 </span>
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
                   autoComplete="current-password"
-                  className="w-full pl-10 pr-4 py-3 bg-white border-2 border-outline-variant rounded-lg text-sm focus:border-primary focus:ring-0 transition-colors"
+                  className="w-full pl-10 pr-10 py-3 bg-white border-2 border-outline-variant rounded-lg text-sm focus:border-primary focus:ring-0 transition-colors"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors cursor-pointer focus:outline-hidden"
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    {showPassword ? 'visibility_off' : 'visibility'}
+                  </span>
+                </button>
               </div>
             </div>
 
