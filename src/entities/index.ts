@@ -1,5 +1,7 @@
 // Barrel export for all TypeORM entities
 export { Ubp } from './Ubp';
+export { UnitPembangkit } from './UnitPembangkit';
+export { JenisAsset } from './JenisAsset';
 export { Asset } from './Asset';
 export { TestType } from './TestType';
 export { Parameter } from './Parameter';

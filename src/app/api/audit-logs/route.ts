@@ -60,7 +60,7 @@ export async function GET(request: Request) {
       id: log.id,
       userId: log.userId,
       userName: userMap.get(log.userId)?.name || 'Sistem',
-      userRole: userMap.get(log.userId)?.role || 'UNKNOWN',
+      userRole: userMap.get(log.userId)?.role || 'SYSTEM',
       action: log.action,
       entity: log.entity,
       entityId: log.entityId,

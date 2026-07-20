@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { getDb } from '@/lib/db';
 import { Asset } from '@/entities/Asset';
+import { UnitPembangkit } from '@/entities/UnitPembangkit';
+import { JenisAsset } from '@/entities/JenisAsset';
 import { TestType } from '@/entities/TestType';
 import { TestSession } from '@/entities/TestSession';
 import { Criteria } from '@/entities/Criteria';
@@ -98,7 +100,9 @@ export async function GET(
 
     // Get asset with all validated sessions
     const asset = await assetRepo.createQueryBuilder('asset')
-      .leftJoinAndSelect('asset.ubp', 'ubp')
+      .leftJoinAndSelect('asset.unitPembangkit', 'up')
+      .leftJoinAndSelect('up.ubp', 'ubp')
+      .leftJoinAndSelect('asset.jenisAsset', 'ja')
       .leftJoinAndSelect('asset.testSessions', 'ts', 'ts.status = :status', { status: 'VALIDATED' })
       .leftJoinAndSelect('ts.testResults', 'tr')
       .leftJoinAndSelect('tr.parameter', 'param')
@@ -264,11 +268,12 @@ export async function GET(
         })
       : [];
 
-    // Deduplicate sessions by year (keep latest per year, already sorted DESC)
-    const seenYears = new Set<number>();
+    // Deduplicate sessions by year and event (already sorted DESC)
+    const seenSessionKeys = new Set<string>();
     const uniqueSessions = (asset.testSessions || []).filter(s => {
-      if (seenYears.has(s.testYear)) return false;
-      seenYears.add(s.testYear);
+      const key = `${s.testYear}-${s.testEvent || 'default'}`;
+      if (seenSessionKeys.has(key)) return false;
+      seenSessionKeys.add(key);
       return true;
     });
 
@@ -283,22 +288,78 @@ export async function GET(
       return posA - posB;
     });
 
+    // Calculate 3-year test types status counts trend
+    const distinctYears = Array.from(new Set((asset.testSessions || []).map((s) => s.testYear)))
+      .sort((a, b) => b - a); // Descending order
+    const last3Years = distinctYears.slice(0, 3); // Take latest 3 years
+
+    const trendData = last3Years.map((y) => {
+      let good = 0;
+      let fair = 0;
+      let poor = 0;
+      let bad = 0;
+
+      const yearSession = (asset.testSessions || []).find((s) => s.testYear === y);
+      if (yearSession) {
+        // Group testResults by testType
+        const testTypeJudgements: Record<string, (JudgementLabel | null)[]> = {};
+        for (const r of yearSession.testResults || []) {
+          const testTypeId = r.parameter?.testTypeId;
+          if (testTypeId) {
+            if (!testTypeJudgements[testTypeId]) {
+              testTypeJudgements[testTypeId] = [];
+            }
+            testTypeJudgements[testTypeId].push(r.judgement as JudgementLabel | null);
+          }
+        }
+
+        // Aggregate for each testType
+        for (const ttId in testTypeJudgements) {
+          const overall = aggregateAssetStatus(testTypeJudgements[ttId]);
+          if (overall === 'GOOD') good++;
+          else if (overall === 'FAIR') fair++;
+          else if (overall === 'POOR') poor++;
+          else if (overall === 'BAD') bad++;
+        }
+      }
+
+      return {
+        year: String(y),
+        GOOD: good,
+        FAIR: fair,
+        POOR: poor,
+        BAD: bad,
+      };
+    });
+
+    // Sort ascending by year for chart representation (e.g. 2024 -> 2025 -> 2026)
+    trendData.sort((a, b) => a.year.localeCompare(b.year));
+
     return NextResponse.json({
       success: true,
       data: {
         id: asset.id,
         name: asset.name,
-        equipmentType: asset.equipmentType,
+        unitName: asset.unitPembangkit?.name || '',
+        equipmentType: asset.jenisAsset?.name || '',
+        infoFields: asset.jenisAsset?.infoFields || null,
+        customMetadata: asset.customMetadata || null,
         ...specInfo,
-        ubpName: asset.ubp?.name || '',
+        ubpName: asset.unitPembangkit?.ubp?.name || '',
         lastTestYear: selectedSession?.testYear || null,
         overallJudgement: aggregateAssetStatus(allJudgements),
         testTypeStatuses: sortedTestTypeStatuses,
         damageMechanisms,
         selectedSessionId: selectedSession?.id || null,
         selectedTestYear: selectedSession?.testYear || null,
+        selectedSessionEvent: selectedSession?.testEvent || null,
         latestSessionId: asset.testSessions?.[0]?.id || null,
-        availableSessions: uniqueSessions.map(s => ({ id: s.id, year: s.testYear })),
+        availableSessions: uniqueSessions.map(s => ({
+          id: s.id,
+          year: s.testYear,
+          event: s.testEvent || null
+        })),
+        trend: trendData,
       },
     });
   } catch (error) {

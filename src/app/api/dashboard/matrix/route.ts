@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { getDb } from '@/lib/db';
 import { Asset } from '@/entities/Asset';
+import { UnitPembangkit } from '@/entities/UnitPembangkit';
+import { JenisAsset } from '@/entities/JenisAsset';
 import { TestType } from '@/entities/TestType';
 import { TestSession } from '@/entities/TestSession';
 import { getServerSession } from '@/lib/auth/session';
@@ -54,6 +56,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const year = url.searchParams.get('year') ? parseInt(url.searchParams.get('year')!) : undefined;
     const ubpId = url.searchParams.get('ubpId') || undefined;
+    const unitId = url.searchParams.get('unitId') || undefined;
     const assetId = url.searchParams.get('assetId') || undefined;
     const equipmentType = url.searchParams.get('equipmentType') || undefined;
 
@@ -66,7 +69,8 @@ export async function GET(request: Request) {
     if (equipmentType) {
       const filteredTypes = await testTypeRepo.createQueryBuilder('tt')
         .innerJoin('tt.assets', 'asset')
-        .where('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() })
+        .innerJoin('asset.jenisAsset', 'ja')
+        .where('ja.name = :equipmentType', { equipmentType: equipmentType.trim() })
         .getMany();
 
       const uniqueTypes = [];
@@ -99,7 +103,9 @@ export async function GET(request: Request) {
     // Get validated test sessions with their assets, results, and parameters
     const sessionQb = sessionRepo.createQueryBuilder('ts')
       .leftJoinAndSelect('ts.asset', 'asset')
-      .leftJoinAndSelect('asset.ubp', 'ubp')
+      .leftJoinAndSelect('asset.unitPembangkit', 'up')
+      .leftJoinAndSelect('up.ubp', 'ubp')
+      .leftJoinAndSelect('asset.jenisAsset', 'ja')
       .leftJoinAndSelect('asset.testTypes', 'att')
       .leftJoinAndSelect('ts.testResults', 'tr')
       .leftJoinAndSelect('tr.parameter', 'param')
@@ -108,9 +114,10 @@ export async function GET(request: Request) {
       .orderBy('ts.test_year', 'DESC')
       .addOrderBy('ts.createdAt', 'DESC');
 
-    if (ubpId) sessionQb.andWhere('asset.ubp_id = :ubpId', { ubpId });
+    if (ubpId) sessionQb.andWhere('ubp.id = :ubpId', { ubpId });
+    if (unitId) sessionQb.andWhere('up.id = :unitId', { unitId });
     if (assetId) sessionQb.andWhere('asset.id = :assetId', { assetId });
-    if (equipmentType) sessionQb.andWhere('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() });
+    if (equipmentType) sessionQb.andWhere('ja.name = :equipmentType', { equipmentType: equipmentType.trim() });
     if (year) sessionQb.andWhere('ts.test_year = :year', { year });
 
     const sessions = await sessionQb.getMany();
@@ -143,9 +150,10 @@ export async function GET(request: Request) {
       return {
         assetId: asset.id,
         sessionId: session.id,
-        assetName: asset.name,
-        ubpName: asset.ubp?.name || '',
-        equipmentType: asset.equipmentType,
+        unitName: asset.unitPembangkit?.name || '',
+        assetName: asset.name || '',
+        ubpName: asset.unitPembangkit?.ubp?.name || '',
+        equipmentType: asset.jenisAsset?.name || '',
         testYear,
         cells,
       };

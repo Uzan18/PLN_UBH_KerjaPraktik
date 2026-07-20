@@ -58,6 +58,7 @@ const ROLE_COLORS: Record<string, string> = {
   QC: 'bg-purple-50 text-purple-700 border-purple-100 font-sans',
   INPUT: 'bg-blue-50 text-blue-700 border-blue-100 font-sans',
   VIEWER: 'bg-slate-50 text-slate-700 border-slate-200 font-sans',
+  SYSTEM: 'bg-emerald-50 text-emerald-700 border-emerald-100 font-sans',
 };
 
 export default function LogPage() {
@@ -329,7 +330,7 @@ export default function LogPage() {
                               <div className="flex flex-col gap-1 min-w-0">
                                 <span className="text-on-surface font-semibold text-xs truncate">{log.userName}</span>
                                 <span className={`inline-flex items-center px-2 py-0.5 text-[9px] font-bold rounded border w-fit ${ROLE_COLORS[log.userRole] || ROLE_COLORS.VIEWER}`}>
-                                  {log.userRole === 'INPUT' ? 'Inputter' : log.userRole === 'QC' ? 'Validator' : log.userRole === 'ADMIN' ? 'Admin' : 'Viewer'}
+                                  {log.userRole === 'INPUT' ? 'Inputter' : log.userRole === 'QC' ? 'Validator' : log.userRole === 'ADMIN' ? 'Admin' : log.userRole === 'SYSTEM' ? 'Sistem' : 'Viewer'}
                                 </span>
                               </div>
                             </div>

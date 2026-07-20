@@ -11,7 +11,8 @@ import {
   ManyToMany,
   JoinTable,
 } from 'typeorm';
-import type { Ubp } from './Ubp';
+import type { UnitPembangkit } from './UnitPembangkit';
+import type { JenisAsset } from './JenisAsset';
 import type { TestSession } from './TestSession';
 import type { TestType } from './TestType';
 
@@ -21,18 +22,23 @@ export class Asset {
   id!: string;
 
   @Index()
-  @Column({ name: 'ubp_id', type: 'varchar', length: 36 })
-  ubpId!: string;
+  @Column({ name: 'unit_pembangkit_id', type: 'varchar', length: 36 })
+  unitPembangkitId!: string;
 
-  @ManyToOne('Ubp', 'assets')
-  @JoinColumn({ name: 'ubp_id' })
-  ubp!: Ubp;
+  @ManyToOne('UnitPembangkit', 'assets')
+  @JoinColumn({ name: 'unit_pembangkit_id' })
+  unitPembangkit!: UnitPembangkit;
 
   @Column({ type: 'varchar', length: 500 })
   name!: string;
 
-  @Column({ name: 'equipment_type', type: 'varchar', length: 255 })
-  equipmentType!: string;
+  @Index()
+  @Column({ name: 'jenis_asset_id', type: 'varchar', length: 36 })
+  jenisAssetId!: string;
+
+  @ManyToOne('JenisAsset', 'assets')
+  @JoinColumn({ name: 'jenis_asset_id' })
+  jenisAsset!: JenisAsset;
 
   @Column({ name: 'mfg_year', type: 'int', nullable: true })
   mfgYear!: number | null;
@@ -69,6 +75,9 @@ export class Asset {
 
   @Column({ name: 'lv_rated_current', type: 'varchar', length: 100, nullable: true })
   lvRatedCurrent!: string | null;
+
+  @Column({ name: 'custom_metadata', type: 'varchar', length: 4000, nullable: true })
+  customMetadata!: string | null;
 
   @OneToMany('TestSession', 'asset')
   testSessions!: TestSession[];

@@ -22,7 +22,9 @@ export async function GET(request: Request) {
 
     const sessions = await sessionRepo.createQueryBuilder('ts')
       .leftJoinAndSelect('ts.asset', 'asset')
-      .leftJoinAndSelect('asset.ubp', 'ubp')
+      .leftJoinAndSelect('asset.unitPembangkit', 'up')
+      .leftJoinAndSelect('up.ubp', 'ubp')
+      .leftJoinAndSelect('asset.jenisAsset', 'ja')
       .leftJoinAndSelect('ts.createdBy', 'createdBy')
       .leftJoinAndSelect('ts.testResults', 'tr')
       .leftJoinAndSelect('tr.parameter', 'param')
@@ -48,8 +50,10 @@ export async function GET(request: Request) {
       return {
         sessionId: s.id,
         assetName: s.asset?.name || '',
+        unitName: s.asset?.unitPembangkit?.name || '',
+        equipmentType: s.asset?.jenisAsset?.name || 'Trafo',
         assetId: s.assetId,
-        ubpName: s.asset?.ubp?.name || '',
+        ubpName: s.asset?.unitPembangkit?.ubp?.name || '',
         testTypeName: testTypeNames.join(', '),
         testYear: s.testYear,
         status: s.status,

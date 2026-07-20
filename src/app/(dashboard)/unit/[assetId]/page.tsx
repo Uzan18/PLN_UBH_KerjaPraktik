@@ -93,6 +93,7 @@ export default function AssetDetailPage() {
                 {asset.selectedTestYear && selectedSessionId && asset.selectedSessionId !== asset.latestSessionId && (
                   <span className="text-xs font-semibold text-outline">
                     Tahun Uji: {asset.selectedTestYear}
+                    {asset.selectedSessionEvent && asset.selectedSessionEvent !== 'default' ? ` (${asset.selectedSessionEvent})` : ''}
                   </span>
                 )}
               </div>
@@ -111,14 +112,16 @@ export default function AssetDetailPage() {
                 >
                   {asset.availableSessions.map((s: any) => (
                     <option key={s.id} value={s.id}>
-                      Tahun {s.year}{s.id === asset.latestSessionId ? ' (Terbaru)' : ''}
+                      Tahun {s.year}
+                      {s.event && s.event !== 'default' ? ` (${s.event})` : ''}
+                      {s.id === asset.latestSessionId ? ' (Terbaru)' : ''}
                     </option>
                   ))}
                 </select>
               )}
             </div>
             <h2 className="text-3xl font-bold text-on-surface mb-2 leading-tight tracking-tight">
-              {asset.name}
+              {asset.unitName || ''} - {asset.name}
             </h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 border-t border-surface-border/50">
@@ -149,35 +152,104 @@ export default function AssetDetailPage() {
 
         {/* Right: Trend Chart Card (Raised!) */}
         <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-bold text-on-surface text-sm">Tren Kondisi Unit Ini</h4>
-          </div>
-          <div className="h-44 flex flex-col justify-between relative">
-            <svg className="w-full h-full" viewBox="0 0 400 200">
-              <line x1="0" y1="40" x2="400" y2="40" stroke="#E2E8F0" strokeDasharray="4" />
-              <line x1="0" y1="100" x2="400" y2="100" stroke="#E2E8F0" strokeDasharray="4" />
-              <line x1="0" y1="160" x2="400" y2="160" stroke="#E2E8F0" strokeDasharray="4" />
-              <path d="M 0 50 L 80 45 L 160 60 L 240 85 L 320 110 L 400 135" fill="none" stroke="#0F3D91" strokeWidth="3" />
-              <path d="M 0 70 L 80 75 L 160 80 L 240 100 L 320 120 L 400 115" fill="none" stroke="#EAB308" strokeWidth="2" strokeDasharray="4" />
-              <circle cx="80" cy="45" r="4" fill="#0F3D91" />
-              <circle cx="160" cy="60" r="4" fill="#0F3D91" />
-              <circle cx="240" cy="85" r="4" fill="#0F3D91" />
-              <circle cx="320" cy="110" r="4" fill="#0F3D91" />
-              <circle cx="400" cy="135" r="5" fill="#EF4444" stroke="white" strokeWidth="2" />
-            </svg>
-            <div className="flex justify-between mt-2 text-[9px] font-bold text-on-surface-variant">
-              <span>2021</span><span>2022</span><span>2023</span><span>2024</span><span>2025</span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
+            <h4 className="font-bold text-on-surface text-sm">Tren Hasil Pengujian Aset</h4>
+            {/* Legend */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-surface-container-low px-2 py-1 rounded border border-surface-border">
+              <div className="flex items-center gap-0.5">
+                <div className="w-2 h-2 rounded-xs bg-status-good" />
+                <span className="text-[8px] font-bold text-on-surface-variant uppercase">G</span>
+              </div>
+              <div className="flex items-center gap-0.5">
+                <div className="w-2 h-2 rounded-xs bg-status-fair" />
+                <span className="text-[8px] font-bold text-on-surface-variant uppercase">F</span>
+              </div>
+              <div className="flex items-center gap-0.5">
+                <div className="w-2 h-2 rounded-xs bg-status-poor" />
+                <span className="text-[8px] font-bold text-on-surface-variant uppercase">P</span>
+              </div>
+              <div className="flex items-center gap-0.5">
+                <div className="w-2 h-2 rounded-xs bg-status-bad" />
+                <span className="text-[8px] font-bold text-on-surface-variant uppercase">B</span>
+              </div>
             </div>
           </div>
-          <div className="mt-2 flex justify-between text-[10px]">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-1 bg-primary" />
-              <span className="text-on-surface-variant font-medium">Tren Kondisi</span>
+          
+          <div className="h-44 flex items-end justify-around relative pt-4 pb-6 px-1 border-b border-surface-border">
+            {/* Background Grid Lines */}
+            <div className="absolute inset-x-0 top-4 bottom-6 flex flex-col justify-between pointer-events-none">
+              <div className="w-full border-t border-surface-border/40" />
+              <div className="w-full border-t border-surface-border/40" />
+              <div className="w-full border-t border-surface-border/40" />
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-1 border-t border-dashed border-status-fair" />
-              <span className="text-on-surface-variant font-medium">Batas Aman</span>
-            </div>
+
+            {/* Trend Columns Group */}
+            {asset?.trend && asset.trend.length > 0 ? (
+              (() => {
+                const maxCount = Math.max(
+                  ...asset.trend.map((item: any) => 
+                    Math.max(item.GOOD || 0, item.FAIR || 0, item.POOR || 0, item.BAD || 0)
+                  ), 
+                  1
+                );
+                return asset.trend.map((t: any) => (
+                  <div key={t.year} className="flex flex-col items-center gap-1 w-1/4 z-10">
+                    {/* Columns container */}
+                    <div className="flex items-end justify-center gap-1.5 h-28 w-full">
+                      {/* Good Column */}
+                      <div 
+                        style={{ height: `${((t.GOOD || 0) / maxCount) * 100}%` }} 
+                        className="w-2.5 bg-status-good rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                      >
+                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                          GOOD: {t.GOOD || 0}
+                        </div>
+                      </div>
+
+                      {/* Fair Column */}
+                      <div 
+                        style={{ height: `${((t.FAIR || 0) / maxCount) * 100}%` }} 
+                        className="w-2.5 bg-status-fair rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                      >
+                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                          FAIR: {t.FAIR || 0}
+                        </div>
+                      </div>
+
+                      {/* Poor Column */}
+                      <div 
+                        style={{ height: `${((t.POOR || 0) / maxCount) * 100}%` }} 
+                        className="w-2.5 bg-status-poor rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                      >
+                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                          POOR: {t.POOR || 0}
+                        </div>
+                      </div>
+
+                      {/* Bad Column */}
+                      <div 
+                        style={{ height: `${((t.BAD || 0) / maxCount) * 100}%` }} 
+                        className="w-2.5 bg-status-bad rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                      >
+                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                          BAD: {t.BAD || 0}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Year Label */}
+                    <span className="font-mono text-[10px] font-bold text-on-surface">{t.year}</span>
+                  </div>
+                ));
+              })()
+            ) : (
+              <div className="w-full text-center py-10 text-on-surface-variant font-medium text-xs">
+                Tidak ada data tren pengujian.
+              </div>
+            )}
+          </div>
+          <div className="mt-2 text-[9px] text-center text-on-surface-variant/80 italic">
+            *Jumlah jenis pengujian berdasarkan status kondisi per tahun
           </div>
         </div>
       </div>

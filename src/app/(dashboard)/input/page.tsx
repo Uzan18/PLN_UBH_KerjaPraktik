@@ -88,6 +88,7 @@ function InputForm() {
   const [selectedUbpId, setSelectedUbpId] = useState('');
   const [selectedUnitName, setSelectedUnitName] = useState('');
   const [selectedAssetId, setSelectedAssetId] = useState('');
+  const [selectedJenisId, setSelectedJenisId] = useState('');
   const [selectedTestTypeIds, setSelectedTestTypeIds] = useState<string[]>([]);
   const [sessionStatus, setSessionStatus] = useState<string | null>(null);
 
@@ -102,7 +103,7 @@ function InputForm() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   // Additional asset info input state
-  const [additionalInfo, setAdditionalInfo] = useState({
+  const [additionalInfo, setAdditionalInfo] = useState<Record<string, string>>({
     manufacture: '',
     type: '',
     serialNumber: '',
@@ -130,7 +131,84 @@ function InputForm() {
 
   // Find selected UBP & Asset
   const selectedUbp = ubps?.find((u: any) => u.id === selectedUbpId);
-  const selectedAsset = selectedUbp?.assets?.find((a: any) => a.id === selectedAssetId);
+  const selectedAsset = useMemo(() => {
+    if (!selectedUbp || !selectedUbp.unitPembangkit || !selectedAssetId) return null;
+    for (const unit of selectedUbp.unitPembangkit) {
+      const asset = unit.assets?.find((a: any) => a.id === selectedAssetId);
+      if (asset) return asset;
+    }
+    return null;
+  }, [selectedUbp, selectedAssetId]);
+
+  const activeFieldsList = useMemo(() => {
+    const fields = [
+      { key: 'manufacture', label: 'Manufacture', placeholder: 'Contoh: LUNENGCHENMING' },
+      { key: 'type', label: 'Type', placeholder: 'Contoh: SFPZ10-370000/150 TH' },
+      { key: 'serialNumber', label: 'Serial Number', placeholder: 'Contoh: 200911126' },
+      { key: 'mfgYear', label: 'Year of Manufacturing', placeholder: 'Contoh: 2010', type: 'number' },
+      { key: 'vectorGroup', label: 'Vector Grup', placeholder: 'Contoh: YNd1' },
+      { key: 'coolingMethod', label: 'Cooling Method', placeholder: 'Contoh: OFAF' },
+      { key: 'ratedPower', label: 'Rated Power', placeholder: 'Contoh: 370 MVA' },
+      { key: 'frequency', label: 'Frequency', placeholder: 'Contoh: 50 Hz' },
+      { key: 'hvSide', label: 'HV Side', placeholder: 'Contoh: 150 kV' },
+      { key: 'hvRatedCurrent', label: 'HV Rated Current', placeholder: 'Contoh: 1424 A' },
+      { key: 'lvSide', label: 'LV Side', placeholder: 'Contoh: 20 kV' },
+      { key: 'lvRatedCurrent', label: 'LV Rated Current', placeholder: 'Contoh: 10680 A' },
+    ];
+
+    if (!selectedAsset?.jenisAsset?.infoFields) {
+      return fields;
+    }
+
+    try {
+      const parsedFields = JSON.parse(selectedAsset.jenisAsset.infoFields) as any[];
+      return parsedFields.map((item) => {
+        let key = '';
+        let placeholder = 'Masukkan nilai...';
+        
+        if (typeof item === 'string') {
+          key = item;
+        } else if (item && typeof item === 'object') {
+          key = item.key || '';
+          if (item.placeholder) {
+            placeholder = `Contoh: ${item.placeholder}`;
+          }
+        }
+
+        const standard = fields.find((f) => f.key.toLowerCase() === key.toLowerCase());
+        if (standard) {
+          if (placeholder !== 'Masukkan nilai...') {
+            return { ...standard, placeholder };
+          }
+          return standard;
+        }
+
+        // Custom parameter added by admin
+        const cleanLabel = key
+          .split(' ')
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+
+        return {
+          key: key,
+          label: cleanLabel,
+          placeholder: placeholder,
+          type: 'text',
+        };
+      });
+    } catch (e) {
+      return fields;
+    }
+  }, [selectedAsset]);
+
+  const customKeysInInfo = useMemo(() => {
+    const standardKeys = [
+      'manufacture', 'type', 'serialNumber', 'mfgYear', 'vectorGroup',
+      'coolingMethod', 'ratedPower', 'frequency', 'hvSide',
+      'hvRatedCurrent', 'lvSide', 'lvRatedCurrent'
+    ];
+    return Object.keys(additionalInfo).filter((k) => !standardKeys.includes(k));
+  }, [additionalInfo]);
 
   // Sync URL search params with states
   useEffect(() => {
@@ -144,17 +222,25 @@ function InputForm() {
       if (ubps) {
         let foundUbpId = '';
         let foundUnitName = '';
+        let foundJenisId = '';
         for (const u of ubps) {
-          const asset = u.assets?.find((a: any) => a.id === paramAssetId);
-          if (asset) {
-            foundUbpId = u.id;
-            foundUnitName = asset.name;
-            break;
+          if (u.unitPembangkit) {
+            for (const unit of u.unitPembangkit) {
+              const asset = unit.assets?.find((a: any) => a.id === paramAssetId);
+              if (asset) {
+                foundUbpId = u.id;
+                foundUnitName = unit.name;
+                foundJenisId = asset.jenisAsset?.id || '';
+                break;
+              }
+            }
           }
+          if (foundUbpId) break;
         }
         if (foundUbpId) {
           setSelectedUbpId(foundUbpId);
           setSelectedUnitName(foundUnitName);
+          setSelectedJenisId(foundJenisId);
           setSelectedAssetId(paramAssetId);
         }
       }
@@ -283,6 +369,7 @@ function InputForm() {
           setInputValues({});
           setCalculatedStatuses({});
           setSelectedTestTypeIds([]);
+          setSelectedJenisId('');
 
           // No session: load from asset directly
           if (selectedAsset) {
@@ -308,7 +395,7 @@ function InputForm() {
     }
 
     loadExistingSession();
-  }, [selectedAssetId, testYear, testEvent, selectedAsset]);
+  }, [selectedAssetId, testYear, testEvent]);
 
   // Load initial asset info when selectedAsset changes (if no session active)
   useEffect(() => {
@@ -328,19 +415,21 @@ function InputForm() {
         lvRatedCurrent: selectedAsset.lvRatedCurrent || '',
       });
     }
-  }, [selectedAsset, activeSessionId]);
+  }, [selectedAssetId, activeSessionId]);
 
 
 
   // Filter and sort test types based on selected asset configuration (if configured)
   const availableTestTypes = useMemo(() => {
     if (!testTypes) return [];
-    let filtered = testTypes;
+    let filtered: any[] = [];
     if (selectedAsset) {
       if (selectedAsset.testTypes && selectedAsset.testTypes.length > 0) {
         filtered = testTypes.filter((tt: any) =>
           selectedAsset.testTypes.some((ct: any) => ct.id === tt.id)
         );
+      } else {
+        filtered = [];
       }
     }
     // Sort according to TEST_TYPE_ORDER
@@ -363,12 +452,105 @@ function InputForm() {
     }
   }, [availableTestTypes, activeSessionId]);
 
-  // Sync selectedUnitName with selectedAsset when it changes
+  // Sync selectedUnitName with selectedAsset when it changes (e.g., when loaded from URL params)
   useEffect(() => {
-    if (selectedAsset) {
-      setSelectedUnitName(selectedAsset.name);
+    if (selectedAsset && selectedUbp) {
+      const unit = selectedUbp.unitPembangkit?.find((u: any) =>
+        u.assets?.some((a: any) => a.id === selectedAsset.id)
+      );
+      if (unit && unit.name !== selectedUnitName) {
+        setSelectedUnitName(unit.name);
+      }
     }
-  }, [selectedAsset]);
+  }, [selectedAsset, selectedUbp, selectedUnitName]);
+
+  // Memoized lists for the new hierarchical selection
+  const availableJenisAssets = useMemo(() => {
+    if (!selectedUbp || !selectedUnitName) return [];
+    const unitObj = selectedUbp.unitPembangkit?.find((u: any) => u.name === selectedUnitName);
+    const assets = unitObj?.assets || [];
+    const map = new Map<string, { id: string; name: string }>();
+    assets.forEach((asset: any) => {
+      if (asset.jenisAsset) {
+        map.set(asset.jenisAsset.id, { id: asset.jenisAsset.id, name: asset.jenisAsset.name });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [selectedUbp, selectedUnitName]);
+
+  const availableAssetsInUnit = useMemo(() => {
+    if (!selectedUbp || !selectedUnitName || !selectedJenisId) return [];
+    const unitObj = selectedUbp.unitPembangkit?.find((u: any) => u.name === selectedUnitName);
+    const assets = unitObj?.assets || [];
+    return assets.filter((asset: any) => asset.jenisAsset?.id === selectedJenisId);
+  }, [selectedUbp, selectedUnitName, selectedJenisId]);
+
+  // Consolidated synchronization loop-free effect (handles both upward and downward auto-select)
+  useEffect(() => {
+    if (selectedAssetId) {
+      // 1. Upward synchronization (from Asset ID to parent fields)
+      if (!ubps) return;
+      let foundUbpId = '';
+      let foundUnitName = '';
+      let foundJenisId = '';
+      for (const u of ubps) {
+        if (u.unitPembangkit) {
+          for (const unit of u.unitPembangkit) {
+            const asset = unit.assets?.find((a: any) => a.id === selectedAssetId);
+            if (asset) {
+              foundUbpId = u.id;
+              foundUnitName = unit.name;
+              foundJenisId = asset.jenisAsset?.id || '';
+              break;
+            }
+          }
+        }
+        if (foundUbpId) break;
+      }
+      if (foundUbpId) {
+        if (selectedUbpId !== foundUbpId) setSelectedUbpId(foundUbpId);
+        if (selectedUnitName !== foundUnitName) setSelectedUnitName(foundUnitName);
+        if (selectedJenisId !== foundJenisId) setSelectedJenisId(foundJenisId);
+      }
+    } else {
+      // 2. Downward auto-select (if no asset is selected yet)
+      if (selectedUbpId && selectedUnitName) {
+        if (availableJenisAssets.length === 1) {
+          const singleJenisId = availableJenisAssets[0].id;
+          if (selectedJenisId !== singleJenisId) {
+            setSelectedJenisId(singleJenisId);
+          }
+        } else if (availableJenisAssets.length > 1) {
+          if (selectedJenisId && !availableJenisAssets.some((ja: any) => ja.id === selectedJenisId)) {
+            setSelectedJenisId('');
+          }
+        } else {
+          if (selectedJenisId !== '') setSelectedJenisId('');
+        }
+
+        if (selectedJenisId && availableAssetsInUnit.length === 1) {
+          const singleAssetId = availableAssetsInUnit[0].id;
+          if (selectedAssetId !== singleAssetId) {
+            setSelectedAssetId(singleAssetId);
+          }
+        } else if (availableAssetsInUnit.length > 1) {
+          if (selectedAssetId && !availableAssetsInUnit.some((a: any) => a.id === selectedAssetId)) {
+            setSelectedAssetId('');
+          }
+        } else {
+          if (selectedAssetId !== '') setSelectedAssetId('');
+        }
+      }
+    }
+  }, [
+    ubps,
+    selectedAssetId,
+    selectedUbpId,
+    selectedUnitName,
+    selectedJenisId,
+    availableJenisAssets,
+    availableAssetsInUnit
+  ]);
 
   // Mutations
   const createSessionMutation = useMutation({
@@ -624,32 +806,126 @@ function InputForm() {
 
       {/* Selection Section */}
       <section className="bg-white border border-surface-border rounded-xl p-4 mb-4 shadow-sm space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {/* 1. UBP */}
           <div className="space-y-1">
-            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Tahun Pengujian</label>
-            {(() => {
-              const currentYear = new Date().getFullYear();
-              const startYear = 1950;
-              const endYear = currentYear + 5;
-              const years = [];
-              for (let y = endYear; y >= startYear; y--) {
-                years.push(String(y));
-              }
-
-              return (
-                <select 
-                  value={testYear}
-                  onChange={(e) => setTestYear(e.target.value)}
-                  className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary"
-                >
-                  {years.map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              );
-            })()}
+            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">UBP</label>
+            <select 
+              value={selectedUbpId}
+              onChange={(e) => {
+                setSelectedUbpId(e.target.value);
+                setSelectedUnitName('');
+                setSelectedJenisId('');
+                setSelectedAssetId('');
+                setTestEvent('default');
+                setIsCustomEvent(false);
+              }}
+              className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary font-semibold text-primary cursor-pointer h-[30px]"
+            >
+              <option value="">Pilih UBP</option>
+              {ubps?.map((ubp: any) => (
+                <option key={ubp.id} value={ubp.id}>{ubp.name}</option>
+              ))}
+            </select>
           </div>
 
+          {/* 2. Unit Pembangkit */}
+          <div className="space-y-1">
+            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Unit Pembangkit</label>
+            <select 
+              value={selectedUnitName}
+              onChange={(e) => {
+                setSelectedUnitName(e.target.value);
+                setSelectedJenisId('');
+                setSelectedAssetId('');
+                setTestEvent('default');
+                setIsCustomEvent(false);
+              }}
+              disabled={!selectedUbpId}
+              className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary disabled:opacity-50 font-semibold text-primary cursor-pointer h-[30px]"
+            >
+              <option value="">Pilih Unit</option>
+              {(() => {
+                const unitsInUbp = selectedUbp?.unitPembangkit || [];
+                return unitsInUbp.map((unit: any) => (
+                  <option key={unit.id} value={unit.name}>{unit.name}</option>
+                ));
+              })()}
+            </select>
+          </div>
+
+          {/* 3. Jenis Asset */}
+          <div className="space-y-1">
+            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Jenis Asset</label>
+            {availableJenisAssets.length === 0 ? (
+              <input
+                type="text"
+                readOnly
+                value="—"
+                className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:outline-none opacity-50 h-[30px]"
+              />
+            ) : availableJenisAssets.length === 1 ? (
+              <input
+                type="text"
+                readOnly
+                value={availableJenisAssets[0].name}
+                className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:outline-none font-semibold text-primary h-[30px]"
+              />
+            ) : (
+              <select 
+                value={selectedJenisId}
+                onChange={(e) => {
+                  setSelectedJenisId(e.target.value);
+                  setSelectedAssetId('');
+                  setTestEvent('default');
+                  setIsCustomEvent(false);
+                }}
+                className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary font-semibold text-primary cursor-pointer h-[30px]"
+              >
+                <option value="">Pilih Jenis Aset</option>
+                {availableJenisAssets.map((ja: any) => (
+                  <option key={ja.id} value={ja.id}>{ja.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* 4. Nama Asset */}
+          <div className="space-y-1">
+            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Equipment / Asset</label>
+            {availableAssetsInUnit.length === 0 ? (
+              <input
+                type="text"
+                readOnly
+                value="—"
+                className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:outline-none opacity-50 h-[30px]"
+              />
+            ) : availableAssetsInUnit.length === 1 ? (
+              <input
+                type="text"
+                readOnly
+                value={availableAssetsInUnit[0].name}
+                className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:outline-none font-semibold text-primary h-[30px]"
+              />
+            ) : (
+              <select 
+                value={selectedAssetId}
+                onChange={(e) => {
+                  setSelectedAssetId(e.target.value);
+                  setTestEvent('default');
+                  setIsCustomEvent(false);
+                }}
+                className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary font-semibold text-primary cursor-pointer h-[30px]"
+              >
+                <option value="">Pilih Nama Aset</option>
+                {availableAssetsInUnit.map((asset: any) => (
+                  <option key={asset.id} value={asset.id}>{asset.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* 5. Event Pengujian */}
           <div className="space-y-1">
             <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Event Pengujian</label>
             {isCustomEvent ? (
@@ -699,7 +975,8 @@ function InputForm() {
                 <select 
                   value={testEvent}
                   onChange={(e) => setTestEvent(e.target.value)}
-                  className="flex-1 min-w-0 bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:ring-primary font-semibold text-primary cursor-pointer"
+                  disabled={!selectedAssetId}
+                  className="flex-1 min-w-0 bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:ring-primary font-semibold text-primary cursor-pointer disabled:opacity-50 h-[30px]"
                 >
                   <option value="default">Rutin (Default)</option>
                   {existingEvents
@@ -715,7 +992,8 @@ function InputForm() {
                     setIsCustomEvent(true);
                     setCustomEventName('');
                   }}
-                  className="text-primary hover:text-primary/80 font-bold select-none cursor-pointer flex items-center shrink-0 p-1 bg-surface-container-low hover:bg-surface-container border border-surface-border rounded-lg h-[30px] w-[30px] justify-center transition-colors"
+                  disabled={!selectedAssetId}
+                  className="text-primary hover:text-primary/80 font-bold select-none cursor-pointer flex items-center shrink-0 p-1 bg-surface-container-low hover:bg-surface-container border border-surface-border rounded-lg h-[30px] w-[30px] justify-center transition-colors disabled:opacity-50"
                   title="Tambah Event Baru"
                 >
                   <span className="material-symbols-outlined text-[18px]">add</span>
@@ -724,84 +1002,30 @@ function InputForm() {
             )}
           </div>
 
+          {/* 6. Tahun Pengujian */}
           <div className="space-y-1">
-            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">UBP</label>
-            <select 
-              value={selectedUbpId}
-              onChange={(e) => {
-                setSelectedUbpId(e.target.value);
-                setSelectedUnitName('');
-                setSelectedAssetId('');
-              }}
-              className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary"
-            >
-              <option value="">Pilih UBP</option>
-              {ubps?.map((ubp: any) => (
-                <option key={ubp.id} value={ubp.id}>{ubp.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Unit Pembangkit / Asset</label>
-            <select 
-              value={selectedUnitName}
-              onChange={(e) => {
-                const uName = e.target.value;
-                setSelectedUnitName(uName);
-                if (!uName) {
-                  setSelectedAssetId('');
-                } else {
-                  const assetsInUbp = selectedUbp?.assets || [];
-                  const assetsForUnit = assetsInUbp.filter((a: any) => a.name === uName);
-                  if (assetsForUnit.length === 1) {
-                     setSelectedAssetId(assetsForUnit[0].id);
-                  } else {
-                     setSelectedAssetId('');
-                  }
-                }
-              }}
-              disabled={!selectedUbpId}
-              className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary disabled:opacity-50"
-            >
-              <option value="">Pilih Unit</option>
-              {(() => {
-                const assetsInUbp = selectedUbp?.assets || [];
-                const uniqueUnitNames = Array.from(new Set(assetsInUbp.map((a: any) => a.name))) as string[];
-                return uniqueUnitNames.map((uName) => (
-                  <option key={uName} value={uName}>{uName}</option>
-                ));
-              })()}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Equipment</label>
+            <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Tahun Pengujian</label>
             {(() => {
-              const assetsInUbp = selectedUbp?.assets || [];
-              const assetsForUnit = selectedUnitName ? assetsInUbp.filter((a: any) => a.name === selectedUnitName) : [];
-              
-              if (assetsForUnit.length > 1) {
-                return (
-                  <select
-                    value={selectedAssetId}
-                    onChange={(e) => setSelectedAssetId(e.target.value)}
-                    className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary"
-                  >
-                    <option value="">Pilih Equipment</option>
-                    {assetsForUnit.map((asset: any) => (
-                      <option key={asset.id} value={asset.id}>{asset.equipmentType}</option>
-                    ))}
-                  </select>
-                );
-              } else {
-                return (
-                  <input
-                    type="text"
-                    readOnly
-                    value={selectedAsset ? selectedAsset.equipmentType : (assetsForUnit.length === 1 ? assetsForUnit[0].equipmentType : '—')}
-                    className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:outline-none"
-                  />
-                );
+              const currentYear = new Date().getFullYear();
+              const startYear = 1950;
+              const endYear = currentYear;
+              const years = [];
+              for (let y = endYear; y >= startYear; y--) {
+                years.push(String(y));
               }
+
+              return (
+                <select 
+                  value={testYear}
+                  onChange={(e) => setTestYear(e.target.value)}
+                  disabled={!selectedAssetId}
+                  className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary font-semibold text-primary cursor-pointer disabled:opacity-50 h-[30px]"
+                >
+                  {years.map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              );
             })()}
           </div>
         </div>
@@ -813,40 +1037,27 @@ function InputForm() {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-surface-container-low border-b border-surface-border font-mono text-[9px] uppercase font-bold text-on-surface-variant">
-                    <th className="px-4 py-2 w-[45%] border-r border-surface-border">Parameter Alat</th>
-                    <th className="px-4 py-2 w-[55%]">Nilai Informasi</th>
+                    <th className="px-4 py-2 w-[50%] border-r border-surface-border">Parameter Alat</th>
+                    <th className="px-4 py-2 w-[50%]">Nilai Informasi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
-                  {[
-                    { key: 'manufacture', label: 'Manufacture', placeholder: 'Contoh: LUNENGCHENMING' },
-                    { key: 'type', label: 'Type', placeholder: 'Contoh: SFPZ10-370000/150 TH' },
-                    { key: 'serialNumber', label: 'Serial Number', placeholder: 'Contoh: 200911126' },
-                    { key: 'mfgYear', label: 'Year of Manufacturing', placeholder: 'Contoh: 2010', type: 'number' },
-                    { key: 'vectorGroup', label: 'Vector Grup', placeholder: 'Contoh: YNd1' },
-                    { key: 'coolingMethod', label: 'Cooling Method', placeholder: 'Contoh: OFAF' },
-                    { key: 'ratedPower', label: 'Rated Power', placeholder: 'Contoh: 370 MVA' },
-                    { key: 'frequency', label: 'Frequency', placeholder: 'Contoh: 50 Hz' },
-                    { key: 'hvSide', label: 'HV Side', placeholder: 'Contoh: 150 kV' },
-                    { key: 'hvRatedCurrent', label: 'HV Rated Current', placeholder: 'Contoh: 1424 A' },
-                    { key: 'lvSide', label: 'LV Side', placeholder: 'Contoh: 20 kV' },
-                    { key: 'lvRatedCurrent', label: 'LV Rated Current', placeholder: 'Contoh: 10680 A' },
-                  ].map((field) => {
+                  {activeFieldsList.map((field) => {
                     const isReadOnly = sessionStatus === 'VALIDATED' || sessionStatus === 'SUBMITTED';
                     return (
                       <tr key={field.key} className="hover:bg-surface-container-low/10 transition-colors">
-                        <td className="px-4 py-2 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/35 w-[45%]">
+                        <td className="px-4 py-2 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/35 w-[50%]">
                           {field.label}
                         </td>
-                        <td className="px-4 py-2 w-[55%]">
+                        <td className="px-4 py-2 w-[50%]">
                           {isReadOnly ? (
                             <span className="font-semibold text-on-surface-variant text-xs">
-                              {additionalInfo[field.key as keyof typeof additionalInfo] || '—'}
+                              {additionalInfo[field.key] || '—'}
                             </span>
                           ) : (
                             <input
                               type={field.type || 'text'}
-                              value={additionalInfo[field.key as keyof typeof additionalInfo] || ''}
+                              value={additionalInfo[field.key] || ''}
                               onChange={(e) => setAdditionalInfo(prev => ({ ...prev, [field.key]: e.target.value }))}
                               placeholder={field.placeholder}
                               className="w-full bg-transparent border-0 p-0 text-xs focus:ring-0 focus:outline-none placeholder:text-outline/40 font-semibold text-primary"
@@ -886,39 +1097,51 @@ function InputForm() {
                 </div>
               )}
             </div>
-            <div className="flex flex-wrap gap-2 overflow-x-auto pb-2">
-              {availableTestTypes.map((test: any) => {
-                const isActive = selectedTestTypeIds.includes(test.id);
-                return (
-                  <button
-                    key={test.id}
-                    onClick={() => {
-                      setSelectedTestTypeIds((prev) =>
-                        prev.includes(test.id) ? prev.filter((id) => id !== test.id) : [...prev, test.id]
-                      );
-                    }}
-                    className={`px-4 py-2 rounded-full font-mono text-[11px] font-bold tracking-tight flex items-center gap-2 shadow-sm whitespace-nowrap transition-all cursor-pointer border ${
-                      isActive
-                        ? 'bg-primary border-primary text-white'
-                        : 'bg-white border-surface-border text-on-surface-variant hover:bg-surface-container-low'
-                    }`}
-                  >
-                    <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors border ${
-                      isActive
-                        ? 'bg-white border-white text-primary'
-                        : 'border-outline-variant bg-transparent text-transparent'
-                    }`}>
-                      <span className="material-symbols-outlined text-[10px] font-extrabold" style={{ fontVariationSettings: "'wght' 800" }}>
-                        check
-                      </span>
-                    </div>
-                    <span>{test.name}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {!selectedAssetId ? (
+              <div className="w-full bg-surface-container-low/50 border border-surface-border border-dashed rounded-xl p-8 text-center animate-fade-in my-2">
+                <span className="material-symbols-outlined text-[36px] text-primary/60 mb-2 block select-none">
+                  info
+                </span>
+                <h4 className="text-sm font-bold text-on-surface mb-1">Peralatan Belum Dipilih</h4>
+                <p className="text-xs text-on-surface-variant max-w-md mx-auto leading-relaxed">
+                  Silakan pilih UBP, Unit Pembangkit, Jenis Asset, dan Nama Asset pada kolom di atas terlebih dahulu untuk memuat jenis pengujian yang tersedia.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2 overflow-x-auto pb-2">
+                {availableTestTypes.map((test: any) => {
+                  const isActive = selectedTestTypeIds.includes(test.id);
+                  return (
+                    <button
+                      key={test.id}
+                      onClick={() => {
+                        setSelectedTestTypeIds((prev) =>
+                          prev.includes(test.id) ? prev.filter((id) => id !== test.id) : [...prev, test.id]
+                        );
+                      }}
+                      className={`px-4 py-2 rounded-full font-mono text-[11px] font-bold tracking-tight flex items-center gap-2 shadow-sm whitespace-nowrap transition-all cursor-pointer border ${
+                        isActive
+                          ? 'bg-primary border-primary text-white'
+                          : 'bg-white border-surface-border text-on-surface-variant hover:bg-surface-container-low'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors border ${
+                        isActive
+                          ? 'bg-white border-white text-primary'
+                          : 'border-outline-variant bg-transparent text-transparent'
+                      }`}>
+                        <span className="material-symbols-outlined text-[10px] font-extrabold" style={{ fontVariationSettings: "'wght' 800" }}>
+                          check
+                        </span>
+                      </div>
+                      <span>{test.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </section>
-
+ 
           {/* Form Inputs */}
           <section className="space-y-6">
             {selectedTestTypeIds.length > 0 ? (
@@ -973,7 +1196,7 @@ function InputForm() {
                                               </select>
                                             );
                                           }
-
+ 
                                           return (
                                             <>
                                               <input
@@ -1016,10 +1239,14 @@ function InputForm() {
                   })}
               </div>
             ) : selectedAsset && availableTestTypes.length === 0 ? (
-              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-6 rounded-xl text-center shadow-sm font-medium">
-                <span className="material-symbols-outlined text-4xl mb-2 text-yellow-600 block">warning</span>
-                Aset ini belum memiliki jenis pengujian terkonfigurasi.<br/>
-                Silakan hubungi Admin untuk mengelola jenis pengujian aset ini.
+              <div className="w-full bg-surface-container-low/50 border border-surface-border border-dashed rounded-xl p-8 text-center animate-fade-in my-2">
+                <span className="material-symbols-outlined text-[36px] text-primary/60 mb-2 block select-none">
+                  info
+                </span>
+                <h4 className="text-sm font-bold text-on-surface mb-1">Konfigurasi Pengujian Belum Tersedia</h4>
+                <p className="text-xs text-on-surface-variant max-w-md mx-auto leading-relaxed">
+                  Peralatan <strong className="font-semibold text-primary">{selectedAsset.name}</strong> ({selectedAsset.jenisAsset?.name || 'Aset'}) belum dikaitkan dengan metode pengujian apa pun di sistem saat ini. Silakan hubungi Administrator untuk mendaftarkan jenis tes.
+                </p>
               </div>
             ) : selectedAsset && selectedTestTypeIds.length === 0 ? (
               <div className="bg-surface-container-low border border-surface-border text-on-surface-variant p-6 rounded-xl text-center shadow-sm font-medium animate-fade-in">

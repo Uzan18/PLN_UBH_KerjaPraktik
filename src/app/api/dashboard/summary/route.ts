@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { getDb } from '@/lib/db';
 import { Asset } from '@/entities/Asset';
+import { UnitPembangkit } from '@/entities/UnitPembangkit';
+import { JenisAsset } from '@/entities/JenisAsset';
 import { TestSession } from '@/entities/TestSession';
 import { TestResult } from '@/entities/TestResult';
 import { TestType } from '@/entities/TestType';
@@ -60,6 +62,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const year = url.searchParams.get('year') ? parseInt(url.searchParams.get('year')!) : undefined;
     const ubpId = url.searchParams.get('ubpId') || undefined;
+    const unitId = url.searchParams.get('unitId') || undefined;
     const assetId = url.searchParams.get('assetId') || undefined;
     const equipmentType = url.searchParams.get('equipmentType') || undefined;
 
@@ -68,10 +71,14 @@ export async function GET(request: Request) {
     const sessionRepo = db.getRepository(TestSession);
 
     // Total assets
-    const assetQb = assetRepo.createQueryBuilder('asset');
-    if (ubpId) assetQb.where('asset.ubp_id = :ubpId', { ubpId });
+    const assetQb = assetRepo.createQueryBuilder('asset')
+      .leftJoin('asset.unitPembangkit', 'up')
+      .leftJoin('up.ubp', 'ubp')
+      .leftJoin('asset.jenisAsset', 'ja');
+    if (ubpId) assetQb.where('ubp.id = :ubpId', { ubpId });
+    if (unitId) assetQb.andWhere('up.id = :unitId', { unitId });
     if (assetId) assetQb.andWhere('asset.id = :assetId', { assetId });
-    if (equipmentType) assetQb.andWhere('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() });
+    if (equipmentType) assetQb.andWhere('ja.name = :equipmentType', { equipmentType: equipmentType.trim() });
     const totalAssets = await assetQb.getCount();
 
     // Get validated sessions with results and asset relationship loaded
@@ -80,17 +87,23 @@ export async function GET(request: Request) {
       .leftJoinAndSelect('tr.parameter', 'p')
       .leftJoinAndSelect('p.testType', 'tt')
       .leftJoinAndSelect('ts.asset', 'asset')
+      .leftJoinAndSelect('asset.unitPembangkit', 'up')
+      .leftJoinAndSelect('up.ubp', 'ubp')
+      .leftJoinAndSelect('asset.jenisAsset', 'ja')
       .where('ts.status = :status', { status: 'VALIDATED' });
 
     if (year) sessQb.andWhere('ts.test_year = :year', { year });
     if (ubpId) {
-      sessQb.andWhere('asset.ubp_id = :ubpId', { ubpId });
+      sessQb.andWhere('ubp.id = :ubpId', { ubpId });
+    }
+    if (unitId) {
+      sessQb.andWhere('up.id = :unitId', { unitId });
     }
     if (assetId) {
       sessQb.andWhere('ts.asset_id = :assetId', { assetId });
     }
     if (equipmentType) {
-      sessQb.andWhere('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() });
+      sessQb.andWhere('ja.name = :equipmentType', { equipmentType: equipmentType.trim() });
     }
 
     const validatedSessions = await sessQb.getMany();
@@ -147,9 +160,11 @@ export async function GET(request: Request) {
           if (s.asset) {
             // Avoid duplicates in affected assets list
             if (!affectedAssets.some((a) => a.id === s.asset.id)) {
+              const unitName = s.asset.unitPembangkit?.name;
+              const equipName = s.asset.name;
               affectedAssets.push({
                 id: s.asset.id,
-                name: s.asset.name,
+                name: unitName ? `${unitName} - ${equipName}` : equipName,
               });
             }
           }
@@ -167,13 +182,73 @@ export async function GET(request: Request) {
     // Sort descending by count
     damageMechanisms.sort((a, b) => b.count - a.count);
 
-    // Fetch unique years from database test sessions
-    const yearsResult = await sessionRepo.createQueryBuilder('ts')
+    // Fetch unique years from database test sessions based on active filters
+    const yearsQb = sessionRepo.createQueryBuilder('ts')
       .select('DISTINCT ts.test_year', 'year')
-      .where('ts.status = :status', { status: 'VALIDATED' })
+      .leftJoin('ts.asset', 'asset')
+      .leftJoin('asset.unitPembangkit', 'up')
+      .leftJoin('up.ubp', 'ubp')
+      .leftJoin('asset.jenisAsset', 'ja')
+      .where('ts.status = :status', { status: 'VALIDATED' });
+
+    if (ubpId) yearsQb.andWhere('ubp.id = :ubpId', { ubpId });
+    if (unitId) yearsQb.andWhere('up.id = :unitId', { unitId });
+    if (equipmentType) yearsQb.andWhere('ja.name = :equipmentType', { equipmentType: equipmentType.trim() });
+
+    const yearsResult = await yearsQb
       .orderBy('ts.test_year', 'DESC')
       .getRawMany();
     const availableYears = yearsResult.map((r: { year: number }) => String(r.year));
+
+    // Calculate trend for the last 3 years of availableYears
+    const last3Years = availableYears.slice(0, 3).map(Number); // Already sorted desc
+
+    // Fetch validated sessions for these 3 years to count statuses
+    let trendData: Array<{ year: string; GOOD: number; FAIR: number; POOR: number; BAD: number }> = [];
+    if (last3Years.length > 0) {
+      const trendSessQb = sessionRepo.createQueryBuilder('ts')
+        .leftJoinAndSelect('ts.testResults', 'tr')
+        .leftJoinAndSelect('ts.asset', 'asset')
+        .leftJoinAndSelect('asset.unitPembangkit', 'up')
+        .leftJoinAndSelect('up.ubp', 'ubp')
+        .leftJoinAndSelect('asset.jenisAsset', 'ja')
+        .where('ts.status = :status', { status: 'VALIDATED' })
+        .andWhere('ts.test_year IN (:...years)', { years: last3Years });
+
+      if (ubpId) trendSessQb.andWhere('ubp.id = :ubpId', { ubpId });
+      if (unitId) trendSessQb.andWhere('up.id = :unitId', { unitId });
+      if (equipmentType) trendSessQb.andWhere('ja.name = :equipmentType', { equipmentType: equipmentType.trim() });
+
+      const trendSessions = await trendSessQb.getMany();
+
+      trendData = last3Years.map((y) => {
+        let good = 0;
+        let fair = 0;
+        let poor = 0;
+        let bad = 0;
+
+        const yearSessions = trendSessions.filter((s) => s.testYear === y);
+        for (const s of yearSessions) {
+          const judgements = s.testResults.map((r) => r.judgement);
+          const overall = aggregateAssetStatus(judgements);
+          if (overall === 'GOOD') good++;
+          else if (overall === 'FAIR') fair++;
+          else if (overall === 'POOR') poor++;
+          else if (overall === 'BAD') bad++;
+        }
+
+        return {
+          year: String(y),
+          GOOD: good,
+          FAIR: fair,
+          POOR: poor,
+          BAD: bad,
+        };
+      });
+
+      // Sort ascending by year for chart representation (e.g. 2024 -> 2025 -> 2026)
+      trendData.sort((a, b) => a.year.localeCompare(b.year));
+    }
 
     // Fetch latest 5 uploaded report files
     const fileRepo = db.getRepository(ReportFile);
@@ -205,6 +280,7 @@ export async function GET(request: Request) {
         damageMechanisms,
         availableYears,
         recentReports: recentReportsData,
+        trend: trendData,
       },
     });
   } catch (error) {

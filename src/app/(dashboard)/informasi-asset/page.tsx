@@ -23,7 +23,8 @@ export default function InformasiAssetPage() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportUbpId, setExportUbpId] = useState('ALL');
   const [exportUnitName, setExportUnitName] = useState('ALL');
-  const [exportAssetId, setExportAssetId] = useState('ALL');
+  const [exportJenisId, setExportJenisId] = useState('ALL');
+  const [exportTestYear, setExportTestYear] = useState('ALL');
 
   const { data: ubps, isLoading, error } = useQuery({
     queryKey: ['ubp-assets-info-branched'],
@@ -48,8 +49,16 @@ export default function InformasiAssetPage() {
     if (!ubps) return [];
     const list: any[] = [];
     ubps.forEach((ubp: any) => {
-      ubp.assets?.forEach((asset: any) => {
-        list.push({ ...asset, ubpId: ubp.id, ubpName: ubp.name });
+      ubp.unitPembangkit?.forEach((unit: any) => {
+        unit.assets?.forEach((asset: any) => {
+          list.push({
+            ...asset,
+            ubpId: ubp.id,
+            ubpName: ubp.name,
+            unitId: unit.id,
+            unitName: unit.name,
+          });
+        });
       });
     });
     return list;
@@ -61,19 +70,19 @@ export default function InformasiAssetPage() {
   }, [ubps, selectedUbpId]);
 
   const uniqueUnits = useMemo(() => {
-    if (!activeUbp?.assets) return [];
-    const map = new Map<string, any[]>();
-    activeUbp.assets.forEach((asset: any) => {
-      const name = asset.name;
-      if (!map.has(name)) map.set(name, []);
-      map.get(name)!.push(asset);
-    });
-    return Array.from(map.entries()).map(([name, assets]) => ({ name, assets, count: assets.length }));
+    if (!activeUbp?.unitPembangkit) return [];
+    return activeUbp.unitPembangkit.map((unit: any) => ({
+      id: unit.id,
+      name: unit.name,
+      assets: unit.assets || [],
+      count: unit.assets?.length || 0,
+    }));
   }, [activeUbp]);
 
   const equipmentChoices = useMemo(() => {
-    if (!selectedUnitName || !activeUbp?.assets) return [];
-    return activeUbp.assets.filter((a: any) => a.name === selectedUnitName);
+    if (!selectedUnitName || !activeUbp?.unitPembangkit) return [];
+    const unit = activeUbp.unitPembangkit.find((u: any) => u.name === selectedUnitName);
+    return unit?.assets || [];
   }, [activeUbp, selectedUnitName]);
 
   const activeAsset = useMemo(() => {
@@ -87,8 +96,9 @@ export default function InformasiAssetPage() {
     const q = searchQuery.toLowerCase();
     return allAssets.filter((a) =>
       a.name.toLowerCase().includes(q) ||
+      a.unitName.toLowerCase().includes(q) ||
       (a.serialNumber || '').toLowerCase().includes(q) ||
-      (a.manufacture || '').toLowerCase().includes(q)
+      (a.vectorGroup || '').toLowerCase().includes(q)
     );
   }, [allAssets, searchQuery]);
 
@@ -103,36 +113,46 @@ export default function InformasiAssetPage() {
       if (!ubps) return [];
       const names = new Set<string>();
       ubps.forEach((u: any) => {
-        u.assets?.forEach((a: any) => {
-          if (a.name) names.add(a.name.trim());
+        u.unitPembangkit?.forEach((unit: any) => {
+          if (unit.name) names.add(unit.name.trim());
         });
       });
       return Array.from(names).sort();
     }
-    if (!exportSelectedUbp?.assets) return [];
+    if (!exportSelectedUbp?.unitPembangkit) return [];
     const names = new Set<string>();
-    exportSelectedUbp.assets.forEach((a: any) => {
-      if (a.name) names.add(a.name.trim());
+    exportSelectedUbp.unitPembangkit.forEach((unit: any) => {
+      if (unit.name) names.add(unit.name.trim());
     });
     return Array.from(names).sort();
   }, [ubps, exportUbpId, exportSelectedUbp]);
 
-  const exportAssetsList = useMemo(() => {
+  const exportJenisAssetChoices = useMemo(() => {
     if (!ubps) return [];
-    let list: any[] = [];
-    if (exportUbpId === 'ALL') {
-      ubps.forEach((u: any) => {
-        if (u.assets) list.push(...u.assets);
+    const map = new Map<string, { id: string, name: string }>();
+    ubps.forEach((ubp: any) => {
+      ubp.unitPembangkit?.forEach((unit: any) => {
+        unit.assets?.forEach((asset: any) => {
+          if (asset.jenisAsset) {
+            map.set(asset.jenisAsset.id, {
+              id: asset.jenisAsset.id,
+              name: asset.jenisAsset.name
+            });
+          }
+        });
       });
-    } else if (exportSelectedUbp?.assets) {
-      list = exportSelectedUbp.assets;
-    }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [ubps]);
 
-    if (exportUnitName && exportUnitName !== 'ALL') {
-      list = list.filter((a: any) => a.name === exportUnitName);
+  const exportYearChoices = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let y = currentYear + 2; y >= 2010; y--) {
+      years.push(String(y));
     }
-    return list;
-  }, [ubps, exportUbpId, exportSelectedUbp, exportUnitName]);
+    return years;
+  }, []);
 
   // Navigation
   const handleSelectUbp = (id: string | null) => {
@@ -196,7 +216,7 @@ export default function InformasiAssetPage() {
         {level === 4 && activeAsset && (
           <>
             <span className="material-symbols-outlined text-[10px]">chevron_right</span>
-            <span className="text-primary font-semibold">{activeAsset.equipmentType}</span>
+            <span className="text-primary font-semibold">{activeAsset.jenisAsset?.name || 'Trafo'} ({activeAsset.name})</span>
           </>
         )}
       </div>
@@ -206,7 +226,7 @@ export default function InformasiAssetPage() {
         <div className="flex flex-col gap-0.5">
           <h1 className="text-xl font-bold text-on-surface">Hasil Pengujian</h1>
           <p className="text-xs text-on-surface-variant">
-            {level === 4 && activeAsset ? `Spesifikasi teknis & pengujian terakhir ${activeAsset.equipmentType} — ${activeAsset.name}.`
+            {level === 4 && activeAsset ? `Spesifikasi teknis & pengujian terakhir ${activeAsset.jenisAsset?.name || 'Trafo'} (${activeAsset.name}) — ${activeAsset.unitName}.`
               : level === 3 ? `Pilih peralatan pada ${selectedUnitName}.`
               : level === 2 ? `Pilih unit pembangkit pada ${activeUbp?.name}.`
               : 'Pilih Unit Bisnis Pemeliharaan (UBP) untuk melihat aset transformator.'}
@@ -265,10 +285,10 @@ export default function InformasiAssetPage() {
                       className="p-4 bg-white hover:bg-primary-container/5 border border-surface-border hover:border-primary rounded-lg text-left transition-all cursor-pointer flex flex-col justify-between h-28 group">
                       <div>
                         <div className="flex items-center justify-between mb-1 flex-wrap gap-1">
-                          <span className="text-[9px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase">{asset.equipmentType}</span>
+                          <span className="text-[9px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase">{asset.jenisAsset?.name || 'Trafo'}</span>
                           <span className="text-[9px] font-mono text-on-surface-variant/70 uppercase">{asset.ubpName}</span>
                         </div>
-                        <h4 className="font-bold text-on-surface text-xs group-hover:text-primary transition-colors truncate">{asset.name}</h4>
+                        <h4 className="font-bold text-on-surface text-xs group-hover:text-primary transition-colors truncate">{asset.unitName} - {asset.name}</h4>
                       </div>
                       <div className="text-[10px] text-on-surface-variant/80 border-t border-surface-border/50 pt-1.5 space-y-0.5">
                         <p className="truncate"><span className="font-medium text-on-surface/85">SN:</span> {asset.serialNumber || '—'}</p>
@@ -287,16 +307,19 @@ export default function InformasiAssetPage() {
                     Pilih Unit Bisnis Pemeliharaan (UBP)
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    {ubps?.map((ubp: any) => (
-                      <button key={ubp.id} onClick={() => handleSelectUbp(ubp.id)}
-                        className="p-4 bg-white hover:bg-primary-container/5 border border-surface-border hover:border-primary rounded-lg text-left transition-all cursor-pointer flex items-center justify-between group h-16">
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-on-surface text-xs group-hover:text-primary transition-colors truncate">{ubp.name}</h4>
-                          <p className="text-[10px] text-on-surface-variant mt-0.5">{ubp.assets?.length || 0} Peralatan</p>
-                        </div>
-                        <span className="material-symbols-outlined text-sm text-outline group-hover:text-primary group-hover:translate-x-0.5 transition-all">chevron_right</span>
-                      </button>
-                    ))}
+                    {ubps?.map((ubp: any) => {
+                      const totalUbpAssets = allAssets.filter((a) => a.ubpId === ubp.id).length;
+                      return (
+                        <button key={ubp.id} onClick={() => handleSelectUbp(ubp.id)}
+                          className="p-4 bg-white hover:bg-primary-container/5 border border-surface-border hover:border-primary rounded-lg text-left transition-all cursor-pointer flex items-center justify-between group h-16">
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-on-surface text-xs group-hover:text-primary transition-colors truncate">{ubp.name}</h4>
+                            <p className="text-[10px] text-on-surface-variant mt-0.5">{totalUbpAssets} Peralatan</p>
+                          </div>
+                          <span className="material-symbols-outlined text-sm text-outline group-hover:text-primary group-hover:translate-x-0.5 transition-all">chevron_right</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -320,8 +343,8 @@ export default function InformasiAssetPage() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {uniqueUnits.map(({ name, assets, count }) => (
-                        <button key={name} onClick={() => handleSelectUnit(name)}
+                      {uniqueUnits.map(({ id, name, count }: any) => (
+                        <button key={id} onClick={() => handleSelectUnit(name)}
                           className="p-4 bg-white hover:bg-primary-container/5 border border-surface-border hover:border-primary rounded-lg text-left transition-all cursor-pointer flex items-center justify-between group h-16">
                           <div className="min-w-0">
                             <h4 className="font-bold text-on-surface text-xs group-hover:text-primary transition-colors truncate">{name}</h4>
@@ -355,9 +378,10 @@ export default function InformasiAssetPage() {
                       <button key={asset.id} onClick={() => handleSelectAsset(asset.id)}
                         className="p-4 bg-white hover:bg-primary-container/5 border border-surface-border hover:border-primary rounded-lg text-left transition-all cursor-pointer flex items-center justify-between group">
                         <div className="min-w-0">
-                          <h4 className="font-bold text-on-surface text-xs group-hover:text-primary transition-colors">{asset.equipmentType}</h4>
+                          <h4 className="font-bold text-on-surface text-xs group-hover:text-primary transition-colors">{asset.name}</h4>
                           <div className="text-[10px] text-on-surface-variant mt-1 space-y-0.5">
-                            <p className="truncate">Manufacture: {asset.manufacture || '—'}</p>
+                            <p className="truncate">Jenis: {asset.jenisAsset?.name || '—'}</p>
+                            <p className="truncate">Manufacture: {asset.vectorGroup || '—'}</p>
                             <p className="truncate">SN: {asset.serialNumber || '—'}</p>
                           </div>
                         </div>
@@ -407,71 +431,183 @@ export default function InformasiAssetPage() {
                               {assetDetail.selectedTestYear && (
                                 <span className="text-xs font-semibold text-outline">
                                   {(!assetDetail.selectedSessionId || assetDetail.selectedSessionId === assetDetail.latestSessionId)
-                                    ? `Tahun Terkini: ${assetDetail.selectedTestYear}`
-                                    : `Tahun Uji: ${assetDetail.selectedTestYear}`}
+                                    ? `Tahun Terkini: ${assetDetail.selectedTestYear}${assetDetail.selectedSessionEvent && assetDetail.selectedSessionEvent !== 'default' ? ` (${assetDetail.selectedSessionEvent})` : ''}`
+                                    : `Tahun Uji: ${assetDetail.selectedTestYear}${assetDetail.selectedSessionEvent && assetDetail.selectedSessionEvent !== 'default' ? ` (${assetDetail.selectedSessionEvent})` : ''}`}
                                 </span>
                               )}
                             </div>
                             <h2 className="text-3xl font-bold text-on-surface mb-2 leading-tight tracking-tight">
-                              {assetDetail.name}
+                              {assetDetail.unitName || ''} - {assetDetail.name}
                             </h2>
                           </div>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 border-t border-surface-border/50">
-                            {[
-                              { label: 'Type', value: assetDetail.type || '—' },
-                              { label: 'Serial Number', value: assetDetail.serialNumber || '—' },
-                              { label: 'Tahun Buat', value: assetDetail.mfgYear ? String(assetDetail.mfgYear) : '—' },
-                              { label: 'Manufacture', value: assetDetail.vectorGroup || '—' },
-                              { label: 'Cooling Method', value: assetDetail.coolingMethod || '—' },
-                              { label: 'Rated Power', value: assetDetail.ratedPower || '—' },
-                              { label: 'Frequency', value: assetDetail.frequency || '—' },
-                              { label: 'HV Side', value: assetDetail.hvSide || '—' },
-                              { label: 'HV Rated Current', value: assetDetail.hvRatedCurrent || '—' },
-                              { label: 'LV Side', value: assetDetail.lvSide || '—' },
-                              { label: 'LV Rated Current', value: assetDetail.lvRatedCurrent || '—' },
-                            ].map((item) => (
-                              <div 
-                                key={item.label} 
-                                className="flex flex-col px-3 py-1.5 rounded-lg border text-xs bg-surface-container-low border-surface-border"
-                              >
-                                <span className="text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider mb-0.5">{item.label}</span>
-                                <span className="font-semibold text-on-surface truncate" title={String(item.value)}>{item.value}</span>
-                              </div>
-                            ))}
+                            {(() => {
+                              const activeFields = (() => {
+                                if (!assetDetail.infoFields) return null;
+                                try {
+                                  return JSON.parse(assetDetail.infoFields) as any[];
+                                } catch (e) {
+                                  return null;
+                                }
+                              })();
+
+                              const activeKeys = activeFields
+                                ? activeFields.map((item: any) => typeof item === 'string' ? item : item?.key || '')
+                                : null;
+
+                              const customFieldsDict = (() => {
+                                if (!assetDetail.customMetadata) return {};
+                                try {
+                                  return JSON.parse(assetDetail.customMetadata) as Record<string, string>;
+                                } catch (e) {
+                                  return {};
+                                }
+                              })();
+
+                              const customKeys = activeKeys
+                                ? activeKeys.filter((k: string) => k && !['type', 'serialNumber', 'mfgYear', 'manufacture', 'coolingMethod', 'ratedPower', 'frequency', 'hvSide', 'hvRatedCurrent', 'lvSide', 'lvRatedCurrent'].includes(k.toLowerCase()))
+                                : Object.keys(customFieldsDict);
+
+                              const customFields = customKeys.map((k: string) => {
+                                const cleanLabel = k
+                                  .split(' ')
+                                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                                  .join(' ');
+                                return {
+                                  key: k,
+                                  label: cleanLabel,
+                                  value: customFieldsDict[k] || '—'
+                                };
+                              });
+
+                              return [
+                                { key: 'type', label: 'Type', value: assetDetail.type || '—' },
+                                { key: 'serialNumber', label: 'Serial Number', value: assetDetail.serialNumber || '—' },
+                                { key: 'mfgYear', label: 'Tahun Buat', value: assetDetail.mfgYear ? String(assetDetail.mfgYear) : '—' },
+                                { key: 'manufacture', label: 'Manufacture', value: assetDetail.vectorGroup || '—' },
+                                { key: 'coolingMethod', label: 'Cooling Method', value: assetDetail.coolingMethod || '—' },
+                                { key: 'ratedPower', label: 'Rated Power', value: assetDetail.ratedPower || '—' },
+                                { key: 'frequency', label: 'Frequency', value: assetDetail.frequency || '—' },
+                                { key: 'hvSide', label: 'HV Side', value: assetDetail.hvSide || '—' },
+                                { key: 'hvRatedCurrent', label: 'HV Rated Current', value: assetDetail.hvRatedCurrent || '—' },
+                                { key: 'lvSide', label: 'LV Side', value: assetDetail.lvSide || '—' },
+                                { key: 'lvRatedCurrent', label: 'LV Rated Current', value: assetDetail.lvRatedCurrent || '—' },
+                              ]
+                                .filter((item) => !activeFields || activeFields.includes(item.key))
+                                .concat(customFields)
+                                .map((item) => (
+                                  <div 
+                                    key={item.label} 
+                                    className="flex flex-col px-3 py-1.5 rounded-lg border text-xs bg-surface-container-low border-surface-border"
+                                  >
+                                    <span className="text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider mb-0.5">{item.label}</span>
+                                    <span className="font-semibold text-on-surface truncate" title={String(item.value)}>{item.value}</span>
+                                  </div>
+                                ));
+                            })()}
                           </div>
                         </div>
 
-                        {/* Right Card: Trend Chart (Mock SVG mirroring Pic 2) */}
+                        {/* Right Card: Trend Chart */}
                         <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
-                          <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-bold text-on-surface text-sm">Tren Kondisi Unit Ini</h4>
-                          </div>
-                          <div className="h-44 flex flex-col justify-between relative">
-                            <svg className="w-full h-full" viewBox="0 0 400 200">
-                              <line x1="0" y1="40" x2="400" y2="40" stroke="#E2E8F0" strokeDasharray="4" />
-                              <line x1="0" y1="100" x2="400" y2="100" stroke="#E2E8F0" strokeDasharray="4" />
-                              <line x1="0" y1="160" x2="400" y2="160" stroke="#E2E8F0" strokeDasharray="4" />
-                              <path d="M 0 50 L 80 45 L 160 60 L 240 85 L 320 110 L 400 135" fill="none" stroke="#0F3D91" strokeWidth="3" />
-                              <path d="M 0 70 L 80 75 L 160 80 L 240 100 L 320 120 L 400 115" fill="none" stroke="#EAB308" strokeWidth="2" strokeDasharray="4" />
-                              <circle cx="80" cy="45" r="4" fill="#0F3D91" />
-                              <circle cx="160" cy="60" r="4" fill="#0F3D91" />
-                              <circle cx="240" cy="85" r="4" fill="#0F3D91" />
-                              <circle cx="320" cy="110" r="4" fill="#0F3D91" />
-                              <circle cx="400" cy="135" r="5" fill="#EF4444" stroke="white" strokeWidth="2" />
-                            </svg>
-                            <div className="flex justify-between mt-2 text-[9px] font-bold text-on-surface-variant">
-                              <span>2021</span><span>2022</span><span>2023</span><span>2024</span><span>2025</span>
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
+                            <h4 className="font-bold text-on-surface text-sm">Tren Hasil Pengujian Aset</h4>
+                            {/* Legend */}
+                            <div className="flex flex-wrap items-center gap-1.5 bg-surface-container-low px-2 py-1 rounded border border-surface-border">
+                              <div className="flex items-center gap-0.5">
+                                <div className="w-2 h-2 rounded-xs bg-status-good" />
+                                <span className="text-[8px] font-bold text-on-surface-variant uppercase">G</span>
+                              </div>
+                              <div className="flex items-center gap-0.5">
+                                <div className="w-2 h-2 rounded-xs bg-status-fair" />
+                                <span className="text-[8px] font-bold text-on-surface-variant uppercase">F</span>
+                              </div>
+                              <div className="flex items-center gap-0.5">
+                                <div className="w-2 h-2 rounded-xs bg-status-poor" />
+                                <span className="text-[8px] font-bold text-on-surface-variant uppercase">P</span>
+                              </div>
+                              <div className="flex items-center gap-0.5">
+                                <div className="w-2 h-2 rounded-xs bg-status-bad" />
+                                <span className="text-[8px] font-bold text-on-surface-variant uppercase">B</span>
+                              </div>
                             </div>
                           </div>
-                          <div className="mt-2 flex justify-between text-[10px]">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2.5 h-1 bg-primary" />
-                              <span className="text-on-surface-variant font-medium">Tren Kondisi</span>
+                          
+                          <div className="h-44 flex items-end justify-around relative pt-4 pb-6 px-1 border-b border-surface-border">
+                            {/* Background Grid Lines */}
+                            <div className="absolute inset-x-0 top-4 bottom-6 flex flex-col justify-between pointer-events-none">
+                              <div className="w-full border-t border-surface-border/40" />
+                              <div className="w-full border-t border-surface-border/40" />
+                              <div className="w-full border-t border-surface-border/40" />
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2.5 h-1 border-t border-dashed border-status-fair" />
-                              <span className="text-on-surface-variant font-medium">Batas Aman</span>
-                            </div>
+
+                            {/* Trend Columns Group */}
+                            {assetDetail?.trend && assetDetail.trend.length > 0 ? (
+                              (() => {
+                                const maxCount = Math.max(
+                                  ...assetDetail.trend.map((item: any) => 
+                                    Math.max(item.GOOD || 0, item.FAIR || 0, item.POOR || 0, item.BAD || 0)
+                                  ), 
+                                  1
+                                );
+                                return assetDetail.trend.map((t: any) => (
+                                  <div key={t.year} className="flex flex-col items-center gap-1 w-1/4 z-10">
+                                    {/* Columns container */}
+                                    <div className="flex items-end justify-center gap-1.5 h-28 w-full">
+                                      {/* Good Column */}
+                                      <div 
+                                        style={{ height: `${((t.GOOD || 0) / maxCount) * 100}%` }} 
+                                        className="w-2.5 bg-status-good rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                                      >
+                                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                                          GOOD: {t.GOOD || 0}
+                                        </div>
+                                      </div>
+
+                                      {/* Fair Column */}
+                                      <div 
+                                        style={{ height: `${((t.FAIR || 0) / maxCount) * 100}%` }} 
+                                        className="w-2.5 bg-status-fair rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                                      >
+                                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                                          FAIR: {t.FAIR || 0}
+                                        </div>
+                                      </div>
+
+                                      {/* Poor Column */}
+                                      <div 
+                                        style={{ height: `${((t.POOR || 0) / maxCount) * 100}%` }} 
+                                        className="w-2.5 bg-status-poor rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                                      >
+                                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                                          POOR: {t.POOR || 0}
+                                        </div>
+                                      </div>
+
+                                      {/* Bad Column */}
+                                      <div 
+                                        style={{ height: `${((t.BAD || 0) / maxCount) * 100}%` }} 
+                                        className="w-2.5 bg-status-bad rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                                      >
+                                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                                          BAD: {t.BAD || 0}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Year Label */}
+                                    <span className="font-mono text-[10px] font-bold text-on-surface">{t.year}</span>
+                                  </div>
+                                ));
+                              })()
+                            ) : (
+                              <div className="w-full text-center py-10 text-on-surface-variant font-medium text-xs">
+                                Tidak ada data tren pengujian.
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-2 text-[9px] text-center text-on-surface-variant/80 italic">
+                            *Jumlah jenis pengujian berdasarkan status kondisi per tahun
                           </div>
                         </div>
                       </div>
@@ -647,7 +783,8 @@ export default function InformasiAssetPage() {
                   onChange={(e) => {
                     setExportUbpId(e.target.value);
                     setExportUnitName('ALL');
-                    setExportAssetId('ALL');
+                    setExportJenisId('ALL');
+                    setExportTestYear('ALL');
                   }}
                   className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs font-semibold text-primary focus:border-primary focus:ring-0 cursor-pointer transition-all"
                 >
@@ -673,7 +810,8 @@ export default function InformasiAssetPage() {
                   value={exportUnitName}
                   onChange={(e) => {
                     setExportUnitName(e.target.value);
-                    setExportAssetId('ALL');
+                    setExportJenisId('ALL');
+                    setExportTestYear('ALL');
                   }}
                   className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs font-semibold text-primary focus:border-primary focus:ring-0 cursor-pointer transition-all"
                 >
@@ -686,20 +824,39 @@ export default function InformasiAssetPage() {
                 </select>
               </div>
 
-              {/* Filter Aset */}
+              {/* Filter Jenis Alat */}
               <div>
                 <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
-                  Filter Aset / Trafo
+                  Filter Jenis Alat
                 </label>
                 <select
-                  value={exportAssetId}
-                  onChange={(e) => setExportAssetId(e.target.value)}
+                  value={exportJenisId}
+                  onChange={(e) => setExportJenisId(e.target.value)}
                   className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs font-semibold text-primary focus:border-primary focus:ring-0 cursor-pointer transition-all"
                 >
-                  <option value="ALL">SEMUA ASET (ALL)</option>
-                  {exportAssetsList.map((asset: any) => (
-                    <option key={asset.id} value={asset.id}>
-                      {asset.serialNumber ? `${asset.name} (SN: ${asset.serialNumber})` : asset.name}
+                  <option value="ALL">SEMUA JENIS ALAT (ALL)</option>
+                  {exportJenisAssetChoices.map((ja: any) => (
+                    <option key={ja.id} value={ja.id}>
+                      {ja.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filter Tahun */}
+              <div>
+                <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
+                  Filter Tahun
+                </label>
+                <select
+                  value={exportTestYear}
+                  onChange={(e) => setExportTestYear(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs font-semibold text-primary focus:border-primary focus:ring-0 cursor-pointer transition-all"
+                >
+                  <option value="ALL">SEMUA TAHUN (ALL)</option>
+                  {exportYearChoices.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
                     </option>
                   ))}
                 </select>
@@ -714,7 +871,7 @@ export default function InformasiAssetPage() {
                 Batal
               </button>
               <a
-                href={`/api/master/export?ubpId=${exportUbpId}&unitName=${exportUnitName}&assetId=${exportAssetId}`}
+                href={`/api/master/export?ubpId=${exportUbpId}&unitName=${exportUnitName}&jenisAssetId=${exportJenisId}&testYear=${exportTestYear}`}
                 download
                 onClick={() => setIsExportModalOpen(false)}
                 className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow transition-all active:scale-95 flex items-center gap-2 cursor-pointer"

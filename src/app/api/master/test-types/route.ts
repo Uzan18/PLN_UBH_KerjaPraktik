@@ -45,7 +45,7 @@ export async function GET() {
 
 /**
  * PUT /api/master/test-types
- * Update a test type (e.g. standard field).
+ * Update a test type (name, standard, orderIndex, and parameters/criteria).
  */
 export async function PUT(request: Request) {
   try {
@@ -56,7 +56,7 @@ export async function PUT(request: Request) {
     requirePermission(session.user.role, 'master-data:write');
 
     const body = await request.json();
-    const { id, standard } = body;
+    const { id, name, standard, orderIndex, parameters } = body;
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
@@ -70,8 +70,78 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: false, error: 'TestType not found' }, { status: 404 });
     }
 
-    testType.standard = standard ?? null;
+    if (name) testType.name = name.trim();
+    testType.standard = standard ? standard.trim() : null;
+    if (orderIndex !== undefined) testType.orderIndex = Number(orderIndex);
     await testTypeRepo.save(testType);
+
+    if (Array.isArray(parameters)) {
+      const parameterRepo = db.getRepository(Parameter);
+      const criteriaRepo = db.getRepository(Criteria);
+      const resultRepo = db.getRepository(TestResult);
+
+      const dbParams = await parameterRepo.find({ where: { testTypeId: id } });
+      const payloadParamIds = parameters.map((p) => p.id).filter(Boolean);
+
+      // 1. Delete parameters not in payload
+      for (const dbP of dbParams) {
+        if (!payloadParamIds.includes(dbP.id)) {
+          await resultRepo.delete({ parameterId: dbP.id });
+          await criteriaRepo.delete({ parameterId: dbP.id });
+          await parameterRepo.delete({ id: dbP.id });
+        }
+      }
+
+      // 2. Insert or update parameters
+      for (let i = 0; i < parameters.length; i++) {
+        const p = parameters[i];
+        if (!p.name || p.name.trim() === '') continue;
+
+        let param;
+        if (p.id) {
+          param = await parameterRepo.findOne({ where: { id: p.id } });
+        }
+
+        if (param) {
+          param.name = p.name.trim();
+          param.unit = p.unit ? p.unit.trim() : null;
+          param.orderIndex = i + 1;
+          await parameterRepo.save(param);
+        } else {
+          param = parameterRepo.create({
+            testTypeId: id,
+            name: p.name.trim(),
+            unit: p.unit ? p.unit.trim() : null,
+            orderIndex: i + 1,
+          });
+          await parameterRepo.save(param);
+        }
+
+        // Update or create criteria
+        const activeCriteria = await criteriaRepo.findOne({
+          where: { parameterId: param.id },
+          order: { effectiveFrom: 'DESC' },
+        });
+
+        if (activeCriteria) {
+          activeCriteria.goodValue = p.goodValue ? String(p.goodValue).trim() : null;
+          activeCriteria.fairValue = p.fairValue ? String(p.fairValue).trim() : null;
+          activeCriteria.poorValue = p.poorValue ? String(p.poorValue).trim() : null;
+          activeCriteria.badValue = p.badValue ? String(p.badValue).trim() : null;
+          await criteriaRepo.save(activeCriteria);
+        } else {
+          const criteria = criteriaRepo.create({
+            parameterId: param.id,
+            goodValue: p.goodValue ? String(p.goodValue).trim() : null,
+            fairValue: p.fairValue ? String(p.fairValue).trim() : null,
+            poorValue: p.poorValue ? String(p.poorValue).trim() : null,
+            badValue: p.badValue ? String(p.badValue).trim() : null,
+            createdBy: session.user.id,
+          });
+          await criteriaRepo.save(criteria);
+        }
+      }
+    }
 
     return NextResponse.json({ success: true, data: testType });
   } catch (error) {

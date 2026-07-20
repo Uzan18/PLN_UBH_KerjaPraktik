@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { getDb } from '@/lib/db';
 import { Ubp } from '@/entities/Ubp';
+import { UnitPembangkit } from '@/entities/UnitPembangkit';
 import { Asset } from '@/entities/Asset';
 import { TestSession } from '@/entities/TestSession';
 import { TestResult } from '@/entities/TestResult';
@@ -27,14 +28,24 @@ export async function GET() {
 
     const db = await getDb();
     const ubps = await db.getRepository(Ubp).find({
-      relations: ['assets', 'assets.testTypes'],
+      relations: [
+        'unitPembangkit',
+        'unitPembangkit.assets',
+        'unitPembangkit.assets.jenisAsset',
+        'unitPembangkit.assets.testTypes',
+      ],
       order: { name: 'ASC' },
     });
 
-    // Sort assets within each UBP
+    // Sort unitPembangkit and their assets
     for (const ubp of ubps) {
-      if (ubp.assets) {
-        ubp.assets.sort((a, b) => a.name.localeCompare(b.name));
+      if (ubp.unitPembangkit) {
+        ubp.unitPembangkit.sort((a, b) => a.name.localeCompare(b.name));
+        for (const unit of ubp.unitPembangkit) {
+          if (unit.assets) {
+            unit.assets.sort((a, b) => a.name.localeCompare(b.name));
+          }
+        }
       }
     }
 
@@ -126,6 +137,7 @@ export async function DELETE(request: Request) {
 
     const db = await getDb();
     const ubpRepo = db.getRepository(Ubp);
+    const unitRepo = db.getRepository(UnitPembangkit);
     const assetRepo = db.getRepository(Asset);
     const sessionRepo = db.getRepository(TestSession);
     const resultRepo = db.getRepository(TestResult);
@@ -133,27 +145,35 @@ export async function DELETE(request: Request) {
     const fileRepo = db.getRepository(ReportFile);
     const auditRepo = db.getRepository(AuditLog);
 
-    const ubp = await ubpRepo.findOne({ where: { id }, relations: ['assets'] });
+    const ubp = await ubpRepo.findOne({
+      where: { id },
+      relations: ['unitPembangkit', 'unitPembangkit.assets'],
+    });
     if (!ubp) {
       return NextResponse.json({ success: false, error: 'UBP not found' }, { status: 404 });
     }
 
-    // Cascade delete manually to ensure data integrity in SQLite / other db types
-    if (ubp.assets && ubp.assets.length > 0) {
-      for (const asset of ubp.assets) {
-        // Load asset with testTypes relation to unlink them first
-        const fullAsset = await assetRepo.findOne({ where: { id: asset.id }, relations: ['testTypes'] });
-        if (fullAsset) {
-          fullAsset.testTypes = [];
-          await assetRepo.save(fullAsset);
-        }
+    // Cascade delete manually
+    if (ubp.unitPembangkit && ubp.unitPembangkit.length > 0) {
+      for (const unit of ubp.unitPembangkit) {
+        if (unit.assets && unit.assets.length > 0) {
+          for (const asset of unit.assets) {
+            // Load asset with testTypes relation to unlink them first
+            const fullAsset = await assetRepo.findOne({ where: { id: asset.id }, relations: ['testTypes'] });
+            if (fullAsset) {
+              fullAsset.testTypes = [];
+              await assetRepo.save(fullAsset);
+            }
 
-        const testSessions = await sessionRepo.find({ where: { assetId: asset.id } });
-        for (const s of testSessions) {
-          await resultRepo.delete({ testSessionId: s.id });
-          await sessionRepo.delete({ id: s.id });
+            const testSessions = await sessionRepo.find({ where: { assetId: asset.id } });
+            for (const s of testSessions) {
+              await resultRepo.delete({ testSessionId: s.id });
+              await sessionRepo.delete({ id: s.id });
+            }
+            await assetRepo.delete({ id: asset.id });
+          }
         }
-        await assetRepo.delete({ id: asset.id });
+        await unitRepo.delete({ id: unit.id });
       }
     }
 
@@ -179,6 +199,72 @@ export async function DELETE(request: Request) {
     await auditRepo.save(auditLog);
 
     return NextResponse.json({ success: true, data: { id } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}
+
+/**
+ * PUT /api/master/ubp-asset
+ * Update a UBP name. Only accessible to ADMIN.
+ */
+export async function PUT(request: Request) {
+  try {
+    const session = await getServerSession();
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    requirePermission(session.user.role, 'master-data:write');
+
+    const body = await request.json();
+    const { id, name } = body;
+
+    if (!id || !name || name.trim() === '') {
+      return NextResponse.json({ success: false, error: 'ID and name are required' }, { status: 400 });
+    }
+
+    const db = await getDb();
+    const ubpRepo = db.getRepository(Ubp);
+    const dirRepo = db.getRepository(ReportDirectory);
+    const auditRepo = db.getRepository(AuditLog);
+
+    const ubp = await ubpRepo.findOne({ where: { id } });
+    if (!ubp) {
+      return NextResponse.json({ success: false, error: 'UBP not found' }, { status: 404 });
+    }
+
+    // Check if new name already exists
+    const existing = await ubpRepo.findOne({ where: { name: name.trim() } });
+    if (existing && existing.id !== id) {
+      return NextResponse.json({ success: false, error: 'UBP name already exists' }, { status: 400 });
+    }
+
+    const oldName = ubp.name;
+    ubp.name = name.trim();
+    await ubpRepo.save(ubp);
+
+    // Also update matching root-level ReportDirectory name
+    const matchingDir = await dirRepo.findOne({
+      where: { name: oldName, parentId: IsNull() },
+    });
+    if (matchingDir) {
+      matchingDir.name = name.trim();
+      await dirRepo.save(matchingDir);
+    }
+
+    // Audit log
+    const auditLog = auditRepo.create({
+      userId: session.user.id,
+      action: 'UPDATE',
+      entity: 'Ubp',
+      entityId: id,
+      beforeData: JSON.stringify({ name: oldName }),
+      afterData: JSON.stringify({ name: ubp.name }),
+    });
+    await auditRepo.save(auditLog);
+
+    return NextResponse.json({ success: true, data: ubp });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal Server Error';
     return NextResponse.json({ success: false, error: message }, { status: 500 });

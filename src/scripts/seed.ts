@@ -2,6 +2,8 @@ import 'reflect-metadata';
 import { AppDataSource } from '../lib/data-source';
 import {
   Ubp,
+  UnitPembangkit,
+  JenisAsset,
   Asset,
   TestType,
   Parameter,
@@ -17,11 +19,13 @@ import { hash } from 'bcryptjs';
 
 /**
  * Seed script for database (TypeORM + Oracle).
+ * Only seeds UBPs, Unit Pembangkit, 20 Test Types, and Damage Mechanisms.
+ * Does NOT seed assets, test sessions, or results.
  *
  * Run with: npm run seed
  */
 async function main() {
-  console.log('🌱 Seeding database (Oracle)...');
+  console.log('🌱 Seeding database (Oracle) - Clean Slate...');
 
   // Initialize connection
   if (!AppDataSource.isInitialized) {
@@ -35,11 +39,13 @@ async function main() {
     'audit_log',
     'test_result',
     'test_session',
+    'asset',
+    'unit_pembangkit',
+    'jenis_asset',
+    'ubp',
     'criteria',
     'parameter',
     'test_type',
-    'asset',
-    'ubp',
     'app_user',
     'siat_user'
   ];
@@ -72,12 +78,11 @@ async function main() {
 
   const userRepo = AppDataSource.getRepository(User);
   const ubpRepo = AppDataSource.getRepository(Ubp);
-  const assetRepo = AppDataSource.getRepository(Asset);
+  const unitRepo = AppDataSource.getRepository(UnitPembangkit);
+  const jenisRepo = AppDataSource.getRepository(JenisAsset);
   const testTypeRepo = AppDataSource.getRepository(TestType);
   const paramRepo = AppDataSource.getRepository(Parameter);
   const criteriaRepo = AppDataSource.getRepository(Criteria);
-  const sessionRepo = AppDataSource.getRepository(TestSession);
-  const resultRepo = AppDataSource.getRepository(TestResult);
 
   // ==============================
   // 1. USERS
@@ -85,7 +90,7 @@ async function main() {
   const adminPassword = await hash('admin123', 12);
   const inputPassword = await hash('input123', 12);
   const viewerPassword = await hash('viewer123', 12);
-  const qcPassword = await hash('qc123', 12);
+  const validatorPassword = await hash('validator123', 12);
 
   async function upsertUser(email: string, data: Partial<User>) {
     let user = await userRepo.findOne({ where: { email } });
@@ -96,30 +101,30 @@ async function main() {
     return user;
   }
 
-  const adminUser = await upsertUser('admin@plnip.co.id', {
+  const adminUser = await upsertUser('admin@pln.co.id', {
     name: 'Admin Utama',
     passwordHash: adminPassword,
     role: 'ADMIN',
     allowedUbpIds: null,
   });
 
-  const inputUser = await upsertUser('input@plnip.co.id', {
+  await upsertUser('input@pln.co.id', {
     name: 'Input',
     passwordHash: inputPassword,
     role: 'INPUT',
     allowedUbpIds: null,
   });
 
-  const viewerUser = await upsertUser('viewer@plnip.co.id', {
+  await upsertUser('viewer@pln.co.id', {
     name: 'Ahmad Rizal',
     passwordHash: viewerPassword,
     role: 'VIEWER',
     allowedUbpIds: null,
   });
 
-  const qcUser = await upsertUser('qc@plnip.co.id', {
-    name: 'Siti Nurhaliza',
-    passwordHash: qcPassword,
+  await upsertUser('validator@pln.co.id', {
+    name: 'Validator',
+    passwordHash: validatorPassword,
     role: 'QC',
     allowedUbpIds: null,
   });
@@ -138,244 +143,128 @@ async function main() {
     return ubp;
   }
 
-  const ubps = await Promise.all([
-    upsertUbp('UBP ASAM ASAM'),
-    upsertUbp('UBP BALI'),
-    upsertUbp('UBP BANTEN SURALAYA'),
-    upsertUbp('UBP BUKIT TINGGI'),
-    upsertUbp('UBP CILEGON'),
-    upsertUbp('UBP LABUAN'),
-    upsertUbp('UBP LONTAR'),
-    upsertUbp('UBP PELABUHAN RATU'),
-    upsertUbp('UBP SURALAYA'),
-  ]);
+  const ubpNames = [
+    'UBP SURALAYA',
+    'UBP BALI',
+    'UBP CILEGON',
+    'UBP BARRU',
+    'UBP PRIOK',
+    'UBP KAMOJANG',
+    'UBP BANTEN 3 LONTAR',
+    'UBP SAGULING',
+    'UBP HOLTEKAMP',
+    'UBP MAHAKAM',
+    'UBP JAMBI',
+    'UBP KEPULAUAN RIAU',
+    'UBP TELLO',
+    'UBP BARITO',
+    'UBP BENGKULU',
+    'UBP PANGKALAN SUSU',
+    'UBP SEMARANG',
+    'UBP BANTEN 1 SURALAYA',
+    'UBP ASAM ASAM',
+    'UBP OMBILIN',
+    'UBP MRICA',
+    'UBP SINGKAWANG',
+    'UBP PAPUA MALUKU',
+    'UBP BANTEN 2 LABUAN',
+    'UBP JAWA TENGAH 2 ADIPALA',
+    'UBP BUKIT TINGGI',
+    'UBP TELUK SIRIH',
+    'UBP JATIGEDE',
+    'UBP PEMELIHARAAN',
+    'UBP BERAU',
+    'UBP LABUHAN ANGIN',
+    'UBP SANGGAU',
+    'UBP JERANJANG',
+    'UBP SINTANG',
+    'UBP KERAMASAN',
+    'UBP GRATI',
+    'UBP PELABUHAN RATU',
+  ];
+
+  const ubpsMap: Record<string, Ubp> = {};
+  for (const name of ubpNames) {
+    ubpsMap[name] = await upsertUbp(name);
+  }
 
   console.log('  ✅ UBPs seeded');
 
   // ==============================
-  // 3. ASSETS
+  // 3. UNIT PEMBANGKIT
   // ==============================
-  const assetsData = [
-    {
-      "ubpIdx": 7,
-      "name": "PLTU PELABUHAN RATU 3",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2009,
-      "vectorGroup": "YNd11",
-      "serialNumber": "20093S13"
-    },
-    {
-      "ubpIdx": 6,
-      "name": "PLTU BANTEN 3 LONTAR 2",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2009,
-      "vectorGroup": "YNd1",
-      "serialNumber": "200812127"
-    },
-    {
-      "ubpIdx": 6,
-      "name": "PLTU BANTEN LONTAR 1",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2009,
-      "vectorGroup": "YNd1",
-      "serialNumber": "200906053"
-    },
-    {
-      "ubpIdx": 1,
-      "name": "PLTG PESANGGARAN 4",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 1993,
-      "vectorGroup": "YNd1",
-      "serialNumber": "T 933035"
-    },
-    {
-      "ubpIdx": 1,
-      "name": "PLTDB PESANGGARAN1",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2010,
-      "vectorGroup": "YNd11",
-      "serialNumber": "10132529"
-    },
-    {
-      "ubpIdx": 1,
-      "name": "PLTDG PESANGGARAN BLOK 2",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2014,
-      "vectorGroup": "YNd11",
-      "serialNumber": "M-197"
-    },
-    {
-      "ubpIdx": 1,
-      "name": "PLTDG PESANGGARAN BLOK 1",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2014,
-      "vectorGroup": "YNd11",
-      "serialNumber": "M-186"
-    },
-    {
-      "ubpIdx": 1,
-      "name": "PLTDG PESANGGARAN BLOK 3",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2014,
-      "vectorGroup": "YNd11",
-      "serialNumber": "M-207"
-    },
-    {
-      "ubpIdx": 1,
-      "name": "PLTDG PESANGGARAN BLOK 4",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2014,
-      "vectorGroup": "YNd11",
-      "serialNumber": "M-212"
-    },
-    {
-      "ubpIdx": 1,
-      "name": "PLTG PESANGGARAN 1",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 1982,
-      "vectorGroup": "YNd11",
-      "serialNumber": "H68180-0"
-    },
-    {
-      "ubpIdx": 1,
-      "name": "PLTG PESANGGARAN 2",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 1993,
-      "vectorGroup": "YNd1",
-      "serialNumber": "GEK-41435"
-    },
-    {
-      "ubpIdx": 1,
-      "name": "PLTG GILIMANUK 1",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 1997,
-      "vectorGroup": "YNd1",
-      "serialNumber": "409061"
-    },
-    {
-      "ubpIdx": 4,
-      "name": "PLTGU CILEGON GT 1.1",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2018,
-      "vectorGroup": "YNd1",
-      "serialNumber": "3011170115"
-    },
-    {
-      "ubpIdx": 0,
-      "name": "PLTU ASAM ASAM 2",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 1997,
-      "vectorGroup": "YNd11",
-      "serialNumber": "141417"
-    },
-    {
-      "ubpIdx": 0,
-      "name": "PLTU ASAM ASAM 3",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2010,
-      "vectorGroup": "YNd1",
-      "serialNumber": "100144321"
-    },
-    {
-      "ubpIdx": 0,
-      "name": "PLTU ASAM ASAM 4",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2010,
-      "vectorGroup": "YNd1",
-      "serialNumber": "10144331"
-    },
-    {
-      "ubpIdx": 2,
-      "name": "PLTU BANTEN  SURALAYA UNIT 8",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2008,
-      "vectorGroup": "YNd1",
-      "serialNumber": "20088S23"
-    },
-    {
-      "ubpIdx": 5,
-      "name": "PLTU BANTEN 2 LABUAN UNIT 1",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2008,
-      "vectorGroup": "YNd1",
-      "serialNumber": "20093S13"
-    },
-    {
-      "ubpIdx": 5,
-      "name": "PLTU BANTEN 2 LABUAN UNIT 2",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2013,
-      "vectorGroup": "YNd1",
-      "serialNumber": "3011120055"
-    },
-    {
-      "ubpIdx": 1,
-      "name": "PLTG BALI PEMARON UNIT 1",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2004,
-      "vectorGroup": "YNd1d1",
-      "serialNumber": "M100636/S0181"
-    },
-    {
-      "ubpIdx": 8,
-      "name": "PLTU BANTEN SURALAYA UNIT 1",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 1983,
-      "vectorGroup": "YNd1",
-      "serialNumber": "8334950102"
-    },
-    {
-      "ubpIdx": 8,
-      "name": "PLTU BANTEN SURALAYA UNIT 2",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2015,
-      "vectorGroup": "YNd1",
-      "serialNumber": "881336"
-    },
-    {
-      "ubpIdx": 8,
-      "name": "PLTU BANTEN SURALAYA UNIT 4",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2013,
-      "vectorGroup": "YNd1",
-      "serialNumber": "121273171"
-    },
-    {
-      "ubpIdx": 8,
-      "name": "PLTU BANTEN SURALAYA UNIT 5",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 2008,
-      "vectorGroup": "YNd1",
-      "serialNumber": "20083S13"
-    },
-    {
-      "ubpIdx": 3,
-      "name": "PLTA SINGKARAK UNIT 2",
-      "equipmentType": "Main Trafo",
-      "mfgYear": 1993,
-      "vectorGroup": "YNd5",
-      "serialNumber": "KDO5200/170"
-    }
+  const unitMappings = [
+    { ubp: 'UBP SURALAYA', units: ['PLTU Suralaya Unit 1', 'PLTU Suralaya Unit 2', 'PLTU Suralaya Unit 3', 'PLTU Suralaya Unit 4'] },
+    { ubp: 'UBP BALI', units: ['PLTG Pesanggaran Unit 1', 'PLTG Pesanggaran Unit 2', 'PLTG Gilimanuk Unit 1'] },
+    { ubp: 'UBP CILEGON', units: ['PLTGU Cilegon Blok 1'] },
+    { ubp: 'UBP BARRU', units: ['PLTU Barru Unit 1', 'PLTU Barru Unit 2'] },
+    { ubp: 'UBP PRIOK', units: ['PLTGU Priok Blok 1', 'PLTGU Priok Blok 2', 'PLTGU Priok Blok 3'] },
+    { ubp: 'UBP KAMOJANG', units: ['PLTP Kamojang Unit 1', 'PLTP Kamojang Unit 2', 'PLTP Darajat Unit 1'] },
+    { ubp: 'UBP BANTEN 3 LONTAR', units: ['PLTU Lontar Unit 1', 'PLTU Lontar Unit 2', 'PLTU Lontar Unit 3'] },
+    { ubp: 'UBP SAGULING', units: ['PLTA Saguling Unit 1', 'PLTA Saguling Unit 2', 'PLTA Saguling Unit 3'] },
+    { ubp: 'UBP HOLTEKAMP', units: ['PLTU Holtekamp Unit 1'] },
+    { ubp: 'UBP MAHAKAM', units: ['PLTG Mahakam Unit 1', 'PLTG Mahakam Unit 2'] },
+    { ubp: 'UBP JAMBI', units: ['PLTD Jambi Unit 1'] },
+    { ubp: 'UBP KEPULAUAN RIAU', units: ['PLTU Kepulauan Riau Unit 1'] },
+    { ubp: 'UBP TELLO', units: ['PLTD Tello Unit 1', 'PLTU Tello Unit 1'] },
+    { ubp: 'UBP BARITO', units: ['PLTD Barito Unit 1'] },
+    { ubp: 'UBP BENGKULU', units: ['PLTA Musi Unit 1', 'PLTA Musi Unit 2'] },
+    { ubp: 'UBP PANGKALAN SUSU', units: ['PLTU Pangkalan Susu Unit 1', 'PLTU Pangkalan Susu Unit 2'] },
+    { ubp: 'UBP SEMARANG', units: ['PLTGU Tambak Lorok Blok 1', 'PLTGU Tambak Lorok Blok 2'] },
+    { ubp: 'UBP BANTEN 1 SURALAYA', units: ['PLTU Banten 1 Suralaya Unit 1'] },
+    { ubp: 'UBP ASAM ASAM', units: ['PLTU Asam-Asam Unit 1', 'PLTU Asam-Asam Unit 2'] },
+    { ubp: 'UBP OMBILIN', units: ['PLTU Ombilin Unit 1', 'PLTU Ombilin Unit 2'] },
+    { ubp: 'UBP MRICA', units: ['PLTA Mrica Unit 1', 'PLTA Mrica Unit 2'] },
+    { ubp: 'UBP SINGKAWANG', units: ['PLTU Singkawang Unit 1'] },
+    { ubp: 'UBP PAPUA MALUKU', units: ['PLTD Papua Unit 1'] },
+    { ubp: 'UBP BANTEN 2 LABUAN', units: ['PLTU Labuan Unit 1', 'PLTU Labuan Unit 2'] },
+    { ubp: 'UBP JAWA TENGAH 2 ADIPALA', units: ['PLTU Adipala Unit 1'] },
+    { ubp: 'UBP BUKIT TINGGI', units: ['PLTA Maninjau Unit 1', 'PLTA Maninjau Unit 2', 'PLTA Singkarak Unit 1'] },
+    { ubp: 'UBP TELUK SIRIH', units: ['PLTU Teluk Sirih Unit 1'] },
+    { ubp: 'UBP JATIGEDE', units: ['PLTA Jatigede Unit 1'] },
+    { ubp: 'UBP PEMELIHARAAN', units: ['Workshop Pemeliharaan Pusat'] },
+    { ubp: 'UBP BERAU', units: ['PLTU Berau Unit 1'] },
+    { ubp: 'UBP LABUHAN ANGIN', units: ['PLTU Labuhan Angin Unit 1'] },
+    { ubp: 'UBP SANGGAU', units: ['PLTU Sanggau Unit 1'] },
+    { ubp: 'UBP JERANJANG', units: ['PLTU Jeranjang Unit 1', 'PLTU Jeranjang Unit 2'] },
+    { ubp: 'UBP SINTANG', units: ['PLTU Sintang Unit 1'] },
+    { ubp: 'UBP KERAMASAN', units: ['PLTG Keramasan Unit 1'] },
+    { ubp: 'UBP GRATI', units: ['PLTGU Grati Blok 1', 'PLTGU Grati Blok 2'] },
+    { ubp: 'UBP PELABUHAN RATU', units: ['PLTU Pelabuhan Ratu Unit 1', 'PLTU Pelabuhan Ratu Unit 2'] },
   ];
 
-  const assets: Asset[] = [];
-  for (const a of assetsData) {
-    const asset = assetRepo.create({
-      ubpId: ubps[a.ubpIdx].id,
-      name: a.name,
-      equipmentType: a.equipmentType,
-      mfgYear: a.mfgYear,
-      vectorGroup: a.vectorGroup,
-      serialNumber: a.serialNumber,
-    });
-    await assetRepo.save(asset);
-    assets.push(asset);
+  for (const mapping of unitMappings) {
+    const ubpObj = ubpsMap[mapping.ubp];
+    if (!ubpObj) continue;
+
+    for (const uName of mapping.units) {
+      let unitObj = await unitRepo.findOne({ where: { name: uName, ubpId: ubpObj.id } });
+      if (!unitObj) {
+        unitObj = unitRepo.create({ name: uName, ubpId: ubpObj.id });
+        await unitRepo.save(unitObj);
+      }
+    }
   }
 
-  console.log('  ✅ Assets seeded');
+  console.log('  ✅ Unit Pembangkit seeded');
+
+  // Seed default JenisAsset values
+  async function upsertJenisAsset(category: string, name: string) {
+    let ja = await jenisRepo.findOne({ where: { category, name } });
+    if (!ja) {
+      ja = jenisRepo.create({ category, name });
+      await jenisRepo.save(ja);
+    }
+    return ja;
+  }
+
+  await upsertJenisAsset('Trafo', 'Trafo');
+  await upsertJenisAsset('Generator', 'Generator');
+  await upsertJenisAsset('Turbin', 'Turbin');
+  console.log('  ✅ Jenis Asset seeded');
 
   // ==============================
-  // 4. TEST TYPES & PARAMETERS
+  // 4. TEST TYPES, PARAMETERS, CRITERIA & DAMAGE MECHANISMS
   // ==============================
   interface ParamDef {
     name: string;
@@ -537,9 +426,6 @@ async function main() {
     },
   ];
 
-  const testTypes: TestType[] = [];
-  const allParams: Array<{ testTypeIdx: number; param: ParamDef; paramId: string }> = [];
-
   for (let i = 0; i < testTypesData.length; i++) {
     const ttData = testTypesData[i];
 
@@ -549,9 +435,69 @@ async function main() {
       testType = testTypeRepo.create({ name: ttData.name });
       await testTypeRepo.save(testType);
     }
-    testTypes.push(testType);
+
+    const ttNameUpper = testType.name.toUpperCase().trim();
 
     for (const paramDef of ttData.params) {
+      const pNameUpper = paramDef.name.toUpperCase().trim();
+      const mechs: string[] = [];
+
+      // Determine damage mechanisms
+      if (ttNameUpper.includes('TAN DELTA BUSHING') || ttNameUpper.includes('WATT LOSS BUSHING')) {
+        mechs.push('Bushing-Electrical defect');
+      }
+      if (ttNameUpper.includes('VISUAL INSPECTION') && (pNameUpper.includes('BUSHING DEFECT') || pNameUpper.includes('CONTAMINANT'))) {
+        mechs.push('Bushing-Mechanical defect');
+      }
+      if (ttNameUpper.includes('SFRA')) {
+        mechs.push('Deformation');
+      }
+      if (ttNameUpper.includes('TURN TO TURN RATIO') || ttNameUpper.includes('WINDING RESISTANCE')) {
+        mechs.push('Winding & Connection');
+      }
+      if (ttNameUpper.includes('EXC CURRENT') || ttNameUpper.includes('EXCITATION CURRENT')) {
+        mechs.push('Core defect');
+      }
+      if (ttNameUpper.includes('INSULATION RESISTANCE') || ttNameUpper.includes('TAN DELTA WINDING') || ttNameUpper.includes('DIRANA MOISTURE')) {
+        mechs.push('Dielectric Problem');
+      }
+      if (
+        (ttNameUpper.includes('OIL ANALYSIS') && (pNameUpper.includes('STATUS') || pNameUpper.includes('BDV'))) || 
+        ttNameUpper.includes('DIRANA OIL CONDUCT') || 
+        ttNameUpper.includes('OIL CONDUCTIVITY')
+      ) {
+        mechs.push('Oil Problem');
+      }
+      if (
+        ttNameUpper.includes('VISUAL INSPECTION') && 
+        (pNameUpper.includes('BUSHING LEAKAGE') || pNameUpper.includes('BODY & RADIATOR LEAKAGE') || pNameUpper.includes('BODY & RADIATOR'))
+      ) {
+        mechs.push('Leakage');
+      }
+      if (
+        (ttNameUpper.includes('DGA') && (pNameUpper.includes('STATUS') || pNameUpper.includes('DAMAGE MECHANISME') || pNameUpper.includes('DAMAGE'))) || 
+        (ttNameUpper.includes('OIL ANALYSIS') && pNameUpper.includes('STATUS'))
+      ) {
+        mechs.push('Thermal Problem');
+      }
+      if (ttNameUpper.includes('OTI') || ttNameUpper.includes('WTI')) {
+        mechs.push('OTI/WTI Problem');
+      }
+      if (ttNameUpper.includes('GROUNDING RESISTANCE')) {
+        mechs.push('Grounding Problem');
+      }
+      if (
+        ttNameUpper.includes('VISUAL INSPECTION') && 
+        (pNameUpper.includes('SILICA GEL') || pNameUpper.includes('SILICA GEL PUDAR'))
+      ) {
+        mechs.push('Breating system');
+      }
+      if (ttNameUpper.includes('ARRESTER')) {
+        mechs.push('LA Problem');
+      }
+
+      const damageMechanisms = mechs.length > 0 ? mechs.join(',') : null;
+
       // Upsert Parameter
       let param = await paramRepo.findOne({
         where: { testTypeId: testType.id, name: paramDef.name },
@@ -561,158 +507,41 @@ async function main() {
           testTypeId: testType.id,
           name: paramDef.name,
           unit: paramDef.unit,
+          damageMechanisms: damageMechanisms,
         });
-        await paramRepo.save(param);
+      } else {
+        param.damageMechanisms = damageMechanisms;
       }
+      await paramRepo.save(param);
 
       // Create Criteria for this parameter
-      const criteria = criteriaRepo.create({
-        parameterId: param.id,
-        goodValue: paramDef.good,
-        fairValue: paramDef.fair,
-        poorValue: paramDef.poor,
-        badValue: paramDef.bad,
-        createdBy: adminUser.id,
+      let criteria = await criteriaRepo.findOne({
+        where: { parameterId: param.id },
       });
-      await criteriaRepo.save(criteria);
-
-      allParams.push({ testTypeIdx: i, param: paramDef, paramId: param.id });
-    }
-  }
-
-  console.log('  ✅ TestTypes, Parameters & Criteria seeded');
-
-  // ==============================
-  // 5. SAMPLE TEST SESSIONS & RESULTS
-  // ==============================
-  const { calculateScore } = await import('../lib/scoring/calculateScore');
-  const { determineJudgement } = await import('../lib/scoring/determineJudgement');
-
-  const sampleValues: Record<string, number[]> = {
-    'Insulation Resistance': [15.2, 12.45, 18.1],
-    'Polarity Index': [2.5, 1.82, 1.58],
-    'Turn to Turn Ratio': [0.3, 0.4, 0.2],
-    'Winding Resistance HV': [3.2, 3.5, 3.1],
-    'Tan Delta Winding': [0.35, 0.42, 0.38],
-    'Tan Delta Bushing': [0.45, 0.3, 0.55],
-  };
-
-  const selectedTestTypeNames = Object.keys(sampleValues);
-
-  for (let assetIdx = 0; assetIdx < Math.min(5, assets.length); assetIdx++) {
-    const asset = assets[assetIdx];
-
-    const session = sessionRepo.create({
-      assetId: asset.id,
-      testYear: 2024,
-      status: 'VALIDATED',
-      createdById: inputUser.id,
-      validatedById: qcUser.id,  // QC validates, not Admin
-      validatedAt: new Date(),
-    });
-    await sessionRepo.save(session);
-
-    for (const ttName of selectedTestTypeNames) {
-      const testType = testTypes.find((tt) => tt.name === ttName);
-      if (!testType) continue;
-
-      const ttParams = allParams.filter((p) => p.testTypeIdx === testTypes.indexOf(testType));
-      const values = sampleValues[ttName];
-
-      for (let pi = 0; pi < ttParams.length; pi++) {
-        const paramInfo = ttParams[pi];
-        const baseValue = values[pi] ?? values[0];
-        const variance = (assetIdx * 0.1 - 0.2) * baseValue;
-        const value = Math.max(0, baseValue + variance);
-
-        const score = calculateScore(
-          value,
-          false,
-          paramInfo.param.good,
-          paramInfo.param.fair,
-          paramInfo.param.poor,
-          paramInfo.param.bad,
-        );
-        const judgement = determineJudgement(score);
-
-        const result = resultRepo.create({
-          testSessionId: session.id,
-          parameterId: paramInfo.paramId,
-          value: value,
-          isNotApplicable: false,
-          score: score,
-          judgement: judgement as any,
+      if (!criteria) {
+        criteria = criteriaRepo.create({
+          parameterId: param.id,
+          goodValue: paramDef.good,
+          fairValue: paramDef.fair,
+          poorValue: paramDef.poor,
+          badValue: paramDef.bad,
+          createdBy: adminUser.id,
         });
-        await resultRepo.save(result);
+        await criteriaRepo.save(criteria);
       }
     }
   }
 
-  console.log('  ✅ Sample TestSessions & TestResults seeded');
-
-  // ==============================
-  // 6. REPORT DIRECTORIES & FILES
-  // ==============================
-  console.log('  Seeding report directories and mock files...');
-  const reportDirRepo = AppDataSource.getRepository(ReportDirectory);
-  const reportFileRepo = AppDataSource.getRepository(ReportFile);
-
-
-  // Ensure uploads directory exists
-  const fs = await import('fs');
-  const path = await import('path');
-  const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'reports');
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-
-  // Write a mock pdf file to disk
-  const mockFilePath = path.join(uploadsDir, 'mock_monthly_report_suralaya.pdf');
-  fs.writeFileSync(mockFilePath, 'MOCK REPORT PDF CONTENT - UBP SURALAYA MONTHLY ASSESSMENT');
-
-  for (const ubp of ubps) {
-    // Create root UBP folder
-    const ubpFolder = reportDirRepo.create({
-      name: ubp.name,
-      parentId: null,
-    });
-    await reportDirRepo.save(ubpFolder);
-
-    // Get assets (Unit Pembangkit) belonging to this UBP
-    const ubpAssets = assets.filter((a) => a.ubpId === ubp.id);
-
-    for (const asset of ubpAssets) {
-      // Create Unit Pembangkit folder under the UBP folder
-      const assetFolder = reportDirRepo.create({
-        name: asset.name,
-        parentId: ubpFolder.id,
-      });
-      await reportDirRepo.save(assetFolder);
-
-      // If UBP Suralaya and Asset is Unit 4, add a mock file directly under the Asset folder
-      if (ubp.name.toUpperCase() === 'UBP SURALAYA' && asset.name.toUpperCase().includes('UNIT 4') && !asset.name.toUpperCase().includes('ARRESTER')) {
-        const mockFile = reportFileRepo.create({
-          name: 'Laporan Bulanan Suralaya Unit 4 - 2024.pdf',
-          filePath: '/uploads/reports/mock_monthly_report_suralaya.pdf',
-          fileSize: 63, // size of the text written above
-          mimeType: 'application/pdf',
-          directoryId: assetFolder.id,
-          uploadedById: adminUser.id,
-        });
-        await reportFileRepo.save(mockFile);
-      }
-    }
-  }
-  console.log('  ✅ Report directories and files seeded');
+  console.log('  ✅ TestTypes, Parameters, Criteria & Damage Mechanisms seeded');
 
   console.log('');
   console.log('🎉 Seeding complete!');
   console.log('');
   console.log('📋 Login credentials:');
-  console.log('  Admin:  admin@plnip.co.id / admin123');
-  console.log('  Input:  input@plnip.co.id / input123');
-  console.log('  QC:     qc@plnip.co.id / qc123');
-  console.log('  Viewer: viewer@plnip.co.id / viewer123');
+  console.log('  Admin:     admin@pln.co.id / admin123');
+  console.log('  Input:     input@pln.co.id / input123');
+  console.log('  Validator: validator@pln.co.id / validator123');
+  console.log('  Viewer:    viewer@pln.co.id / viewer123');
 }
 
 main()

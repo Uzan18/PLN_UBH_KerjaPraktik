@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { getDb } from '@/lib/db';
 import { Ubp } from '@/entities/Ubp';
+import { UnitPembangkit } from '@/entities/UnitPembangkit';
+import { JenisAsset } from '@/entities/JenisAsset';
 import { Asset } from '@/entities/Asset';
 import { TestSession } from '@/entities/TestSession';
 import { TestResult } from '@/entities/TestResult';
@@ -27,6 +29,8 @@ export async function GET(request: Request) {
     const assetId = searchParams.get('assetId');
     const overallJudgement = searchParams.get('overallJudgement');
     const equipmentType = searchParams.get('equipmentType');
+    const jenisAssetId = searchParams.get('jenisAssetId');
+    const testYear = searchParams.get('testYear');
 
     const db = await getDb();
     const testTypeRepo = db.getRepository(TestType);
@@ -50,7 +54,9 @@ export async function GET(request: Request) {
     const queryBuilder = sessionRepo
       .createQueryBuilder('ts')
       .innerJoinAndSelect('ts.asset', 'asset')
-      .innerJoinAndSelect('asset.ubp', 'ubp')
+      .innerJoinAndSelect('asset.unitPembangkit', 'up')
+      .innerJoinAndSelect('up.ubp', 'ubp')
+      .leftJoinAndSelect('asset.jenisAsset', 'ja')
       .leftJoinAndSelect('ts.testResults', 'tr')
       .leftJoinAndSelect('tr.parameter', 'p')
       .leftJoinAndSelect('p.testType', 'tt')
@@ -61,7 +67,7 @@ export async function GET(request: Request) {
     }
 
     if (unitName && unitName !== 'ALL' && unitName !== '') {
-      queryBuilder.andWhere('asset.name = :unitName', { unitName });
+      queryBuilder.andWhere('up.name = :unitName', { unitName });
     }
 
     if (assetId && assetId !== 'ALL' && assetId !== '') {
@@ -69,12 +75,21 @@ export async function GET(request: Request) {
     }
 
     if (equipmentType && equipmentType !== 'ALL' && equipmentType !== '') {
-      queryBuilder.andWhere('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() });
+      queryBuilder.andWhere('ja.name = :equipmentType', { equipmentType: equipmentType.trim() });
+    }
+
+    if (jenisAssetId && jenisAssetId !== 'ALL' && jenisAssetId !== '') {
+      queryBuilder.andWhere('ja.id = :jenisAssetId', { jenisAssetId });
+    }
+
+    if (testYear && testYear !== 'ALL' && testYear !== '') {
+      queryBuilder.andWhere('ts.testYear = :testYear', { testYear: Number(testYear) });
     }
 
     queryBuilder
       .orderBy('ts.testYear', 'DESC')
       .addOrderBy('ubp.name', 'ASC')
+      .addOrderBy('up.name', 'ASC')
       .addOrderBy('asset.name', 'ASC');
 
     const allSessions = await queryBuilder.getMany();
@@ -175,10 +190,10 @@ export async function GET(request: Request) {
       const rowData: any[] = [];
       rowData[0] = rowIdx - 9; // No
       rowData[1] = session.testYear;
-      rowData[2] = session.asset.ubp.name;
-      rowData[3] = session.asset.name;
+      rowData[2] = session.asset.unitPembangkit?.ubp?.name || '';
+      rowData[3] = session.asset.unitPembangkit?.name || '';
       rowData[4] = session.asset.mfgYear || '';
-      rowData[5] = session.asset.equipmentType || 'Main Trafo';
+      rowData[5] = session.asset.jenisAsset?.name || 'Trafo';
       rowData[6] = session.asset.vectorGroup || '';
       rowData[7] = session.asset.serialNumber || '';
       rowData[8] = ''; // Empty column index 8
@@ -259,7 +274,7 @@ export async function GET(request: Request) {
     let toolPart = 'ALL';
 
     if (ubpId && ubpId !== 'ALL' && filteredSessions.length > 0) {
-      ubpPart = filteredSessions[0].asset.ubp.name.replace(/[^a-zA-Z0-9]/g, '_');
+      ubpPart = (filteredSessions[0].asset.unitPembangkit?.ubp?.name || 'ALL').replace(/[^a-zA-Z0-9]/g, '_');
     }
     if (unitName && unitName !== 'ALL') {
       unitPart = unitName.replace(/[^a-zA-Z0-9]/g, '_');

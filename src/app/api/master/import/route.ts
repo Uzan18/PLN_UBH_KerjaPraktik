@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { getDb } from '@/lib/db';
 import { Ubp } from '@/entities/Ubp';
+import { UnitPembangkit } from '@/entities/UnitPembangkit';
+import { JenisAsset } from '@/entities/JenisAsset';
 import { Asset } from '@/entities/Asset';
 import { TestType } from '@/entities/TestType';
 import { Parameter } from '@/entities/Parameter';
@@ -81,6 +83,14 @@ function lookupCriteria(testType: string, param: string): { good: string | null;
 }
 
 export async function POST(request: Request) {
+  const isImportEnabled = false;
+  if (!isImportEnabled) {
+    return NextResponse.json(
+      { success: false, error: 'Fitur ini dinonaktifkan sementara karena dalam pengembangan.' },
+      { status: 403 }
+    );
+  }
+
   try {
     const session = await getServerSession();
     if (!session) {
@@ -127,6 +137,8 @@ export async function POST(request: Request) {
       await transactionManager.createQueryBuilder().delete().from(TestResult).execute();
       await transactionManager.createQueryBuilder().delete().from(TestSession).execute();
       await transactionManager.createQueryBuilder().delete().from(Asset).execute();
+      await transactionManager.createQueryBuilder().delete().from(UnitPembangkit).execute();
+      await transactionManager.createQueryBuilder().delete().from(JenisAsset).execute();
       await transactionManager.createQueryBuilder().delete().from(Ubp).execute();
 
       // 2. Delete test type parameter master-data tables
@@ -214,6 +226,8 @@ export async function POST(request: Request) {
       console.log(`📦 Recreated ${testTypeMap.size} TestTypes and ${parameterMap.size} Parameters.`);
 
       const ubpCache = new Map<string, Ubp>();
+      const unitCache = new Map<string, UnitPembangkit>();
+      const jenisCache = new Map<string, JenisAsset>();
       const assetCache = new Map<string, Asset>();
       const sessionCache = new Map<string, TestSession>();
 
@@ -227,9 +241,9 @@ export async function POST(request: Request) {
 
         const testYearVal = row[1];
         const ubpNameVal = row[2];
-        const assetNameVal = row[3];
+        const assetNameVal = row[3]; // Represents UnitPembangkit Name
         const mfgYearVal = row[4];
-        const equipmentTypeVal = row[5] || 'Main Trafo';
+        const equipmentTypeVal = row[5] || 'Main Trafo'; // Represents Asset Name / Jenis
         const vectorGroupVal = row[6];
         const serialNumberVal = row[7];
 
@@ -240,7 +254,8 @@ export async function POST(request: Request) {
 
         const testYear = parseInt(testYearVal);
         const ubpName = String(ubpNameVal).trim();
-        const assetName = String(assetNameVal).trim();
+        const unitName = String(assetNameVal).trim();
+        const equipmentName = String(equipmentTypeVal).trim();
 
         // 1. Resolve UBP
         let ubpObj = ubpCache.get(ubpName);
@@ -250,14 +265,55 @@ export async function POST(request: Request) {
           ubpCache.set(ubpName, ubpObj);
         }
 
-        // 2. Resolve Asset
-        const assetKey = `${ubpName}||${assetName}`;
+        // 2. Resolve Unit Pembangkit
+        const unitKey = `${ubpName}||${unitName}`;
+        let unitObj = unitCache.get(unitKey);
+        if (!unitObj) {
+          unitObj = transactionManager.create(UnitPembangkit, {
+            ubpId: ubpObj.id,
+            name: unitName,
+          });
+          await transactionManager.save(UnitPembangkit, unitObj);
+          unitCache.set(unitKey, unitObj);
+        }
+
+        // 3. Resolve Jenis Asset (Flat Category -> Name: Trafo, Generator, Turbin)
+        let mappedJenisName = 'Trafo';
+        const cleanVal = equipmentName.toLowerCase();
+        if (cleanVal.includes('generator')) {
+          mappedJenisName = 'Generator';
+        } else if (cleanVal.includes('turbin') || cleanVal.includes('turbine')) {
+          mappedJenisName = 'Turbin';
+        } else {
+          mappedJenisName = 'Trafo';
+        }
+
+        const jenisCacheKey = `Trafo||${mappedJenisName}`;
+        let jenisObj: JenisAsset | undefined = jenisCache.get(jenisCacheKey);
+        if (!jenisObj) {
+          const found = await transactionManager.findOne(JenisAsset, {
+            where: { name: mappedJenisName, category: 'Trafo' }
+          });
+          if (found) {
+            jenisObj = found;
+          } else {
+            jenisObj = transactionManager.create(JenisAsset, {
+              name: mappedJenisName,
+              category: 'Trafo'
+            });
+            await transactionManager.save(JenisAsset, jenisObj);
+          }
+          jenisCache.set(jenisCacheKey, jenisObj);
+        }
+
+        // 4. Resolve Asset
+        const assetKey = `${ubpName}||${unitName}||${equipmentName}`;
         let assetObj = assetCache.get(assetKey);
         if (!assetObj) {
           assetObj = transactionManager.create(Asset, {
-            ubpId: ubpObj.id,
-            name: assetName,
-            equipmentType: String(equipmentTypeVal).trim(),
+            unitPembangkitId: unitObj.id,
+            name: equipmentName,
+            jenisAssetId: jenisObj.id,
             mfgYear: mfgYearVal ? parseInt(mfgYearVal) : null,
             vectorGroup: vectorGroupVal ? String(vectorGroupVal).trim() : null,
             serialNumber: serialNumberVal ? String(serialNumberVal).trim() : null,
@@ -397,11 +453,10 @@ export async function POST(request: Request) {
         });
         await transactionManager.save(ReportDirectory, rootFolder);
 
-        const ubpAssets = Array.from(assetCache.values()).filter((a) => a.ubpId === ubpObj.id);
-        const uniqueUnitNames = new Set(ubpAssets.map((a) => a.name.trim()));
-        for (const unitName of uniqueUnitNames) {
+        const ubpUnits = Array.from(unitCache.values()).filter((u) => u.ubpId === ubpObj.id);
+        for (const unit of ubpUnits) {
           const assetFolder = transactionManager.create(ReportDirectory, {
-            name: unitName,
+            name: unit.name,
             parentId: rootFolder.id,
           });
           await transactionManager.save(ReportDirectory, assetFolder);
@@ -412,6 +467,8 @@ export async function POST(request: Request) {
         testTypesCount: testTypeMap.size,
         parametersCount: parameterMap.size,
         ubpsCount: ubpCache.size,
+        unitsCount: unitCache.size,
+        jenisCount: jenisCache.size,
         assetsCount: assetCache.size,
         sessionsCount: sessionCache.size,
         resultsCount: resultRecordCount,

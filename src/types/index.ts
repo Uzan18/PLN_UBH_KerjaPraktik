@@ -61,6 +61,7 @@ export interface MatrixRow {
   sessionId?: string;
   assetName: string;
   ubpName: string;
+  unitName?: string;
   equipmentType?: string;
   testYear?: number;
   cells: MatrixCell[];

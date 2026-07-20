@@ -94,6 +94,9 @@ export async function GET(request: Request) {
         .leftJoinAndSelect('tr.parameter', 'p')
         .leftJoinAndSelect('p.testType', 'tt')
         .leftJoinAndSelect('ts.asset', 'asset')
+        .leftJoinAndSelect('asset.unitPembangkit', 'up')
+        .leftJoinAndSelect('up.ubp', 'ubp')
+        .leftJoinAndSelect('asset.jenisAsset', 'ja')
         .where('ts.asset_id = :assetId', { assetId })
         .andWhere('ts.test_year = :testYear', { testYear });
       
@@ -121,7 +124,9 @@ export async function GET(request: Request) {
 
     const qb = sessionRepo.createQueryBuilder('ts')
       .leftJoinAndSelect('ts.asset', 'asset')
-      .leftJoinAndSelect('asset.ubp', 'ubp')
+      .leftJoinAndSelect('asset.unitPembangkit', 'up')
+      .leftJoinAndSelect('up.ubp', 'ubp')
+      .leftJoinAndSelect('asset.jenisAsset', 'ja')
       .leftJoinAndSelect('ts.createdBy', 'createdBy')
       .orderBy('ts.created_at', 'DESC');
 

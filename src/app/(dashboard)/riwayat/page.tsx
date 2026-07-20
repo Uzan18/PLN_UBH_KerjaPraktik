@@ -194,15 +194,16 @@ export default function RiwayatPage() {
     return sessions.filter((s: any) => {
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
+        const unitName = (s.asset?.unitPembangkit?.name || '').toLowerCase();
         const assetName = (s.asset?.name || '').toLowerCase();
-        const equipmentType = (s.asset?.equipmentType || '').toLowerCase();
-        const ubpName = (s.asset?.ubp?.name || '').toLowerCase();
-        if (!assetName.includes(query) && !equipmentType.includes(query) && !ubpName.includes(query)) {
+        const equipmentType = (s.asset?.jenisAsset?.name || '').toLowerCase();
+        const ubpName = (s.asset?.unitPembangkit?.ubp?.name || '').toLowerCase();
+        if (!unitName.includes(query) && !assetName.includes(query) && !equipmentType.includes(query) && !ubpName.includes(query)) {
           return false;
         }
       }
 
-      if (selectedUbpId && s.asset?.ubp?.id !== selectedUbpId) {
+      if (selectedUbpId && s.asset?.unitPembangkit?.ubp?.id !== selectedUbpId) {
         return false;
       }
 
@@ -393,7 +394,7 @@ export default function RiwayatPage() {
                   <tr className="bg-surface-container-low border-b border-surface-border">
                     <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[5%] text-center">No</th>
                     <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[25%]">Unit Pembangkit / Asset</th>
-                    <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[20%] text-center">Equipment</th>
+                    <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[20%] text-center">Jenis Asset</th>
                     <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[10%] text-center">Tahun Uji</th>
                     <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[15%] text-center">Tanggal Input</th>
                     <th className="px-6 py-3 font-mono text-[10px] uppercase font-bold text-on-surface-variant w-[15%] text-center">Status</th>
@@ -410,11 +411,11 @@ export default function RiwayatPage() {
                       <td className="px-6 py-3 text-center text-on-surface-variant font-mono">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                       <td className="px-6 py-3 font-semibold text-on-surface">
                         <div>
-                          <div>{session.asset?.name}</div>
-                          <div className="text-[10px] font-mono text-outline font-normal uppercase mt-0.5">{session.asset?.ubp?.name}</div>
+                          <div>{session.asset?.unitPembangkit?.name || ''} - {session.asset?.name || ''}</div>
+                          <div className="text-[10px] font-mono text-outline font-normal uppercase mt-0.5">{session.asset?.unitPembangkit?.ubp?.name || ''}</div>
                         </div>
                       </td>
-                      <td className="px-6 py-3 text-on-surface-variant text-center">{session.asset?.equipmentType}</td>
+                      <td className="px-6 py-3 text-on-surface-variant text-center">{session.asset?.jenisAsset?.name || '—'}</td>
                       <td className="px-6 py-3 text-center font-mono font-bold text-primary">{session.testYear}</td>
                       <td className="px-6 py-3 text-on-surface-variant font-mono text-center">
                         {new Date(session.createdAt).toLocaleDateString('id-ID', {
@@ -526,12 +527,12 @@ export default function RiwayatPage() {
               <div className="grid grid-cols-2 gap-4 bg-surface-container-low/40 p-4 rounded-lg border border-surface-border text-xs">
                 <div>
                   <p className="text-[10px] uppercase font-bold text-outline">Unit Pembangkit</p>
-                  <p className="font-bold text-on-surface mt-0.5">{selectedSession.asset?.name}</p>
-                  <p className="text-[10px] font-mono text-on-surface-variant uppercase mt-0.5">{selectedSession.asset?.ubp?.name}</p>
+                  <p className="font-bold text-on-surface mt-0.5">{selectedSession.asset?.unitPembangkit?.name || ''} - {selectedSession.asset?.name || ''}</p>
+                  <p className="text-[10px] font-mono text-on-surface-variant uppercase mt-0.5">{selectedSession.asset?.unitPembangkit?.ubp?.name || ''}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase font-bold text-outline">Equipment Type</p>
-                  <p className="font-bold text-on-surface mt-0.5">{selectedSession.asset?.equipmentType}</p>
+                  <p className="text-[10px] uppercase font-bold text-outline">Jenis Asset</p>
+                  <p className="font-bold text-on-surface mt-0.5">{selectedSession.asset?.jenisAsset?.name || '—'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-outline">Tahun Uji</p>

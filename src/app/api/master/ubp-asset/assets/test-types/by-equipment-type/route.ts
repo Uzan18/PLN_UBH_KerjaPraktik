@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { getDb } from '@/lib/db';
 import { Asset } from '@/entities/Asset';
+import { JenisAsset } from '@/entities/JenisAsset';
 import { TestType } from '@/entities/TestType';
 import { AuditLog } from '@/entities/AuditLog';
 import { getServerSession } from '@/lib/auth/session';
@@ -10,7 +11,7 @@ import { In } from 'typeorm';
 
 /**
  * POST /api/master/ubp-asset/assets/test-types/by-equipment-type
- * Update applicable test types for all assets of a specific equipmentType. Only accessible to ADMIN.
+ * Update applicable test types for all assets of a specific jenisAssetId. Only accessible to ADMIN.
  */
 export async function POST(request: Request) {
   try {
@@ -21,10 +22,10 @@ export async function POST(request: Request) {
     requirePermission(session.user.role, 'master-data:write');
 
     const body = await request.json();
-    const { equipmentType, testTypeIds } = body;
+    const { jenisAssetId, testTypeIds, infoFields } = body;
 
-    if (!equipmentType) {
-      return NextResponse.json({ success: false, error: 'equipmentType is required' }, { status: 400 });
+    if (!jenisAssetId) {
+      return NextResponse.json({ success: false, error: 'jenisAssetId is required' }, { status: 400 });
     }
 
     if (!Array.isArray(testTypeIds)) {
@@ -33,12 +34,29 @@ export async function POST(request: Request) {
 
     const db = await getDb();
     const assetRepo = db.getRepository(Asset);
+    const jenisRepo = db.getRepository(JenisAsset);
     const testTypeRepo = db.getRepository(TestType);
     const auditRepo = db.getRepository(AuditLog);
 
-    // Find all assets of this equipmentType
+    // Verify Jenis Asset exists
+    const jenis = await jenisRepo.findOne({ where: { id: jenisAssetId } });
+    if (!jenis) {
+      return NextResponse.json({ success: false, error: 'Jenis Asset not found' }, { status: 404 });
+    }
+
+    // Save infoFields to JenisAsset
+    if (infoFields !== undefined) {
+      if (Array.isArray(infoFields)) {
+        jenis.infoFields = JSON.stringify(infoFields);
+      } else {
+        jenis.infoFields = null;
+      }
+      await jenisRepo.save(jenis);
+    }
+
+    // Find all assets of this jenisAssetId
     const assets = await assetRepo.find({
-      where: { equipmentType: equipmentType.trim() },
+      where: { jenisAssetId },
       relations: ['testTypes'],
     });
 
@@ -50,7 +68,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // Update relationship for all assets of this equipmentType
+    // Update relationship for all assets of this jenisAssetId
     for (const asset of assets) {
       asset.testTypes = selectedTestTypes;
       await assetRepo.save(asset);
@@ -62,10 +80,10 @@ export async function POST(request: Request) {
     const auditLog = auditRepo.create({
       userId: session.user.id,
       action: 'UPDATE',
-      entity: 'EquipmentTypeTestType',
-      entityId: equipmentType.trim(),
-      beforeData: JSON.stringify({ equipmentType: equipmentType.trim(), assetCount: assets.length }),
-      afterData: JSON.stringify({ equipmentType: equipmentType.trim(), testTypes: testTypeNames }),
+      entity: 'JenisAssetTestType',
+      entityId: jenisAssetId,
+      beforeData: JSON.stringify({ jenisAsset: jenis.name, assetCount: assets.length }),
+      afterData: JSON.stringify({ jenisAsset: jenis.name, testTypes: testTypeNames }),
     });
     await auditRepo.save(auditLog);
 

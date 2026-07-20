@@ -35,11 +35,11 @@ function getAbbreviation(name: string): string {
 }
 
 // Fetch helpers
-async function fetchSummary(year: string, ubpId: string, assetId: string, equipmentType: string) {
+async function fetchSummary(year: string, ubpId: string, unitId: string, equipmentType: string) {
   const params = new URLSearchParams();
   if (year) params.append('year', year);
   if (ubpId) params.append('ubpId', ubpId);
-  if (assetId) params.append('assetId', assetId);
+  if (unitId) params.append('unitId', unitId);
   if (equipmentType) params.append('equipmentType', equipmentType);
   
   const res = await fetch(`/api/dashboard/summary?${params.toString()}`);
@@ -48,11 +48,11 @@ async function fetchSummary(year: string, ubpId: string, assetId: string, equipm
   return json.data;
 }
 
-async function fetchMatrix(year: string, ubpId: string, assetId: string, equipmentType: string) {
+async function fetchMatrix(year: string, ubpId: string, unitId: string, equipmentType: string) {
   const params = new URLSearchParams();
   if (year) params.append('year', year);
   if (ubpId) params.append('ubpId', ubpId);
-  if (assetId) params.append('assetId', assetId);
+  if (unitId) params.append('unitId', unitId);
   if (equipmentType) params.append('equipmentType', equipmentType);
 
   const res = await fetch(`/api/dashboard/matrix?${params.toString()}`);
@@ -72,18 +72,22 @@ export default function DashboardPage() {
   const router = useRouter();
   
   // State filters
-  const [year, setYear] = useState('');
   const [ubpId, setUbpId] = useState('');
-  const [assetId, setAssetId] = useState('');
-  const [testTypeId, setTestTypeId] = useState('');
+  const [unitId, setUnitId] = useState('');
   const [equipmentType, setEquipmentType] = useState('');
+  const [year, setYear] = useState('');
   const [matrixPage, setMatrixPage] = useState(1);
   const [showAllDms, setShowAllDms] = useState(false);
+
+  // Reset dependents when parent filters change
+  useEffect(() => {
+    setUnitId('');
+  }, [ubpId]);
 
   // Reset page when filters change
   useEffect(() => {
     setMatrixPage(1);
-  }, [year, ubpId, assetId, testTypeId, equipmentType]);
+  }, [year, ubpId, unitId, equipmentType]);
 
   // Queries
   const { data: ubps, isLoading: isUbpsLoading } = useQuery({
@@ -101,34 +105,57 @@ export default function DashboardPage() {
     }
   });
 
+  const { data: jenisAssetList } = useQuery({
+    queryKey: ['jenis-asset'],
+    queryFn: async () => {
+      const res = await fetch('/api/master/jenis-asset');
+      if (!res.ok) throw new Error('Gagal mengambil data Jenis Asset');
+      const json = await res.json();
+      return json.data;
+    }
+  });
+
+  // Get all available equipment types (Jenis Asset) from master list
+  const equipmentTypes = useMemo(() => {
+    if (!jenisAssetList) return [];
+    return jenisAssetList.map((ja: any) => ja.name.trim()).sort();
+  }, [jenisAssetList]);
+
+  // Sync selected equipment type when list loads (default to first available, no 'Semua Jenis' allowed)
+  useEffect(() => {
+    if (equipmentTypes.length > 0) {
+      if (!equipmentType || !equipmentTypes.includes(equipmentType)) {
+        setEquipmentType(equipmentTypes[0]);
+      }
+    }
+  }, [equipmentTypes, equipmentType]);
+
   const { data: summary, isLoading: isSummaryLoading } = useQuery({
-    queryKey: ['summary', year, ubpId, assetId, equipmentType],
-    queryFn: () => fetchSummary(year, ubpId, assetId, equipmentType),
+    queryKey: ['summary', year, ubpId, unitId, equipmentType],
+    queryFn: () => fetchSummary(year, ubpId, unitId, equipmentType),
+    enabled: !!equipmentType,
   });
 
   const { data: matrix, isLoading: isMatrixLoading } = useQuery({
-    queryKey: ['matrix', year, ubpId, assetId, equipmentType],
-    queryFn: () => fetchMatrix(year, ubpId, assetId, equipmentType),
+    queryKey: ['matrix', year, ubpId, unitId, equipmentType],
+    queryFn: () => fetchMatrix(year, ubpId, unitId, equipmentType),
+    enabled: !!equipmentType,
   });
 
-  const isLoading = isSummaryLoading || isMatrixLoading || isUbpsLoading;
-
-  // Find selected UBP to list its assets
-  const selectedUbp = ubps?.find((u: any) => u.id === ubpId);
-
-  // Get all unique equipment types from available assets
-  const equipmentTypes = useMemo(() => {
-    if (!ubps) return [];
-    const types = new Set<string>();
-    for (const ubp of ubps) {
-      for (const asset of ubp.assets || []) {
-        if (asset.equipmentType) {
-          types.add(asset.equipmentType.trim());
-        }
+  // Sync selected year filter with available years from data
+  useEffect(() => {
+    if (summary?.availableYears && year) {
+      if (!summary.availableYears.includes(year)) {
+        setYear('');
       }
     }
-    return Array.from(types).sort();
-  }, [ubps]);
+  }, [summary?.availableYears, year]);
+
+  const isLoading = isSummaryLoading || isMatrixLoading || isUbpsLoading || !jenisAssetList;
+
+  // Find selected UBP to list its units
+  const selectedUbp = ubps?.find((u: any) => u.id === ubpId);
+  const units = selectedUbp?.unitPembangkit || [];
 
   // Pagination variables for the matrix table
   const PAGE_SIZE = 10;
@@ -163,8 +190,7 @@ export default function DashboardPage() {
     const params = new URLSearchParams();
     if (year) params.append('year', year);
     if (ubpId) params.append('ubpId', ubpId);
-    if (assetId) params.append('assetId', assetId);
-    if (testTypeId) params.append('testTypeId', testTypeId);
+    if (unitId) params.append('unitId', unitId);
     if (equipmentType) params.append('equipmentType', equipmentType);
     window.open(`/api/export/excel?${params.toString()}`, '_blank');
   }
@@ -173,43 +199,12 @@ export default function DashboardPage() {
     <div className="space-y-6 animate-fade-in">
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-4 bg-surface-container-low px-4 py-2 rounded-md border border-surface-border w-fit">
-        {/* Tahun Filter */}
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-xs tracking-wider text-on-surface-variant">Tahun:</span>
-          {(() => {
-            const currentYear = new Date().getFullYear();
-            const defaultYears = [String(currentYear), String(currentYear - 1), String(currentYear - 2)];
-            const yearsList = Array.from(new Set([
-              ...defaultYears,
-              ...(summary?.availableYears || [])
-            ])).sort((a, b) => b.localeCompare(a));
-
-            return (
-              <select 
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 cursor-pointer text-on-surface"
-              >
-                <option value="">Semua Tahun (All)</option>
-                {yearsList.map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            );
-          })()}
-        </div>
-
-        <div className="h-4 w-px bg-surface-border" />
-
         {/* UBP Filter */}
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs tracking-wider text-on-surface-variant">UBP:</span>
           <select 
             value={ubpId}
-            onChange={(e) => {
-              setUbpId(e.target.value);
-              setAssetId(''); // Reset asset filter on UBP change
-            }}
+            onChange={(e) => setUbpId(e.target.value)}
             className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 cursor-pointer text-on-surface"
           >
             <option value="">Semua UBP</option>
@@ -221,45 +216,56 @@ export default function DashboardPage() {
 
         <div className="h-4 w-px bg-surface-border" />
 
-        {/* Tipe Alat Filter */}
+        {/* Unit Pembangkit Filter */}
         <div className="flex items-center gap-2">
-          <span className="font-mono text-xs tracking-wider text-on-surface-variant">Tipe Alat:</span>
+          <span className="font-mono text-xs tracking-wider text-on-surface-variant">Unit Pembangkit:</span>
+          <select 
+            value={unitId}
+            onChange={(e) => setUnitId(e.target.value)}
+            disabled={!ubpId}
+            className={`bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 cursor-pointer text-on-surface ${
+              !ubpId ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            <option value="">Semua Unit Pembangkit</option>
+            {units.map((unit: { id: string; name: string }) => (
+              <option key={unit.id} value={unit.id}>{unit.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="h-4 w-px bg-surface-border" />
+
+        {/* Jenis Asset Filter */}
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs tracking-wider text-on-surface-variant">Jenis Asset:</span>
           <select 
             value={equipmentType}
-            onChange={(e) => {
-              setEquipmentType(e.target.value);
-              setAssetId(''); // Reset asset filter on equipment type change
-            }}
+            onChange={(e) => setEquipmentType(e.target.value)}
             className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 cursor-pointer text-on-surface"
           >
-            <option value="">Semua Tipe</option>
-            {equipmentTypes.map((type) => (
+            {equipmentTypes.map((type: string) => (
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
         </div>
 
-        {/* Asset Filter (Visible when UBP is selected) */}
-        {ubpId && selectedUbp?.assets && selectedUbp.assets.length > 0 && (
-          <>
-            <div className="h-4 w-px bg-surface-border" />
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-xs tracking-wider text-on-surface-variant">Aset:</span>
-              <select 
-                value={assetId}
-                onChange={(e) => setAssetId(e.target.value)}
-                className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 cursor-pointer text-on-surface"
-              >
-                <option value="">Semua Aset</option>
-                {selectedUbp.assets
-                  .filter((asset: any) => !equipmentType || asset.equipmentType === equipmentType)
-                  .map((asset: { id: string; name: string; equipmentType: string }) => (
-                    <option key={asset.id} value={asset.id}>{asset.name} ({asset.equipmentType})</option>
-                  ))}
-              </select>
-            </div>
-          </>
-        )}
+        <div className="h-4 w-px bg-surface-border" />
+
+        {/* Tahun Filter */}
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs tracking-wider text-on-surface-variant">Tahun:</span>
+          <select 
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 cursor-pointer text-on-surface"
+          >
+            <option value="">Semua Tahun (All)</option>
+            {(summary?.availableYears || []).map((y: string) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* KPI Cards Row */}
@@ -340,12 +346,12 @@ export default function DashboardPage() {
                   </th>
                   <th
                     style={{ left: '200px' }}
-                    className="px-4 py-3 font-mono text-xs tracking-wider font-medium text-on-surface-variant uppercase text-center min-w-[100px] max-w-[100px] w-[100px] sticky bg-surface-container-low z-20 border-r border-b border-surface-border"
+                    className="px-4 py-3 font-mono text-xs tracking-wider font-medium text-on-surface-variant uppercase text-center min-w-[150px] max-w-[150px] w-[150px] sticky bg-surface-container-low z-20 border-r border-b border-surface-border"
                   >
-                    Equipment
+                    Nama Asset
                   </th>
                   <th
-                    style={{ left: '300px' }}
+                    style={{ left: '350px' }}
                     className="px-4 py-3 font-mono text-xs tracking-wider font-medium text-on-surface-variant uppercase text-center min-w-[80px] max-w-[80px] w-[80px] sticky bg-surface-container-low z-20 border-r border-b border-surface-border"
                   >
                     Tahun Uji
@@ -354,9 +360,9 @@ export default function DashboardPage() {
                     <th
                       key={h}
                       title={h}
-                      className="px-1 py-3 font-mono text-[10px] tracking-tight font-bold text-on-surface-variant uppercase text-center min-w-[52px] cursor-help hover:text-primary transition-colors border-r border-b border-surface-border"
+                      className="px-2 py-3 font-mono text-[10px] tracking-tight font-bold text-on-surface-variant uppercase text-center min-w-[100px] max-w-[150px] whitespace-normal break-words cursor-help hover:text-primary transition-colors border-r border-b border-surface-border"
                     >
-                      {getAbbreviation(h)}
+                      {h}
                     </th>
                   ))}
                   <th className="px-2 py-3 font-mono text-xs tracking-wider font-medium text-on-surface-variant uppercase text-center w-[60px] border-b border-surface-border">
@@ -381,22 +387,22 @@ export default function DashboardPage() {
                       }`}
                     >
                       <div>
-                        <div className="truncate max-w-[160px]">{row.assetName}</div>
+                        <div className="truncate max-w-[160px]">{row.unitName}</div>
                         <div className="text-[9px] font-mono text-on-surface-variant font-normal uppercase truncate max-w-[160px]">{row.ubpName}</div>
                       </div>
                     </td>
                     <td
                       style={{ left: '200px' }}
-                      className={`px-4 py-2 text-center text-[12px] text-on-surface border-r border-b border-surface-border font-medium sticky z-10 min-w-[100px] max-w-[100px] w-[100px] truncate ${
+                      className={`px-4 py-2 text-center text-[12px] text-on-surface border-r border-b border-surface-border font-medium sticky z-10 min-w-[150px] max-w-[150px] w-[150px] truncate ${
                         idx % 2 === 1
                           ? 'bg-surface-background group-hover:bg-surface-container-low'
                           : 'bg-white group-hover:bg-surface-container-low'
                       }`}
                     >
-                      {row.equipmentType || '—'}
+                      {row.assetName || '—'}
                     </td>
                     <td
-                      style={{ left: '300px' }}
+                      style={{ left: '350px' }}
                       className={`px-4 py-2 text-center text-[12px] text-on-surface-variant border-r border-b border-surface-border font-mono sticky z-10 min-w-[80px] max-w-[80px] w-[80px] ${
                         idx % 2 === 1
                           ? 'bg-surface-background group-hover:bg-surface-container-low'
@@ -408,7 +414,7 @@ export default function DashboardPage() {
                     {matrix.testTypeHeaders.map((header: string) => {
                       const cell = row.cells.find((c) => c.testTypeName === header);
                       return (
-                        <td key={header} className="px-1 py-2 text-center border-r border-b border-surface-border">
+                        <td key={header} className="px-1 py-2 text-center border-r border-b border-surface-border min-w-[100px] max-w-[150px]">
                           {cell ? (
                             <StatusBadge judgement={cell.judgement} size="sm" iconOnly />
                           ) : (
@@ -778,73 +784,112 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Line Chart: Tren Kondisi per Tahun */}
+        {/* Chart: Perbandingan Kondisi 3 Tahun Terakhir */}
         <div className="bg-white p-6 rounded-lg border border-surface-border shadow-sm">
-          <div className="flex justify-between items-start mb-6">
-            <h4 className="text-xl font-semibold text-on-surface">
-              Tren Kondisi per Tahun
-            </h4>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-status-good" />
-                <span className="text-[10px] font-bold text-on-surface-variant uppercase">
-                  Good
-                </span>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+              <h4 className="text-lg font-semibold text-on-surface">
+                Perbandingan Kondisi 3 Tahun Terakhir
+              </h4>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                Jumlah status kondisi pengujian untuk jenis aset {equipmentType || 'terpilih'}.
+              </p>
+            </div>
+            
+            {/* Legend */}
+            <div className="flex flex-wrap items-center gap-3 bg-surface-container-low px-3 py-1.5 rounded border border-surface-border">
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded bg-status-good" />
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase">GOOD</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-status-bad" />
-                <span className="text-[10px] font-bold text-on-surface-variant uppercase">
-                  Critical
-                </span>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded bg-status-fair" />
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase">FAIR</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded bg-status-poor" />
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase">POOR</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded bg-status-bad" />
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase">BAD</span>
               </div>
             </div>
           </div>
-          <div className="relative h-64 w-full flex items-end justify-between px-4 pb-8">
-            <div className="absolute inset-0 pt-6 pb-12 px-10 flex items-end">
-              <svg
-                className="w-full h-full overflow-visible"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-              >
-                <path
-                  d="M0,80 Q25,70 50,40 T100,20 L100,100 L0,100 Z"
-                  fill="rgba(34, 197, 94, 0.1)"
-                  stroke="none"
-                />
-                <path
-                  d="M0,80 Q25,70 50,40 T100,20"
-                  fill="none"
-                  stroke="#22C55E"
-                  strokeWidth="2"
-                />
-                <path
-                  d="M0,90 Q25,85 50,70 T100,60 L100,100 L0,100 Z"
-                  fill="rgba(239, 68, 68, 0.05)"
-                  stroke="none"
-                />
-                <path
-                  d="M0,90 Q25,85 50,70 T100,60"
-                  fill="none"
-                  stroke="#EF4444"
-                  strokeWidth="2"
-                />
-              </svg>
+
+          <div className="relative h-64 w-full flex items-end justify-around px-2 pb-8 pt-6 border-b border-surface-border">
+            {/* Background Grid Lines */}
+            <div className="absolute inset-x-0 top-6 bottom-8 flex flex-col justify-between pointer-events-none">
+              <div className="w-full border-t border-surface-border/40" />
+              <div className="w-full border-t border-surface-border/40" />
+              <div className="w-full border-t border-surface-border/40" />
+              <div className="w-full border-t border-surface-border/40" />
             </div>
-            {/* X-Axis Labels */}
-            <div className="flex w-full justify-between mt-auto absolute bottom-4 left-0 px-10 font-mono text-xs text-on-surface-variant">
-              <span>2020</span>
-              <span>2021</span>
-              <span>2022</span>
-              <span>2023</span>
-              <span>2024</span>
-            </div>
-            {/* Grid Lines */}
-            <div className="absolute left-10 inset-y-6 w-full flex flex-col justify-between pointer-events-none">
-              <div className="w-full border-t border-surface-border/50" />
-              <div className="w-full border-t border-surface-border/50" />
-              <div className="w-full border-t border-surface-border/50" />
-              <div className="w-full border-t border-surface-border/50" />
-            </div>
+
+            {/* Trend Columns Group */}
+            {summary?.trend && summary.trend.length > 0 ? (
+              (() => {
+                const maxCount = Math.max(
+                  ...summary.trend.map((item: any) => 
+                    Math.max(item.GOOD || 0, item.FAIR || 0, item.POOR || 0, item.BAD || 0)
+                  ), 
+                  1
+                );
+                return summary.trend.map((t: any) => (
+                  <div key={t.year} className="flex flex-col items-center gap-2 w-1/4 z-10">
+                    {/* Columns flex container */}
+                    <div className="flex items-end justify-center gap-3 h-44 w-full">
+                      {/* Good Column */}
+                      <div 
+                        style={{ height: `${((t.GOOD || 0) / maxCount) * 100}%` }} 
+                        className="w-4 bg-status-good rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                      >
+                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                          GOOD: {t.GOOD || 0}
+                        </div>
+                      </div>
+
+                      {/* Fair Column */}
+                      <div 
+                        style={{ height: `${((t.FAIR || 0) / maxCount) * 100}%` }} 
+                        className="w-4 bg-status-fair rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                      >
+                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                          FAIR: {t.FAIR || 0}
+                        </div>
+                      </div>
+
+                      {/* Poor Column */}
+                      <div 
+                        style={{ height: `${((t.POOR || 0) / maxCount) * 100}%` }} 
+                        className="w-4 bg-status-poor rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                      >
+                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                          POOR: {t.POOR || 0}
+                        </div>
+                      </div>
+
+                      {/* Bad Column */}
+                      <div 
+                        style={{ height: `${((t.BAD || 0) / maxCount) * 100}%` }} 
+                        className="w-4 bg-status-bad rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                      >
+                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-2 py-1 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                          BAD: {t.BAD || 0}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Year Label */}
+                    <span className="font-mono text-xs font-bold text-on-surface">{t.year}</span>
+                  </div>
+                ));
+              })()
+            ) : (
+              <div className="w-full text-center py-20 text-on-surface-variant font-medium text-xs">
+                Tidak ada data tren pengukuran tervalidasi untuk filter ini.
+              </div>
+            )}
           </div>
         </div>
       </section>

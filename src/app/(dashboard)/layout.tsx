@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
+import { useMemo } from 'react';
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: 'dashboard', label: 'Dashboard', roles: ['VIEWER', 'INPUT', 'QC', 'ADMIN'] },
@@ -24,7 +25,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   const userRole = (session?.user as { role?: string })?.role || 'VIEWER';
   const userName = session?.user?.name || 'User';
@@ -38,6 +39,33 @@ export default function DashboardLayout({
   const filteredNavItems = NAV_ITEMS.filter((item) =>
     item.roles.includes(userRole)
   );
+
+  const isAllowed = useMemo(() => {
+    if (pathname.startsWith('/master-data')) {
+      return userRole === 'ADMIN';
+    }
+    if (pathname.startsWith('/log')) {
+      return userRole === 'ADMIN';
+    }
+    if (pathname.startsWith('/validasi')) {
+      return userRole === 'QC';
+    }
+    if (pathname.startsWith('/input')) {
+      return userRole === 'INPUT';
+    }
+    if (pathname.startsWith('/riwayat')) {
+      return userRole !== 'VIEWER';
+    }
+    return true;
+  }, [pathname, userRole]);
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -129,7 +157,26 @@ export default function DashboardLayout({
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-6 w-full max-w-[1440px] mx-auto min-w-0">{children}</main>
+        <main className="flex-1 p-6 w-full max-w-[1440px] mx-auto min-w-0">
+          {isAllowed ? (
+            children
+          ) : (
+            <div className="flex items-center justify-center min-h-[50vh]">
+              <div className="bg-white rounded-xl border border-surface-border p-10 shadow-sm text-center flex flex-col items-center justify-center max-w-sm">
+                <div className="h-16 w-16 rounded-full bg-status-bad/15 text-status-bad flex items-center justify-center mb-4">
+                  <span className="material-symbols-outlined text-3xl select-none">gavel</span>
+                </div>
+                <h3 className="text-base font-bold text-on-surface mb-2">Akses Terbatas</h3>
+                <p className="text-xs text-on-surface-variant mb-6 leading-relaxed">
+                  Peran Anda ({userRole === 'QC' ? 'Validator' : userRole === 'INPUT' ? 'Inputter' : userRole === 'ADMIN' ? 'Admin' : 'Viewer'}) tidak memiliki izin untuk mengakses halaman ini.
+                </p>
+                <Link href="/dashboard" className="px-5 py-2.5 bg-primary text-white rounded-lg text-xs font-bold shadow-md hover:brightness-110 active:scale-95 transition-all">
+                  Kembali ke Dashboard
+                </Link>
+              </div>
+            </div>
+          )}
+        </main>
       </div>
     </div>
   );

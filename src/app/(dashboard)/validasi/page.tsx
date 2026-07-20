@@ -356,12 +356,14 @@ export default function ValidasiPage() {
               <div className="grid grid-cols-2 gap-4 bg-surface-container-low/40 p-4 rounded-lg border border-surface-border text-xs">
                 <div>
                   <p className="text-[10px] uppercase font-bold text-outline">Unit Pembangkit</p>
-                  <p className="font-bold text-on-surface mt-0.5">{selectedReviewItem.assetName}</p>
+                  <p className="font-bold text-on-surface mt-0.5">
+                    {selectedReviewItem.unitName ? `${selectedReviewItem.unitName} - ${selectedReviewItem.assetName}` : selectedReviewItem.assetName}
+                  </p>
                   <p className="text-[10px] font-mono text-on-surface-variant uppercase mt-0.5">{selectedReviewItem.ubpName}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase font-bold text-outline">Equipment Type</p>
-                  <p className="font-bold text-on-surface mt-0.5">{selectedReviewItem.asset?.equipmentType || '—'}</p>
+                  <p className="text-[10px] uppercase font-bold text-outline">Jenis Asset</p>
+                  <p className="font-bold text-on-surface mt-0.5">{selectedReviewItem.equipmentType || '—'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-outline">Tahun Uji / Input Oleh</p>

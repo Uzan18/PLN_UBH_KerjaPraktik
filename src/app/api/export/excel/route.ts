@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { TestSession } from '@/entities/TestSession';
 import { Asset } from '@/entities/Asset';
+import { UnitPembangkit } from '@/entities/UnitPembangkit';
+import { JenisAsset } from '@/entities/JenisAsset';
 import { TestType } from '@/entities/TestType';
 import * as xlsx from 'xlsx';
 import { aggregateAssetStatus } from '@/lib/scoring/aggregateAssetStatus';
@@ -51,6 +53,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const year = searchParams.get('year');
     const ubpId = searchParams.get('ubpId');
+    const unitId = searchParams.get('unitId');
     const assetId = searchParams.get('assetId');
     const testTypeId = searchParams.get('testTypeId');
     const equipmentType = searchParams.get('equipmentType');
@@ -64,7 +67,8 @@ export async function GET(req: Request) {
     if (equipmentType && equipmentType !== 'ALL') {
       const filteredTypes = await testTypeRepo.createQueryBuilder('tt')
         .innerJoin('tt.assets', 'asset')
-        .where('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() })
+        .innerJoin('asset.jenisAsset', 'ja')
+        .where('ja.name = :equipmentType', { equipmentType: equipmentType.trim() })
         .getMany();
 
       const uniqueTypes = [];
@@ -104,7 +108,9 @@ export async function GET(req: Request) {
     const queryBuilder = testSessionRepo
       .createQueryBuilder('ts')
       .innerJoinAndSelect('ts.asset', 'asset')
-      .innerJoinAndSelect('asset.ubp', 'ubp')
+      .innerJoinAndSelect('asset.unitPembangkit', 'up')
+      .innerJoinAndSelect('up.ubp', 'ubp')
+      .leftJoinAndSelect('asset.jenisAsset', 'ja')
       .leftJoinAndSelect('ts.testResults', 'tr')
       .leftJoinAndSelect('tr.parameter', 'p')
       .leftJoinAndSelect('p.testType', 'tt')
@@ -120,14 +126,19 @@ export async function GET(req: Request) {
       queryBuilder.andWhere('ubp.id = :ubpId', { ubpId });
     }
 
+    // Filter by Unit Pembangkit
+    if (unitId && unitId !== 'ALL') {
+      queryBuilder.andWhere('up.id = :unitId', { unitId });
+    }
+
     // Filter by Asset / Unit
     if (assetId && assetId !== 'ALL') {
       queryBuilder.andWhere('asset.id = :assetId', { assetId });
     }
 
-    // Filter by Equipment Type
+    // Filter by Equipment Type (JenisAsset)
     if (equipmentType && equipmentType !== 'ALL') {
-      queryBuilder.andWhere('asset.equipmentType = :equipmentType', { equipmentType: equipmentType.trim() });
+      queryBuilder.andWhere('ja.name = :equipmentType', { equipmentType: equipmentType.trim() });
     }
 
     // Filter by Test Type / Tool
@@ -135,10 +146,11 @@ export async function GET(req: Request) {
       queryBuilder.andWhere('tt.id = :testTypeId', { testTypeId });
     }
 
-    // Sort by Year desc, UBP name asc, Asset name asc
+    // Sort by Year desc, UBP name asc, Unit name asc, Asset name asc
     queryBuilder
       .orderBy('ts.testYear', 'DESC')
       .addOrderBy('ubp.name', 'ASC')
+      .addOrderBy('up.name', 'ASC')
       .addOrderBy('asset.name', 'ASC');
 
     const sessions = await queryBuilder.getMany();
@@ -155,8 +167,8 @@ export async function GET(req: Request) {
       const row: Record<string, any> = {
         'No': idx + 1,
         'Tahun Uji': session.testYear,
-        'UBP': session.asset.ubp.name,
-        'Nama Asset / Unit': session.asset.name,
+        'UBP': session.asset.unitPembangkit?.ubp?.name || '—',
+        'Nama Asset / Unit': session.asset.unitPembangkit?.name || '—',
         'Serial Number': session.asset.serialNumber || '—',
         'Overall Judgement': overallJudgement || '—',
       };
@@ -192,8 +204,8 @@ export async function GET(req: Request) {
         detailRows.push({
           'No': count++,
           'Tahun Uji': session.testYear,
-          'UBP': session.asset.ubp.name,
-          'Nama Asset / Unit': session.asset.name,
+          'UBP': session.asset.unitPembangkit?.ubp?.name || '—',
+          'Nama Asset / Unit': session.asset.unitPembangkit?.name || '—',
           'Jenis Pengujian / Alat': param.testType?.name || '—',
           'Parameter': param.name,
           'Nilai Uji': result.isNotApplicable ? 'N/A' : (result.value !== null ? Number(result.value) : '—'),
@@ -217,7 +229,7 @@ export async function GET(req: Request) {
       filterSuffix += `_Tipe_${cleanEquip}`;
     }
     if (ubpId && ubpId !== 'ALL') {
-      const ubpName = sessions[0]?.asset.ubp.name.replace(/[^a-zA-Z0-9]/g, '_') || ubpId;
+      const ubpName = sessions[0]?.asset.unitPembangkit?.ubp?.name.replace(/[^a-zA-Z0-9]/g, '_') || ubpId;
       filterSuffix += `_UBP_${ubpName}`;
     }
 

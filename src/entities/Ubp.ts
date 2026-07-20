@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import type { Asset } from './Asset';
+import type { UnitPembangkit } from './UnitPembangkit';
 
 @Entity('ubp')
 export class Ubp {
@@ -16,8 +16,8 @@ export class Ubp {
   @Column({ type: 'varchar', length: 255, unique: true })
   name!: string;
 
-  @OneToMany('Asset', 'ubp')
-  assets!: Asset[];
+  @OneToMany('UnitPembangkit', 'ubp')
+  unitPembangkit!: UnitPembangkit[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

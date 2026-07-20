@@ -5,6 +5,7 @@ import { ReportDirectory } from '@/entities/ReportDirectory';
 import { ReportFile } from '@/entities/ReportFile';
 import { AuditLog } from '@/entities/AuditLog';
 import { Ubp } from '@/entities/Ubp';
+import { UnitPembangkit } from '@/entities/UnitPembangkit';
 import { Asset } from '@/entities/Asset';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
       if (currentDir && currentDir.parentId === null) {
         const ubp = await ubpRepo.findOne({ where: { name: currentDir.name } });
         if (ubp) {
-          const assets = await assetRepo.find({ where: { ubpId: ubp.id } });
+          const units = await db.getRepository(UnitPembangkit).find({ where: { ubpId: ubp.id } });
           const subDirs = await dirRepo.find({ where: { parentId } });
 
           // Group subDirs by trimmed name
@@ -95,8 +96,8 @@ export async function GET(request: Request) {
             subDirMap.get(name)!.push(d);
           }
 
-          // Process unique unit names from assets
-          const assetUnitNames = new Set(assets.map((a) => a.name.trim()));
+          // Process unique unit names from units
+          const assetUnitNames = new Set(units.map((u) => u.name.trim()));
 
           // Create missing or deduplicate existing Unit Pembangkit folders
           for (const unitName of assetUnitNames) {

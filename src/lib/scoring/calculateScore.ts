@@ -20,26 +20,26 @@ function parseThresholdBound(value: string | null): { min: number | null; max: n
 
   const trimmed = value.trim();
 
-  // Handle ">= X" or "> X"
-  const geMatch = trimmed.match(/^>=?\s*([\d.]+)$/);
+  // Handle ">= X" or "> X" (supporting negative numbers)
+  const geMatch = trimmed.match(/^>=?\s*([\d.-]+)$/);
   if (geMatch) {
     return { min: parseFloat(geMatch[1]), max: null };
   }
 
-  // Handle "<= X" or "< X"
-  const leMatch = trimmed.match(/^<=?\s*([\d.]+)$/);
+  // Handle "<= X" or "< X" (supporting negative numbers)
+  const leMatch = trimmed.match(/^<=?\s*([\d.-]+)$/);
   if (leMatch) {
     return { min: null, max: parseFloat(leMatch[1]) };
   }
 
-  // Handle range "X - Y" or "X-Y"
-  const rangeMatch = trimmed.match(/^([\d.]+)\s*-\s*([\d.]+)$/);
+  // Handle range "X - Y" or "X-Y" (supporting negative numbers)
+  const rangeMatch = trimmed.match(/^([\d.-]+)\s*-\s*([\d.-]+)$/);
   if (rangeMatch) {
     return { min: parseFloat(rangeMatch[1]), max: parseFloat(rangeMatch[2]) };
   }
 
-  // Handle plain number
-  const numMatch = trimmed.match(/^([\d.]+)$/);
+  // Handle plain number (supporting negative numbers)
+  const numMatch = trimmed.match(/^([\d.-]+)$/);
   if (numMatch) {
     return { min: parseFloat(numMatch[1]), max: parseFloat(numMatch[1]) };
   }

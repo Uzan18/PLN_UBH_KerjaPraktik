@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
-import type { CriteriaRow } from '@/types';
 
 // Fetch helper functions
 async function fetchUbpAssets() {
@@ -20,36 +19,38 @@ async function fetchTestTypes() {
   return json.data;
 }
 
-async function fetchCriteria(testTypeId: string) {
-  if (!testTypeId) return [];
-  const res = await fetch(`/api/master/criteria?testTypeId=${testTypeId}`);
-  if (!res.ok) throw new Error('Gagal mengambil kriteria');
-  const json = await res.json();
-  return json.data;
-}
+
 
 interface TestType {
   id: string;
   name: string;
   orderIndex: number;
   standard?: string | null;
+  parameters?: any[];
 }
 
 interface Asset {
   id: string;
   name: string;
-  equipmentType: string;
+  jenisAsset?: { id: string; name: string } | null;
   serialNumber: string | null;
   testTypes?: TestType[];
 }
 
-interface Ubp {
+interface UnitPembangkit {
   id: string;
   name: string;
   assets?: Asset[];
 }
 
+interface Ubp {
+  id: string;
+  name: string;
+  unitPembangkit?: UnitPembangkit[];
+}
+
 interface EquipmentTypeGroup {
+  id: string;
   name: string;
   testTypes: TestType[];
   assetIds: string[];
@@ -64,40 +65,64 @@ interface NewParamInput {
   badValue: string;
 }
 
+const METADATA_FIELDS = [
+  { key: 'type', label: 'TYPE' },
+  { key: 'serialNumber', label: 'SERIAL NUMBER' },
+  { key: 'mfgYear', label: 'TAHUN BUAT' },
+  { key: 'manufacture', label: 'MANUFACTURE' },
+  { key: 'coolingMethod', label: 'COOLING METHOD' },
+  { key: 'ratedPower', label: 'RATED POWER' },
+  { key: 'frequency', label: 'FREQUENCY' },
+  { key: 'hvSide', label: 'HV SIDE' },
+  { key: 'hvRatedCurrent', label: 'HV RATED CURRENT' },
+  { key: 'lvSide', label: 'LV SIDE' },
+  { key: 'lvRatedCurrent', label: 'LV RATED CURRENT' },
+];
+
 export default function CombinedManagePengujianPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'pemetaan' | 'kriteria' | 'damage-mechanism' | 'import'>('pemetaan');
+  const [activeTab, setActiveTab] = useState<'pemetaan' | 'damage-mechanism' | 'import'>('pemetaan');
 
   // ==========================================
   // STATE: 1. Pemetaan Tab
   // ==========================================
   const [selectedGroup, setSelectedGroup] = useState<EquipmentTypeGroup | null>(null);
   const [selectedTestTypeIds, setSelectedTestTypeIds] = useState<string[]>([]);
+  const [selectedInfoFields, setSelectedInfoFields] = useState<any[]>([]);
   const [searchTestQuery, setSearchTestQuery] = useState('');
-  const [extraEquipmentTypes, setExtraEquipmentTypes] = useState<string[]>([]);
-  const [hiddenEquipmentTypes, setHiddenEquipmentTypes] = useState<string[]>([]);
   const [isAddEquipmentTypeOpen, setIsAddEquipmentTypeOpen] = useState(false);
   const [newEquipmentTypeName, setNewEquipmentTypeName] = useState('');
+  const [isEditEquipmentTypeOpen, setIsEditEquipmentTypeOpen] = useState(false);
+  const [editingEquipmentType, setEditingEquipmentType] = useState<EquipmentTypeGroup | null>(null);
+  const [editEquipmentTypeName, setEditEquipmentTypeName] = useState('');
+  const [rightPanelTab, setRightPanelTab] = useState<'informasi' | 'pengujian'>('informasi');
+
+  // Helper to resolve infoField string or object
+  const resolveField = (item: any) => {
+    if (typeof item === 'string') {
+      return { key: item, placeholder: '' };
+    }
+    return { key: item?.key || '', placeholder: item?.placeholder || '' };
+  };
+
+  // Custom modal states for specifications
+  const [isAddParamOpen, setIsAddParamOpen] = useState(false);
+  const [newParamName, setNewParamName] = useState('');
+  const [newParamPlaceholder, setNewParamPlaceholder] = useState('');
+  const [isEditParamOpen, setIsEditParamOpen] = useState(false);
+  const [editParamOldName, setEditParamOldName] = useState('');
+  const [editParamOldKey, setEditParamOldKey] = useState('');
+  const [editParamNewName, setEditParamNewName] = useState('');
+  const [editParamPlaceholder, setEditParamPlaceholder] = useState('');
 
   // Create Test Type Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingTestType, setEditingTestType] = useState<TestType | null>(null);
   const [newTestName, setNewTestName] = useState('');
   const [newTestStandard, setNewTestStandard] = useState('');
   const [newTestParameters, setNewTestParameters] = useState<NewParamInput[]>([
     { name: '', unit: '', goodValue: '', fairValue: '', poorValue: '', badValue: '' }
   ]);
-
-
-  // ==========================================
-  // STATE: 2. Kriteria Tab
-  // ==========================================
-  const [criteriaTestTypeId, setCriteriaTestTypeId] = useState('');
-  const [editingCriteria, setEditingCriteria] = useState<CriteriaRow | null>(null);
-  const [goodValue, setGoodValue] = useState('');
-  const [fairValue, setFairValue] = useState('');
-  const [poorValue, setPoorValue] = useState('');
-  const [badValue, setBadValue] = useState('');
-  const [standardText, setStandardText] = useState('');
 
   // ==========================================
   // STATE: 3. Import Tab
@@ -136,13 +161,17 @@ export default function CombinedManagePengujianPage() {
     queryFn: fetchTestTypes,
   });
 
-  const activeCriteriaTestTypeId = criteriaTestTypeId || (testTypes && testTypes.length > 0 ? testTypes[0].id : '');
-
-  const { data: criteriaList, isLoading: isCriteriaLoading } = useQuery({
-    queryKey: ['criteria', activeCriteriaTestTypeId],
-    queryFn: () => fetchCriteria(activeCriteriaTestTypeId),
-    enabled: !!activeCriteriaTestTypeId && activeTab === 'kriteria',
+  const { data: jenisAssetList } = useQuery({
+    queryKey: ['jenis-asset'],
+    queryFn: async () => {
+      const res = await fetch('/api/master/jenis-asset');
+      if (!res.ok) throw new Error('Gagal mengambil data Jenis Asset');
+      const json = await res.json();
+      return json.data;
+    }
   });
+
+
 
   // Memo fields for dynamic export filters
   const exportSelectedUbp = useMemo(() => {
@@ -155,16 +184,16 @@ export default function CombinedManagePengujianPage() {
       if (!ubps) return [];
       const names = new Set<string>();
       ubps.forEach((u) => {
-        u.assets?.forEach((a: any) => {
-          if (a.name) names.add(a.name.trim());
+        u.unitPembangkit?.forEach((unit: any) => {
+          if (unit.name) names.add(unit.name.trim());
         });
       });
       return Array.from(names).sort();
     }
-    if (!exportSelectedUbp?.assets) return [];
+    if (!exportSelectedUbp?.unitPembangkit) return [];
     const names = new Set<string>();
-    exportSelectedUbp.assets.forEach((a: any) => {
-      if (a.name) names.add(a.name.trim());
+    exportSelectedUbp.unitPembangkit.forEach((unit: any) => {
+      if (unit.name) names.add(unit.name.trim());
     });
     return Array.from(names).sort();
   }, [ubps, exportUbpId, exportSelectedUbp]);
@@ -174,14 +203,22 @@ export default function CombinedManagePengujianPage() {
     let list: any[] = [];
     if (exportUbpId === 'ALL') {
       ubps.forEach((u) => {
-        if (u.assets) list.push(...u.assets);
+        u.unitPembangkit?.forEach((unit: any) => {
+          if (unit.assets) {
+            list.push(...unit.assets.map((a: any) => ({ ...a, unitName: unit.name })));
+          }
+        });
       });
-    } else if (exportSelectedUbp?.assets) {
-      list = exportSelectedUbp.assets;
+    } else if (exportSelectedUbp?.unitPembangkit) {
+      exportSelectedUbp.unitPembangkit.forEach((unit: any) => {
+        if (unit.assets) {
+          list.push(...unit.assets.map((a: any) => ({ ...a, unitName: unit.name })));
+        }
+      });
     }
 
     if (exportUnitName && exportUnitName !== 'ALL') {
-      list = list.filter((a: any) => a.name === exportUnitName);
+      list = list.filter((a: any) => a.unitName === exportUnitName);
     }
     return list;
   }, [ubps, exportUbpId, exportSelectedUbp, exportUnitName]);
@@ -190,9 +227,11 @@ export default function CombinedManagePengujianPage() {
     if (!ubps) return [];
     const types = new Set<string>();
     for (const ubp of ubps) {
-      for (const asset of ubp.assets || []) {
-        if (asset.equipmentType) {
-          types.add(asset.equipmentType.trim());
+      for (const unit of ubp.unitPembangkit || []) {
+        for (const asset of unit.assets || []) {
+          if (asset.jenisAsset?.name) {
+            types.add(asset.jenisAsset.name.trim());
+          }
         }
       }
     }
@@ -201,12 +240,8 @@ export default function CombinedManagePengujianPage() {
 
   // Calculate unique Equipment Types from all assets + custom local types
   const equipmentGroups = useMemo(() => {
-    const map = new Map<string, { name: string; testTypes: TestType[]; assetIds: string[] }>();
-    
-    // Default and custom local equipment types
-    const defaultTypes = ['Main Trafo', 'UAT', 'SST', 'Trafo Bantu', ...extraEquipmentTypes]
-      .filter(t => !hiddenEquipmentTypes.includes(t));
-    
+    const map = new Map<string, { id: string; name: string; testTypes: TestType[]; assetIds: string[] }>();
+
     // Read mappings from localstorage to pre-populate local types
     let localMappings: Record<string, string[]> = {};
     if (typeof window !== 'undefined') {
@@ -220,112 +255,136 @@ export default function CombinedManagePengujianPage() {
       }
     }
 
-    for (const type of defaultTypes) {
-      const mappedIds = localMappings[type] || [];
-      const mappedTestTypes = testTypes 
-        ? testTypes.filter((t) => mappedIds.includes(t.id))
-        : [];
+    if (jenisAssetList) {
+      for (const ja of jenisAssetList) {
+        const mappedIds = localMappings[ja.name] || [];
+        const mappedTestTypes = testTypes 
+          ? testTypes.filter((t) => mappedIds.includes(t.id))
+          : [];
 
-      map.set(type, {
-        name: type,
-        testTypes: mappedTestTypes,
-        assetIds: []
-      });
+        map.set(ja.name, {
+          id: ja.id,
+          name: ja.name,
+          testTypes: mappedTestTypes,
+          assetIds: []
+        });
+      }
     }
 
     if (ubps) {
       for (const ubp of ubps) {
-        for (const asset of ubp.assets || []) {
-          const type = asset.equipmentType;
-          if (!type || type.trim() === '') continue;
-          if (hiddenEquipmentTypes.includes(type.trim())) continue;
-          
-          const typeKey = type.trim();
-          if (!map.has(typeKey)) {
-            map.set(typeKey, {
-              name: typeKey,
-              testTypes: asset.testTypes || [],
-              assetIds: [asset.id]
-            });
-          } else {
-            const existing = map.get(typeKey)!;
-            existing.assetIds.push(asset.id);
-            // If this group was pre-populated from defaultTypes/localMappings, but now we find it has assets in the database,
-            // we should prioritize the actual database asset.testTypes over the localStorage template.
-            if (existing.assetIds.length === 1) {
-              existing.testTypes = asset.testTypes || [];
-            } else if (existing.testTypes.length === 0 && asset.testTypes && asset.testTypes.length > 0) {
-              existing.testTypes = asset.testTypes;
+        for (const unit of ubp.unitPembangkit || []) {
+          for (const asset of unit.assets || []) {
+            const type = asset.jenisAsset?.name;
+            const jenisId = asset.jenisAsset?.id;
+            if (!type || type.trim() === '') continue;
+
+            const typeKey = type.trim();
+            if (!map.has(typeKey)) {
+              map.set(typeKey, {
+                id: jenisId || '',
+                name: typeKey,
+                testTypes: asset.testTypes || [],
+                assetIds: [asset.id]
+              });
+            } else {
+              const existing = map.get(typeKey)!;
+              existing.assetIds.push(asset.id);
+              if (jenisId && !existing.id) {
+                existing.id = jenisId;
+              }
+              // If this group was pre-populated from defaultTypes/localMappings, but now we find it has assets in the database,
+              // we should prioritize the actual database asset.testTypes over the localStorage template.
+              if (existing.assetIds.length === 1) {
+                existing.testTypes = asset.testTypes || [];
+              } else if (existing.testTypes.length === 0 && asset.testTypes && asset.testTypes.length > 0) {
+                existing.testTypes = asset.testTypes;
+              }
             }
           }
         }
       }
     }
-    
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [ubps, extraEquipmentTypes, hiddenEquipmentTypes, testTypes]);
 
-  // ==========================================
-  // EFFECTS
-  // ==========================================
-  // Load custom equipment types from localStorage on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('app_custom_equipment_types');
-      if (stored) {
-        try {
-          setExtraEquipmentTypes(JSON.parse(stored));
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      const storedHidden = localStorage.getItem('app_hidden_equipment_types');
-      if (storedHidden) {
-        try {
-          setHiddenEquipmentTypes(JSON.parse(storedHidden));
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
-  }, []);
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [ubps, testTypes, jenisAssetList]);
+
+  const filteredEquipmentGroups = useMemo(() => {
+    return equipmentGroups;
+  }, [equipmentGroups]);
 
   // Sync selected group test type checkboxes when a group is selected (Pemetaan Tab)
   const handleSelectGroup = (group: EquipmentTypeGroup) => {
     setSelectedGroup(group);
     const configuredIds = group.testTypes?.map((t) => t.id) || [];
     setSelectedTestTypeIds(configuredIds);
+    setRightPanelTab('informasi');
+
+    const dbJenis = jenisAssetList?.find((j: any) => j.name === group.name);
+    if (dbJenis && dbJenis.infoFields) {
+      try {
+        setSelectedInfoFields(JSON.parse(dbJenis.infoFields));
+      } catch (e) {
+        setSelectedInfoFields([]);
+      }
+    } else {
+      setSelectedInfoFields([
+        'type', 'serialNumber', 'mfgYear', 'manufacture', 'coolingMethod', 'ratedPower', 'frequency', 'hvSide', 'hvRatedCurrent', 'lvSide', 'lvRatedCurrent'
+      ]);
+    }
   };
 
   // Auto-select first equipment type group when loaded
   useEffect(() => {
-    if (equipmentGroups.length > 0 && !selectedGroup) {
-      handleSelectGroup(equipmentGroups[0]);
-    } else if (selectedGroup) {
-      const current = equipmentGroups.find((g) => g.name === selectedGroup.name);
-      if (current) {
-        setSelectedGroup(current);
+    if (equipmentGroups.length > 0) {
+      if (!selectedGroup) {
+        handleSelectGroup(equipmentGroups[0]);
+      } else {
+        const current = equipmentGroups.find((g) => g.name === selectedGroup.name);
+        if (current) {
+          if (JSON.stringify(current) !== JSON.stringify(selectedGroup)) {
+            setSelectedGroup(current);
+          }
+        } else {
+          // Currently selected group was deleted, pick the topmost one
+          handleSelectGroup(equipmentGroups[0]);
+        }
       }
+    } else {
+      setSelectedGroup(null);
     }
   }, [equipmentGroups, selectedGroup]);
 
-  // Auto-select first test type in criteria tab when loaded
-  useEffect(() => {
-    if (testTypes && testTypes.length > 0 && !criteriaTestTypeId) {
-      setCriteriaTestTypeId(testTypes[0].id);
+
+
+
+  const hasTestTypesChanged = useMemo(() => {
+    if (!selectedGroup) return false;
+    const configuredIds = selectedGroup.testTypes?.map((t) => t.id) || [];
+    if (configuredIds.length !== selectedTestTypeIds.length) return true;
+    const setConfig = new Set(configuredIds);
+    return selectedTestTypeIds.some(id => !setConfig.has(id));
+  }, [selectedGroup, selectedTestTypeIds]);
+
+  const hasInfoFieldsChanged = useMemo(() => {
+    if (!selectedGroup || !jenisAssetList) return false;
+    const dbJenis = jenisAssetList.find((j: any) => j.name === selectedGroup.name);
+    let configuredInfoFields: any[] = [];
+    if (dbJenis && dbJenis.infoFields) {
+      try {
+        configuredInfoFields = JSON.parse(dbJenis.infoFields);
+      } catch (e) {
+        configuredInfoFields = [];
+      }
+    } else {
+      configuredInfoFields = [
+        'type', 'serialNumber', 'mfgYear', 'manufacture', 'coolingMethod', 'ratedPower', 'frequency', 'hvSide', 'hvRatedCurrent', 'lvSide', 'lvRatedCurrent'
+      ];
     }
-  }, [testTypes, criteriaTestTypeId]);
+    return JSON.stringify(configuredInfoFields) !== JSON.stringify(selectedInfoFields);
+  }, [selectedGroup, jenisAssetList, selectedInfoFields]);
 
-  // Sync standardText input when activeCriteriaTestTypeId changes (Kriteria Tab)
-  useEffect(() => {
-    if (testTypes && activeCriteriaTestTypeId) {
-      const activeTestType = testTypes.find((t) => t.id === activeCriteriaTestTypeId);
-      setStandardText(activeTestType?.standard || '');
-    }
-  }, [activeCriteriaTestTypeId, testTypes]);
-
-
-  // ==========================================
+  const hasPemetaanChanged = hasTestTypesChanged || hasInfoFieldsChanged;
   // STATE: 4. Damage Mechanism Tab
   // ==========================================
   // STATE: 4. Damage Mechanism Tab
@@ -352,6 +411,33 @@ export default function CombinedManagePengujianPage() {
     },
     enabled: activeTab === 'damage-mechanism',
   });
+
+  const configuredDmTestTypeIds = useMemo(() => {
+    if (!selectedMechanism || !dmData?.testTypes || !selectedDmGroup) return [];
+    const activeGroupTestTypes = selectedDmGroup.testTypes || [];
+    const checkedIds: string[] = [];
+    for (const tt of activeGroupTestTypes) {
+      const fullTt = dmData.testTypes.find((t) => t.id === tt.id);
+      if (fullTt && fullTt.parameters && fullTt.parameters.length > 0) {
+        const hasMech = fullTt.parameters.some((p: any) => {
+          const currentMechs = p.damageMechanisms
+            ? p.damageMechanisms.split(',').map((m: string) => m.trim())
+            : [];
+          return currentMechs.includes(selectedMechanism);
+        });
+        if (hasMech) {
+          checkedIds.push(tt.id);
+        }
+      }
+    }
+    return checkedIds;
+  }, [selectedMechanism, dmData, selectedDmGroup]);
+
+  const hasDmPemetaanChanged = useMemo(() => {
+    if (configuredDmTestTypeIds.length !== selectedDmTestTypeIds.length) return true;
+    const configSet = new Set(configuredDmTestTypeIds);
+    return selectedDmTestTypeIds.some(id => !configSet.has(id));
+  }, [configuredDmTestTypeIds, selectedDmTestTypeIds]);
 
   // Auto-select first group
   useEffect(() => {
@@ -583,7 +669,7 @@ export default function CombinedManagePengujianPage() {
   // MUTATIONS & HANDLERS: 1. Pemetaan Tab
   // ==========================================
   const saveMutation = useMutation({
-    mutationFn: async (payload: { equipmentType: string; testTypeIds: string[] }) => {
+    mutationFn: async (payload: { jenisAssetId: string; testTypeIds: string[]; infoFields?: any[] }) => {
       const res = await fetch('/api/master/ubp-asset/assets/test-types/by-equipment-type', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -596,8 +682,12 @@ export default function CombinedManagePengujianPage() {
       return res.json();
     },
     onSuccess: (data, variables) => {
-      alert(`Konfigurasi pengujian untuk jenis aset "${variables.equipmentType}" berhasil disimpan!`);
+      const gName = equipmentGroups.find((g) => g.id === variables.jenisAssetId)?.name || 'Jenis Aset';
+      alert(`Konfigurasi pengujian untuk jenis aset "${gName}" berhasil disimpan!`);
       queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
+      queryClient.invalidateQueries({ queryKey: ['ubp-assets-manage'] });
+      queryClient.invalidateQueries({ queryKey: ['ubp-assets-info-branched'] });
+      queryClient.invalidateQueries({ queryKey: ['jenis-asset'] });
     },
     onError: (error) => {
       alert(error.message || 'Terjadi kesalahan saat menyimpan.');
@@ -605,8 +695,11 @@ export default function CombinedManagePengujianPage() {
   });
 
   const deleteEquipmentTypeMutation = useMutation({
-    mutationFn: async (equipmentType: string) => {
-      const res = await fetch(`/api/master/ubp-asset/assets?equipmentType=${encodeURIComponent(equipmentType)}`, {
+    mutationFn: async (payload: { id: string; name: string }) => {
+      if (!payload.id) {
+        return { success: true, localOnly: true };
+      }
+      const res = await fetch(`/api/master/ubp-asset/assets?jenisAssetId=${encodeURIComponent(payload.id)}`, {
         method: 'DELETE',
       });
       if (!res.ok) {
@@ -615,19 +708,8 @@ export default function CombinedManagePengujianPage() {
       }
       return res.json();
     },
-    onSuccess: (data, equipmentType) => {
-      const updatedExtra = extraEquipmentTypes.filter((t) => t !== equipmentType);
-      setExtraEquipmentTypes(updatedExtra);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('app_custom_equipment_types', JSON.stringify(updatedExtra));
-      }
-
-      const updatedHidden = [...hiddenEquipmentTypes, equipmentType];
-      setHiddenEquipmentTypes(updatedHidden);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('app_hidden_equipment_types', JSON.stringify(updatedHidden));
-      }
-
+    onSuccess: (data, payload) => {
+      const equipmentType = payload.name;
       if (typeof window !== 'undefined') {
         const mappingsStr = localStorage.getItem('app_custom_equipment_type_mappings');
         if (mappingsStr) {
@@ -644,6 +726,9 @@ export default function CombinedManagePengujianPage() {
       alert(`Jenis aset "${equipmentType}" berhasil dihapus.`);
       setSelectedGroup(null);
       queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
+      queryClient.invalidateQueries({ queryKey: ['ubp-assets-manage'] });
+      queryClient.invalidateQueries({ queryKey: ['ubp-assets-info-branched'] });
+      queryClient.invalidateQueries({ queryKey: ['jenis-asset'] });
     },
     onError: (error) => {
       alert(error.message || 'Terjadi kesalahan saat menghapus jenis aset.');
@@ -656,39 +741,74 @@ export default function CombinedManagePengujianPage() {
         `PERINGATAN: Jenis aset "${group.name}" sedang digunakan oleh ${group.assetIds.length} unit pembangkit di database. Menghapus jenis aset ini akan menghapus SELURUH unit pembangkit tersebut beserta semua riwayat sesi pengujian dan hasil pengukurannya.\n\nApakah Anda yakin ingin melanjutkan?`
       );
       if (!confirmDelete) return;
-      deleteEquipmentTypeMutation.mutate(group.name);
+      deleteEquipmentTypeMutation.mutate({ id: group.id, name: group.name });
     } else {
       const confirmDelete = confirm(`Apakah Anda yakin ingin menghapus jenis aset "${group.name}"?`);
       if (!confirmDelete) return;
+      deleteEquipmentTypeMutation.mutate({ id: group.id, name: group.name });
+    }
+  };
 
-      const updatedExtra = extraEquipmentTypes.filter((t) => t !== group.name);
-      setExtraEquipmentTypes(updatedExtra);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('app_custom_equipment_types', JSON.stringify(updatedExtra));
+  const editEquipmentTypeMutation = useMutation({
+    mutationFn: async (payload: { id: string; name: string }) => {
+      const res = await fetch('/api/master/jenis-asset', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Gagal mengubah jenis aset');
       }
+      return res.json();
+    },
+    onSuccess: (data, payload) => {
+      const oldName = editingEquipmentType?.name;
+      const newName = payload.name.trim();
 
-      const updatedHidden = [...hiddenEquipmentTypes, group.name];
-      setHiddenEquipmentTypes(updatedHidden);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('app_hidden_equipment_types', JSON.stringify(updatedHidden));
-      }
-
-      if (typeof window !== 'undefined') {
+      if (oldName && oldName !== newName && typeof window !== 'undefined') {
         const mappingsStr = localStorage.getItem('app_custom_equipment_type_mappings');
         if (mappingsStr) {
           try {
             const mappings = JSON.parse(mappingsStr);
-            delete mappings[group.name];
-            localStorage.setItem('app_custom_equipment_type_mappings', JSON.stringify(mappings));
+            if (mappings[oldName]) {
+              mappings[newName] = mappings[oldName];
+              delete mappings[oldName];
+              localStorage.setItem('app_custom_equipment_type_mappings', JSON.stringify(mappings));
+            }
           } catch (e) {
             console.error(e);
           }
         }
       }
 
-      alert(`Jenis aset "${group.name}" berhasil dihapus.`);
-      setSelectedGroup(null);
-    }
+      alert(`Jenis aset berhasil diubah.`);
+      
+      // Update selectedGroup if it was the one edited
+      if (selectedGroup && selectedGroup.id === payload.id) {
+        setSelectedGroup(prev => prev ? { ...prev, name: newName } : null);
+      }
+      if (selectedDmGroup && selectedDmGroup.id === payload.id) {
+        setSelectedDmGroup(prev => prev ? { ...prev, name: newName } : null);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
+      queryClient.invalidateQueries({ queryKey: ['ubp-assets-manage'] });
+      queryClient.invalidateQueries({ queryKey: ['ubp-assets-info-branched'] });
+      queryClient.invalidateQueries({ queryKey: ['jenis-asset'] });
+      setIsEditEquipmentTypeOpen(false);
+      setEditingEquipmentType(null);
+      setEditEquipmentTypeName('');
+    },
+    onError: (error: any) => {
+      alert(error.message || 'Terjadi kesalahan saat mengubah jenis aset.');
+    },
+  });
+
+  const handleEditEquipmentType = (group: EquipmentTypeGroup) => {
+    setEditingEquipmentType(group);
+    setEditEquipmentTypeName(group.name);
+    setIsEditEquipmentTypeOpen(true);
   };
 
   const deleteTestTypeMutation = useMutation({
@@ -704,8 +824,9 @@ export default function CombinedManagePengujianPage() {
     },
     onSuccess: (data, id) => {
       queryClient.invalidateQueries({ queryKey: ['test-types'] });
-      queryClient.invalidateQueries({ queryKey: ['criteria'] });
       queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
+      queryClient.invalidateQueries({ queryKey: ['ubp-assets-manage'] });
+      queryClient.invalidateQueries({ queryKey: ['ubp-assets-info-branched'] });
       setSelectedTestTypeIds((prev) => prev.filter((item) => item !== id));
       alert('Jenis pengujian berhasil dihapus dari sistem.');
     },
@@ -726,7 +847,13 @@ export default function CombinedManagePengujianPage() {
   const handleSavePemetaan = () => {
     if (!selectedGroup) return;
 
-    if (selectedGroup.assetIds.length === 0) {
+    if (selectedGroup.id) {
+      saveMutation.mutate({
+        jenisAssetId: selectedGroup.id,
+        testTypeIds: selectedTestTypeIds,
+        infoFields: selectedInfoFields,
+      });
+    } else {
       if (typeof window !== 'undefined') {
         const mappingsStr = localStorage.getItem('app_custom_equipment_type_mappings') || '{}';
         try {
@@ -736,16 +863,13 @@ export default function CombinedManagePengujianPage() {
           
           alert(`Konfigurasi pengujian untuk jenis aset "${selectedGroup.name}" berhasil disimpan sebagai template! Konfigurasi ini akan otomatis diterapkan saat Anda menambahkan unit pembangkit baru dengan jenis tersebut di menu Master UBP & Aset.`);
           queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
+          queryClient.invalidateQueries({ queryKey: ['ubp-assets-manage'] });
+          queryClient.invalidateQueries({ queryKey: ['ubp-assets-info-branched'] });
         } catch (e) {
           console.error(e);
           alert('Gagal menyimpan konfigurasi lokal.');
         }
       }
-    } else {
-      saveMutation.mutate({
-        equipmentType: selectedGroup.name,
-        testTypeIds: selectedTestTypeIds,
-      });
     }
   };
 
@@ -784,11 +908,64 @@ export default function CombinedManagePengujianPage() {
       queryClient.invalidateQueries({ queryKey: ['test-types'] });
       setIsCreateModalOpen(false);
       resetCreateModalState();
+      setEditingTestType(null);
     },
     onError: (error) => {
       alert(error.message || 'Terjadi kesalahan saat menyimpan pengujian baru.');
     },
   });
+
+  const updateTestTypeMutation = useMutation({
+    mutationFn: async (payload: { id: string; name: string; standard: string; parameters: any[] }) => {
+      const res = await fetch('/api/master/test-types', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Gagal mengubah jenis pengujian');
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      alert(`Jenis pengujian "${data.data.name}" berhasil diubah!`);
+      queryClient.invalidateQueries({ queryKey: ['test-types'] });
+      setIsCreateModalOpen(false);
+      resetCreateModalState();
+      setEditingTestType(null);
+    },
+    onError: (error) => {
+      alert(error.message || 'Terjadi kesalahan saat menyimpan pengujian.');
+    },
+  });
+
+  const handleEditTestTypeClick = (test: TestType) => {
+    setEditingTestType(test);
+    setNewTestName(test.name);
+    setNewTestStandard(test.standard || '');
+    if (test.parameters && test.parameters.length > 0) {
+      setNewTestParameters(
+        test.parameters.map((p: any) => {
+          const c = p.criteria && p.criteria.length > 0 ? p.criteria[0] : null;
+          return {
+            id: p.id,
+            name: p.name,
+            unit: p.unit || '',
+            goodValue: c ? c.goodValue || '' : '',
+            fairValue: c ? c.fairValue || '' : '',
+            poorValue: c ? c.poorValue || '' : '',
+            badValue: c ? c.badValue || '' : '',
+          };
+        })
+      );
+    } else {
+      setNewTestParameters([
+        { name: '', unit: '', goodValue: '', fairValue: '', poorValue: '', badValue: '' }
+      ]);
+    }
+    setIsCreateModalOpen(true);
+  };
 
   const handleCreateTestType = (e: React.FormEvent) => {
     e.preventDefault();
@@ -802,11 +979,20 @@ export default function CombinedManagePengujianPage() {
       return;
     }
 
-    createTestTypeMutation.mutate({
-      name: newTestName,
-      standard: newTestStandard,
-      parameters: newTestParameters
-    });
+    if (editingTestType) {
+      updateTestTypeMutation.mutate({
+        id: editingTestType.id,
+        name: newTestName,
+        standard: newTestStandard,
+        parameters: newTestParameters
+      });
+    } else {
+      createTestTypeMutation.mutate({
+        name: newTestName,
+        standard: newTestStandard,
+        parameters: newTestParameters
+      });
+    }
   };
 
   const resetCreateModalState = () => {
@@ -840,84 +1026,7 @@ export default function CombinedManagePengujianPage() {
   // ==========================================
   // MUTATIONS & HANDLERS: 2. Kriteria Tab
   // ==========================================
-  const updateCriteriaMutation = useMutation({
-    mutationFn: async (payload: {
-      parameterId: string;
-      goodValue: string;
-      fairValue: string;
-      poorValue: string;
-      badValue: string;
-    }) => {
-      const res = await fetch('/api/master/criteria', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Gagal memperbarui kriteria');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      setEditingCriteria(null);
-      queryClient.invalidateQueries({ queryKey: ['criteria', activeCriteriaTestTypeId] });
-    },
-    onError: (error) => {
-      alert(error.message || 'Gagal memperbarui kriteria.');
-    }
-  });
 
-  const updateStandardMutation = useMutation({
-    mutationFn: async (payload: { id: string; standard: string }) => {
-      const res = await fetch('/api/master/test-types', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Gagal menyimpan standard');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['test-types'] });
-      alert('Standard referensi berhasil diperbarui!');
-    },
-    onError: (error) => {
-      alert(error.message || 'Gagal menyimpan standard.');
-    }
-  });
-
-  const handleSaveStandard = () => {
-    if (!activeCriteriaTestTypeId) return;
-    updateStandardMutation.mutate({
-      id: activeCriteriaTestTypeId,
-      standard: standardText,
-    });
-  };
-
-  const startEditCriteria = (criteria: CriteriaRow) => {
-    setEditingCriteria(criteria);
-    setGoodValue(criteria.goodValue || '');
-    setFairValue(criteria.fairValue || '');
-    setPoorValue(criteria.poorValue || '');
-    setBadValue(criteria.badValue || '');
-  };
-
-  const handleSaveCriteria = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingCriteria) return;
-
-    updateCriteriaMutation.mutate({
-      parameterId: editingCriteria.parameterId,
-      goodValue,
-      fairValue,
-      poorValue,
-      badValue,
-    });
-  };
 
   // ==========================================
   // MUTATIONS & HANDLERS: 3. Import Tab
@@ -968,7 +1077,7 @@ export default function CombinedManagePengujianPage() {
     t.name.toLowerCase().includes(searchTestQuery.toLowerCase())
   );
 
-  const isLoading = isUbpsLoading || isTestTypesLoading || isCriteriaLoading;
+  const isLoading = isUbpsLoading || isTestTypesLoading;
 
   return (
     <div className="space-y-6 animate-fade-in max-w-[1440px] mx-auto pb-20">
@@ -982,11 +1091,9 @@ export default function CombinedManagePengujianPage() {
               <span className="text-primary font-mono text-xs font-bold">
                 {activeTab === 'pemetaan' 
                   ? 'Pengaturan Pengujian' 
-                  : activeTab === 'kriteria' 
-                    ? 'Kriteria Parameter' 
-                    : activeTab === 'damage-mechanism'
-                      ? 'Faktor Damage Mechanism'
-                      : 'Import Excel'}
+                  : activeTab === 'damage-mechanism'
+                    ? 'Faktor Damage Mechanism'
+                    : 'Import Excel'}
               </span>
             </div>
           </li>
@@ -1014,16 +1121,6 @@ export default function CombinedManagePengujianPage() {
           Pengaturan Pengujian
         </button>
         <button
-          onClick={() => setActiveTab('kriteria')}
-          className={`pb-3 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer ${
-            activeTab === 'kriteria'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-on-surface-variant hover:text-on-surface'
-          }`}
-        >
-          Kriteria Ambang Batas (Threshold)
-        </button>
-        <button
           onClick={() => setActiveTab('damage-mechanism')}
           className={`pb-3 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer ${
             activeTab === 'damage-mechanism'
@@ -1033,6 +1130,7 @@ export default function CombinedManagePengujianPage() {
         >
           Faktor Damage Mechanism
         </button>
+        {/*
         <button
           onClick={() => setActiveTab('import')}
           className={`pb-3 text-sm font-semibold border-b-2 transition-all px-1 cursor-pointer ${
@@ -1043,6 +1141,7 @@ export default function CombinedManagePengujianPage() {
         >
           Import Data Real (Excel)
         </button>
+        */}
       </div>
 
       {/* ==========================================
@@ -1051,23 +1150,23 @@ export default function CombinedManagePengujianPage() {
       {activeTab === 'pemetaan' && (
         <div className="grid grid-cols-12 gap-6 items-stretch animate-fade-in">
           {/* Left Sidebar: Jenis Aset List */}
-          <div className="col-span-12 lg:col-span-4">
-            <div className="bg-white rounded-xl border border-surface-border p-4 shadow-sm h-full flex flex-col justify-between">
-              <h3 className="text-sm font-bold text-on-surface mb-3 shrink-0">
+          <div className="col-span-12 lg:col-span-4 flex flex-col">
+            <div className="bg-white rounded-xl border border-surface-border p-4 shadow-sm h-[620px] flex flex-col justify-between overflow-hidden">
+              <h3 className="text-sm font-bold text-on-surface mb-2 shrink-0">
                 Daftar Jenis Aset (Equipment Type)
               </h3>
-              
+
               {isLoading ? (
                 <div className="flex items-center justify-center py-10 flex-1">
                   <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
                 </div>
-              ) : equipmentGroups.length === 0 ? (
+              ) : filteredEquipmentGroups.length === 0 ? (
                 <div className="text-center py-10 text-on-surface-variant font-medium text-xs flex-1 flex items-center justify-center">
                   Tidak ada data jenis aset.
                 </div>
               ) : (
-                <div className="space-y-1.5 overflow-y-auto custom-scrollbar pr-1 flex-1 min-h-[300px] max-h-[60vh]">
-                  {equipmentGroups.map((group) => {
+                <div className="space-y-1.5 overflow-y-auto custom-scrollbar pr-1 flex-1">
+                  {filteredEquipmentGroups.map((group) => {
                     const isSelected = selectedGroup?.name === group.name;
                     const testCount = group.testTypes?.length || 0;
                     const assetCount = group.assetIds?.length || 0;
@@ -1099,6 +1198,16 @@ export default function CombinedManagePengujianPage() {
                           <div
                             onClick={(e) => {
                               e.stopPropagation();
+                              handleEditEquipmentType(group);
+                            }}
+                            className="p-1 text-outline hover:text-primary hover:bg-primary/5 rounded transition-all cursor-pointer flex items-center justify-center"
+                            title="Edit Jenis Aset"
+                          >
+                            <span className="material-symbols-outlined text-[15px] select-none">edit</span>
+                          </div>
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
                               handleDeleteEquipmentType(group);
                             }}
                             className="p-1 text-outline hover:text-status-bad hover:bg-status-bad/5 rounded transition-all cursor-pointer flex items-center justify-center"
@@ -1127,9 +1236,9 @@ export default function CombinedManagePengujianPage() {
           </div>
 
           {/* Right Panel: Checkbox Map */}
-          <div className="col-span-12 lg:col-span-8 min-h-[50vh] max-h-[70vh] flex flex-col">
+          <div className="col-span-12 lg:col-span-8 flex flex-col">
             {selectedGroup ? (
-              <div className="bg-white rounded-xl border border-surface-border p-5 shadow-sm space-y-5 flex-1 flex flex-col justify-between overflow-hidden">
+              <div className="bg-white rounded-xl border border-surface-border p-5 shadow-sm h-[620px] flex flex-col justify-between overflow-hidden">
                 <div className="bg-surface-container-low p-3.5 rounded-lg border border-surface-border flex justify-between items-center shrink-0">
                   <div>
                     <span className="bg-primary/10 text-primary text-[9px] font-bold uppercase px-2 py-0.5 rounded-full">
@@ -1143,92 +1252,233 @@ export default function CombinedManagePengujianPage() {
                   </div>
                 </div>
 
-                <div className="space-y-3 flex-1 flex flex-col min-h-0">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1.5 border-b border-surface-border">
-                    <h3 className="text-xs font-bold text-on-surface uppercase tracking-wide">Pilih Jenis Pengujian yang Berlaku</h3>
-                    <div className="flex items-center gap-2.5">
-                      <button
-                        onClick={handleSelectAll}
-                        className="text-xs font-semibold text-primary hover:underline focus:outline-none cursor-pointer"
-                      >
-                        {testTypes && selectedTestTypeIds.length === testTypes.length ? 'Batal Semua' : 'Pilih Semua'}
-                      </button>
-                      <div className="relative w-44">
-                        <input
-                          type="text"
-                          placeholder="Cari pengujian..."
-                          value={searchTestQuery}
-                          onChange={(e) => setSearchTestQuery(e.target.value)}
-                          className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1 px-8 pr-3 focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
-                        />
-                        <span className="material-symbols-outlined text-outline absolute left-2 top-1/2 -translate-y-1/2 text-sm select-none">
-                          search
-                        </span>
+                {/* Tab Selector inside Right Panel */}
+                <div className="flex border-b border-surface-border/60 gap-6 my-4 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setRightPanelTab('informasi')}
+                    className={`pb-3 text-xs font-bold border-b-2 transition-all px-1 cursor-pointer ${
+                      rightPanelTab === 'informasi'
+                        ? 'border-primary text-primary font-semibold'
+                        : 'border-transparent text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    Informasi Spesifikasi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRightPanelTab('pengujian')}
+                    className={`pb-3 text-xs font-bold border-b-2 transition-all px-1 cursor-pointer ${
+                      rightPanelTab === 'pengujian'
+                        ? 'border-primary text-primary font-semibold'
+                        : 'border-transparent text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    Jenis Pengujian ({selectedTestTypeIds.length})
+                  </button>
+                </div>
+
+                <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4 min-h-0">
+                  {rightPanelTab === 'informasi' && (
+                    <div className="space-y-3 shrink-0 animate-fade-in">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1.5 border-b border-surface-border">
+                      <h3 className="text-xs font-bold text-on-surface uppercase tracking-wide">
+                        Parameter Informasi Spesifikasi
+                      </h3>
+                    </div>
+
+                    <div className="bg-white rounded-xl border border-surface-border p-4 shadow-sm max-w-xl space-y-3">
+                      <div className="border border-surface-border rounded-lg overflow-hidden bg-white shadow-sm">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-surface-container-low border-b border-surface-border font-mono text-[9px] uppercase font-bold text-on-surface-variant h-10">
+                              <th className="px-4 py-2 w-[70%] border-r border-surface-border">Nama Parameter</th>
+                              <th className="px-4 py-2 w-[30%] text-center">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-surface-border">
+                            {selectedInfoFields.map((item) => {
+                              const { key, placeholder } = resolveField(item);
+                              const standardField = METADATA_FIELDS.find((f) => f.key === key);
+                              const label = standardField ? standardField.label : key.toUpperCase();
+                              const isGeneral = key === 'type' || key === 'serialNumber' || key === 'mfgYear';
+
+                              return (
+                                <tr key={key} className="h-11 hover:bg-surface-container-low/10 transition-colors">
+                                  <td className="px-4 py-2 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/5 w-[70%] align-middle">
+                                    <div>{label}</div>
+                                  </td>
+                                  <td className="px-4 py-2 text-center w-[30%] align-middle">
+                                    {isGeneral ? (
+                                      <span className="text-gray-400 text-[10px] italic select-none">General (Bawaan)</span>
+                                    ) : (
+                                      <div className="flex items-center justify-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditParamOldName(label);
+                                            setEditParamOldKey(key);
+                                            setEditParamNewName(label);
+                                            setEditParamPlaceholder(placeholder);
+                                            setIsEditParamOpen(true);
+                                          }}
+                                          className="p-1 text-on-surface-variant hover:text-primary rounded hover:bg-primary/5 transition-all cursor-pointer inline-flex items-center justify-center h-7 w-7"
+                                          title="Edit Parameter"
+                                        >
+                                          <span className="material-symbols-outlined text-[15px] select-none">edit</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (confirm(`Apakah Anda yakin ingin menghapus parameter "${label}"?`)) {
+                                              setSelectedInfoFields((prev) =>
+                                                prev.filter((i) => {
+                                                  const k = typeof i === 'string' ? i : i.key;
+                                                  return k !== key;
+                                                })
+                                              );
+                                            }
+                                          }}
+                                          className="p-1 text-on-surface-variant hover:text-status-bad rounded hover:bg-status-bad/5 transition-all cursor-pointer inline-flex items-center justify-center h-7 w-7"
+                                          title="Hapus Parameter"
+                                        >
+                                          <span className="material-symbols-outlined text-[15px] select-none">delete</span>
+                                        </button>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {selectedInfoFields.length === 0 && (
+                              <tr>
+                                <td colSpan={2} className="text-center py-4 text-on-surface-variant italic text-[11px]">
+                                  Belum ada parameter spesifikasi aktif.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
                       </div>
+
+
                     </div>
                   </div>
+                )}
 
-                  {isLoading ? (
-                    <div className="flex items-center justify-center py-20 flex-1">
-                      <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                  {rightPanelTab === 'pengujian' && (
+                    <div className="flex flex-col space-y-3 animate-fade-in">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1.5 border-b border-surface-border">
+                      <h3 className="text-xs font-bold text-on-surface uppercase tracking-wide">Pilih Jenis Pengujian yang Berlaku</h3>
+                      <div className="flex items-center gap-2.5">
+                        <button
+                          onClick={handleSelectAll}
+                          className="text-xs font-semibold text-primary hover:underline focus:outline-none cursor-pointer"
+                        >
+                          {testTypes && selectedTestTypeIds.length === testTypes.length ? 'Batal Semua' : 'Pilih Semua'}
+                        </button>
+                        <div className="relative w-44">
+                          <input
+                            type="text"
+                            placeholder="Cari pengujian..."
+                            value={searchTestQuery}
+                            onChange={(e) => setSearchTestQuery(e.target.value)}
+                            className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1 px-8 pr-3 focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
+                          />
+                          <span className="material-symbols-outlined text-outline absolute left-2 top-1/2 -translate-y-1/2 text-sm select-none">
+                            search
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  ) : !filteredTestTypes || filteredTestTypes.length === 0 ? (
-                    <div className="text-center py-20 text-on-surface-variant font-medium text-xs flex-1 flex items-center justify-center">
-                      {searchTestQuery ? 'Tidak ada jenis pengujian yang cocok.' : 'Tidak ada jenis pengujian tersedia.'}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 content-start overflow-y-auto custom-scrollbar pr-1 pb-4 flex-1 min-h-0">
-                      {filteredTestTypes.map((test) => {
-                        const isChecked = selectedTestTypeIds.includes(test.id);
 
-                        return (
-                          <div
-                            key={test.id}
-                            onClick={() => handleToggleTestType(test.id)}
-                            className={`p-2.5 rounded-lg border flex items-center justify-between cursor-pointer select-none transition-all group/checkbox-row ${
-                              isChecked
-                                ? 'border-primary bg-primary-container/5 text-primary-text'
-                                : 'border-surface-border bg-white text-on-surface hover:bg-surface-container-low'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 overflow-hidden mr-2">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                readOnly
-                                className="h-4 w-4 text-primary border-surface-border rounded focus:ring-primary cursor-pointer shrink-0"
-                              />
-                              <span className="text-xs font-semibold truncate leading-none">{test.name}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="bg-surface-container text-on-surface-variant font-mono text-[9px] px-1 py-0.5 rounded border border-surface-border/50">
-                                Idx: {test.orderIndex}
-                              </span>
-                              <div
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteTestType(test);
-                                }}
-                                className="p-1 text-outline hover:text-status-bad hover:bg-status-bad/5 rounded transition-all cursor-pointer flex items-center justify-center"
-                                title="Hapus Jenis Pengujian"
-                              >
-                                <span className="material-symbols-outlined text-[14px] select-none">delete</span>
+                    {isLoading ? (
+                      <div className="flex items-center justify-center py-10">
+                        <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                      </div>
+                    ) : !filteredTestTypes || filteredTestTypes.length === 0 ? (
+                      <div className="text-center py-10 text-on-surface-variant font-medium text-xs">
+                        {searchTestQuery ? 'Tidak ada jenis pengujian yang cocok.' : 'Tidak ada jenis pengujian tersedia.'}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 content-start pr-1 pb-4">
+                        {filteredTestTypes.map((test) => {
+                          const isChecked = selectedTestTypeIds.includes(test.id);
+
+                          return (
+                            <div
+                              key={test.id}
+                              onClick={() => handleToggleTestType(test.id)}
+                              className={`p-2.5 rounded-lg border flex items-center justify-between cursor-pointer select-none transition-all group/checkbox-row ${
+                                isChecked
+                                  ? 'border-primary bg-primary-container/5 text-primary-text'
+                                  : 'border-surface-border bg-white text-on-surface hover:bg-surface-container-low'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 overflow-hidden mr-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  readOnly
+                                  className="h-4 w-4 text-primary border-surface-border rounded focus:ring-primary cursor-pointer shrink-0"
+                                />
+                                <span className="text-xs font-semibold truncate leading-none">{test.name}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditTestTypeClick(test);
+                                  }}
+                                  className="p-1 text-outline hover:text-primary hover:bg-primary/5 rounded transition-all cursor-pointer flex items-center justify-center"
+                                  title="Edit Jenis Pengujian"
+                                >
+                                  <span className="material-symbols-outlined text-[14px] select-none">edit</span>
+                                </div>
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteTestType(test);
+                                  }}
+                                  className="p-1 text-outline hover:text-status-bad hover:bg-status-bad/5 rounded transition-all cursor-pointer flex items-center justify-center"
+                                  title="Hapus Jenis Pengujian"
+                                >
+                                  <span className="material-symbols-outlined text-[14px] select-none">delete</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-surface-border">
-                  <button
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className="px-4 py-2 bg-primary text-white hover:brightness-110 rounded-lg text-xs font-bold shadow flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shrink-0"
-                  >
-                    <span className="material-symbols-outlined text-[16px] select-none">add_circle</span> Tambah Pengujian Baru
-                  </button>
+                  <div>
+                    {rightPanelTab === 'pengujian' && (
+                      <button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="px-4 py-2 bg-primary text-white hover:brightness-110 rounded-lg text-xs font-bold shadow flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shrink-0 animate-fade-in"
+                      >
+                        <span className="material-symbols-outlined text-[16px] select-none">add_circle</span> Tambah Pengujian Baru
+                      </button>
+                    )}
+                    {rightPanelTab === 'informasi' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewParamName('');
+                          setNewParamPlaceholder('');
+                          setIsAddParamOpen(true);
+                        }}
+                        className="px-4 py-2 bg-primary text-white hover:brightness-110 rounded-lg text-xs font-bold shadow flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shrink-0 animate-fade-in"
+                      >
+                        <span className="material-symbols-outlined text-[16px] select-none">add_circle</span> Tambah Parameter Baru
+                      </button>
+                    )}
+                  </div>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => handleSelectGroup(selectedGroup)}
@@ -1239,8 +1489,12 @@ export default function CombinedManagePengujianPage() {
                     </button>
                     <button
                       onClick={handleSavePemetaan}
-                      disabled={saveMutation.isPending}
-                      className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                      disabled={saveMutation.isPending || !hasPemetaanChanged}
+                      className={`px-5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all ${
+                        saveMutation.isPending || !hasPemetaanChanged
+                          ? 'bg-surface-container border border-surface-border text-on-surface-variant/40 cursor-not-allowed'
+                          : 'bg-primary text-white hover:brightness-110 shadow active:scale-95 cursor-pointer'
+                      }`}
                     >
                       {saveMutation.isPending ? 'Menyimpan...' : 'Simpan Konfigurasi'}
                       {!saveMutation.isPending && (
@@ -1251,7 +1505,7 @@ export default function CombinedManagePengujianPage() {
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-xl border border-surface-border p-12 shadow-sm text-center flex flex-col items-center justify-center h-full min-h-[50vh]">
+              <div className="bg-white rounded-xl border border-surface-border p-12 shadow-sm text-center flex flex-col items-center justify-center h-[620px]">
                 <div className="h-16 w-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-4">
                   <span className="material-symbols-outlined text-3xl select-none">fact_check</span>
                 </div>
@@ -1265,152 +1519,7 @@ export default function CombinedManagePengujianPage() {
         </div>
       )}
 
-      {/* ==========================================
-          TAB CONTENT: 2. Kriteria Ambang Batas
-          ========================================== */}
-      {activeTab === 'kriteria' && (
-        <div className="space-y-6 animate-fade-in">
-          {/* Filter & Standard Section */}
-          <div className="bg-white border border-surface-border rounded-xl shadow-xs p-4">
-            <div className="flex flex-col md:flex-row md:items-end gap-4">
-              {/* Select Dropdown */}
-              <div className="flex-1">
-                <label className="block font-mono text-[10px] font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider">
-                  Pilih Jenis Pengujian
-                </label>
-                <div className="relative">
-                  {isTestTypesLoading ? (
-                    <div className="h-9 bg-surface-container-low animate-pulse rounded-lg" />
-                  ) : (
-                    <select 
-                      value={activeCriteriaTestTypeId}
-                      onChange={(e) => setCriteriaTestTypeId(e.target.value)}
-                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 pr-8 text-sm font-semibold text-primary focus:border-primary focus:ring-0 appearance-none cursor-pointer transition-all"
-                    >
-                      {testTypes?.map((t: any) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                  )}
-                  <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-primary font-bold text-lg select-none">unfold_more</span>
-                </div>
-              </div>
 
-              {/* Standard Input Group */}
-              <div className="flex-1">
-                <label className="block font-mono text-[10px] font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider">
-                  Dasar Penilaian (Standard Referensi)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={standardText}
-                    onChange={(e) => setStandardText(e.target.value)}
-                    placeholder="Contoh: IEEE Std C57.152, IEC 60076, CIGRE445, dll"
-                    className="flex-1 bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all"
-                  />
-                  <button
-                    onClick={handleSaveStandard}
-                    disabled={updateStandardMutation.isPending}
-                    className="px-4 py-1.5 bg-primary text-white rounded-lg text-xs font-bold hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
-                  >
-                    {updateStandardMutation.isPending ? (
-                      <span className="material-symbols-outlined animate-spin text-[14px] select-none">progress_activity</span>
-                    ) : (
-                      <span className="material-symbols-outlined text-[16px] select-none">save</span>
-                    )}
-                    Simpan
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Threshold Table */}
-          <div className="bg-white border border-surface-border rounded-xl shadow-xs overflow-hidden">
-            <div className="px-4 py-3 border-b border-surface-border bg-surface-background flex flex-col sm:flex-row justify-between items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-lg select-none">tune</span>
-                <h3 className="text-sm font-bold text-on-surface">Parameter Ambang Batas (Threshold)</h3>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto custom-scrollbar">
-              {isCriteriaLoading ? (
-                <div className="flex items-center justify-center py-10">
-                  <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
-                </div>
-              ) : !criteriaList || criteriaList.length === 0 ? (
-                <div className="text-center py-10 text-on-surface-variant text-xs">Tidak ada parameter kriteria untuk pengujian ini.</div>
-              ) : (
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-surface-container-low border-b border-surface-border">
-                      <th className="px-4 py-2 font-mono text-[9px] font-bold text-on-surface-variant uppercase tracking-wider sticky left-0 bg-surface-container-low z-10 min-w-[120px]">Parameter</th>
-                      <th className="px-4 py-2 font-mono text-[9px] font-bold text-on-surface-variant uppercase tracking-wider text-center">Satuan</th>
-                      {([
-                        { label: 'Good', color: '#22C55E', score: '5' },
-                        { label: 'Fair', color: '#EAB308', score: '4' },
-                        { label: 'Poor', color: '#F97316', score: '2' },
-                        { label: 'Bad', color: '#EF4444', score: '1' },
-                      ] as const).map((col) => (
-                        <th key={col.label} className="px-4 py-2 min-w-[100px] text-center">
-                          <div className="flex flex-col items-center">
-                            <span className="px-1.5 py-0.5 rounded-full font-mono text-[9px] font-bold uppercase" style={{ backgroundColor: `${col.color}15`, color: col.color }}>
-                              {col.label}
-                            </span>
-                            <span className="text-[9px] text-on-surface-variant/80 mt-0.5">(Score {col.score})</span>
-                          </div>
-                        </th>
-                      ))}
-                      <th className="px-4 py-2 font-mono text-[9px] font-bold text-on-surface-variant uppercase tracking-wider text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-surface-border">
-                    {criteriaList.map((row: CriteriaRow) => (
-                      <tr key={row.criteriaId} className="hover:bg-surface-container-lowest transition-colors group">
-                        <td className="px-4 py-1.5 text-xs font-bold text-on-surface sticky left-0 bg-white group-hover:bg-surface-container-lowest z-10">{row.parameterName}</td>
-                        <td className="px-4 py-1.5 font-mono text-xs text-on-surface-variant text-center font-bold">{row.unit || '—'}</td>
-                        
-                        <td className="px-4 py-1.5">
-                          <div className="flex items-center justify-center py-0.5 px-1.5 rounded border font-mono font-bold text-center text-[11px]" style={{ backgroundColor: '#22C55E08', borderColor: '#22C55E20', color: '#22C55E' }}>
-                            {row.goodValue || 'N/A'}
-                          </div>
-                        </td>
-                        <td className="px-4 py-1.5">
-                          <div className="flex items-center justify-center py-0.5 px-1.5 rounded border font-mono font-bold text-center text-[11px]" style={{ backgroundColor: '#EAB30808', borderColor: '#EAB30820', color: '#EAB308' }}>
-                            {row.fairValue || 'N/A'}
-                          </div>
-                        </td>
-                        <td className="px-4 py-1.5">
-                          <div className="flex items-center justify-center py-0.5 px-1.5 rounded border font-mono font-bold text-center text-[11px]" style={{ backgroundColor: '#F9731608', borderColor: '#F9731620', color: '#F97316' }}>
-                            {row.poorValue || 'N/A'}
-                          </div>
-                        </td>
-                        <td className="px-4 py-1.5">
-                          <div className="flex items-center justify-center py-0.5 px-1.5 rounded border font-mono font-bold text-center text-[11px]" style={{ backgroundColor: '#EF444408', borderColor: '#EF444420', color: '#EF4444' }}>
-                            {row.badValue || 'N/A'}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-1.5 text-right">
-                          <button 
-                            onClick={() => startEditCriteria(row)}
-                            className="p-1 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded transition-all cursor-pointer" 
-                            title="Edit Kriteria"
-                          >
-                            <span className="material-symbols-outlined text-[16px] select-none">edit</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ==========================================
           TAB CONTENT: 4. Damage Mechanism Mapping
@@ -1649,8 +1758,12 @@ export default function CombinedManagePengujianPage() {
                   </button>
                   <button
                     onClick={handleSaveDmPemetaan}
-                    disabled={saveDmMutation.isPending}
-                    className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                    disabled={saveDmMutation.isPending || !hasDmPemetaanChanged}
+                    className={`px-5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all ${
+                      saveDmMutation.isPending || !hasDmPemetaanChanged
+                        ? 'bg-surface-container border border-surface-border text-on-surface-variant/40 cursor-not-allowed'
+                        : 'bg-primary text-white hover:brightness-110 shadow active:scale-95 cursor-pointer'
+                    }`}
                   >
                     {saveDmMutation.isPending ? 'Menyimpan...' : 'Simpan Konfigurasi'}
                     {!saveDmMutation.isPending && (
@@ -1787,13 +1900,18 @@ export default function CombinedManagePengujianPage() {
           <div className="bg-white rounded-xl shadow-xl border border-surface-border max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-fade-in">
             <div className="p-4 border-b border-surface-border bg-surface-background flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary select-none">add_box</span>
-                <h3 className="text-sm font-bold text-on-surface uppercase tracking-wider">Tambah Jenis Pengujian Baru</h3>
+                <span className="material-symbols-outlined text-primary select-none">
+                  {editingTestType ? 'edit_note' : 'add_box'}
+                </span>
+                <h3 className="text-sm font-bold text-on-surface uppercase tracking-wider">
+                  {editingTestType ? 'Edit Jenis Pengujian' : 'Tambah Jenis Pengujian Baru'}
+                </h3>
               </div>
               <button
                 onClick={() => {
                   setIsCreateModalOpen(false);
                   resetCreateModalState();
+                  setEditingTestType(null);
                 }}
                 className="text-on-surface-variant hover:text-on-surface rounded p-1 hover:bg-surface-container transition-all cursor-pointer"
               >
@@ -1943,6 +2061,7 @@ export default function CombinedManagePengujianPage() {
                   onClick={() => {
                     setIsCreateModalOpen(false);
                     resetCreateModalState();
+                    setEditingTestType(null);
                   }}
                   className="px-4.5 py-2 border border-outline-variant rounded-lg font-bold text-xs text-on-surface hover:bg-surface-container-low transition-all active:scale-95 cursor-pointer"
                 >
@@ -1950,13 +2069,13 @@ export default function CombinedManagePengujianPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={createTestTypeMutation.isPending}
+                  disabled={createTestTypeMutation.isPending || updateTestTypeMutation.isPending}
                   className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow-md shadow-primary/10 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  {createTestTypeMutation.isPending && (
+                  {(createTestTypeMutation.isPending || updateTestTypeMutation.isPending) && (
                     <span className="material-symbols-outlined animate-spin text-[14px] select-none">progress_activity</span>
                   )}
-                  Simpan Pengujian
+                  {editingTestType ? 'Simpan Perubahan' : 'Simpan Pengujian'}
                 </button>
               </div>
             </form>
@@ -1964,74 +2083,7 @@ export default function CombinedManagePengujianPage() {
         </div>
       )}
 
-      {/* Modal: Edit Criteria Thresholds */}
-      {editingCriteria && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl border border-surface-border p-6 max-w-lg w-full mx-4 animate-fade-in">
-            <h3 className="text-sm font-bold text-on-surface mb-1">Edit Kriteria: {editingCriteria.parameterName}</h3>
-            <p className="text-[10px] text-on-surface-variant mb-6">
-              Nilai disimpan sebagai string untuk mendukung formula/operator. Contoh: &quot;&gt;= 2&quot; atau &quot;1.25 - 1.99&quot;.
-            </p>
-            <form onSubmit={handleSaveCriteria} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-[#22C55E] uppercase">Good (Score 5)</label>
-                  <input
-                    type="text"
-                    value={goodValue}
-                    onChange={(e) => setGoodValue(e.target.value)}
-                    className="w-full bg-white border border-surface-border rounded-lg p-2 text-xs focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-[#EAB308] uppercase">Fair (Score 4)</label>
-                  <input
-                    type="text"
-                    value={fairValue}
-                    onChange={(e) => setFairValue(e.target.value)}
-                    className="w-full bg-white border border-surface-border rounded-lg p-2 text-xs focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-[#F97316] uppercase">Poor (Score 2)</label>
-                  <input
-                    type="text"
-                    value={poorValue}
-                    onChange={(e) => setPoorValue(e.target.value)}
-                    className="w-full bg-white border border-surface-border rounded-lg p-2 text-xs focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-[#EF4444] uppercase">Bad (Score 1)</label>
-                  <input
-                    type="text"
-                    value={badValue}
-                    onChange={(e) => setBadValue(e.target.value)}
-                    className="w-full bg-white border border-surface-border rounded-lg p-2 text-xs focus:outline-none focus:border-primary"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex justify-end gap-3 pt-4 border-t border-surface-border">
-                <button
-                  type="button"
-                  onClick={() => setEditingCriteria(null)}
-                  className="px-4 py-2 border border-outline-variant rounded-lg text-xs font-semibold hover:bg-surface-container-low transition-colors cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={updateCriteriaMutation.isPending}
-                  className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-semibold hover:brightness-110 transition-colors active:scale-95 disabled:opacity-50 cursor-pointer"
-                >
-                  {updateCriteriaMutation.isPending ? 'Menyimpan...' : 'Simpan Versi Baru'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+
       {/* Modal: Tambah Jenis Aset Baru dari Sidebar */}
       {isAddEquipmentTypeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -2041,7 +2093,7 @@ export default function CombinedManagePengujianPage() {
             </h3>
             
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const newName = newEquipmentTypeName.trim();
                 if (!newName) return;
@@ -2052,23 +2104,32 @@ export default function CombinedManagePengujianPage() {
                   return;
                 }
 
-                const updatedList = [...extraEquipmentTypes, newName];
-                setExtraEquipmentTypes(updatedList);
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem('app_custom_equipment_types', JSON.stringify(updatedList));
+                try {
+                  const res = await fetch('/api/master/jenis-asset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName, category: 'Trafo' }),
+                  });
+                  if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || 'Gagal menambahkan jenis aset');
+                  }
+                  const json = await res.json();
+                  const newGroup: EquipmentTypeGroup = {
+                    id: json.data.id,
+                    name: newName,
+                    testTypes: [],
+                    assetIds: []
+                  };
+                  setSelectedGroup(newGroup);
+                  setSelectedTestTypeIds([]);
+                  queryClient.invalidateQueries({ queryKey: ['jenis-asset'] });
+                  setIsAddEquipmentTypeOpen(false);
+                  setNewEquipmentTypeName('');
+                  alert(`Jenis aset baru "${newName}" berhasil ditambahkan! Silakan tentukan jenis pengujian yang berlaku.`);
+                } catch (err: any) {
+                  alert(err.message || 'Terjadi kesalahan saat menambahkan jenis aset baru.');
                 }
-
-                const newGroup: EquipmentTypeGroup = {
-                  name: newName,
-                  testTypes: [],
-                  assetIds: []
-                };
-                setSelectedGroup(newGroup);
-                setSelectedTestTypeIds([]);
-
-                setIsAddEquipmentTypeOpen(false);
-                setNewEquipmentTypeName('');
-                alert(`Jenis aset baru "${newName}" berhasil ditambahkan! Silakan tentukan jenis pengujian yang berlaku.`);
               }}
               className="space-y-6 text-xs"
             >
@@ -2079,7 +2140,7 @@ export default function CombinedManagePengujianPage() {
                 <input
                   type="text"
                   required
-                  placeholder="Contoh: Trafo Start, Generator, dll"
+                  placeholder="Contoh: Trafo Start, Emergency Generator, dll"
                   value={newEquipmentTypeName}
                   onChange={(e) => setNewEquipmentTypeName(e.target.value)}
                   className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm"
@@ -2099,6 +2160,254 @@ export default function CombinedManagePengujianPage() {
                   className="px-5 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:brightness-110 shadow-md shadow-primary/10 transition-all active:scale-95 cursor-pointer"
                 >
                   Simpan Jenis Aset
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Jenis Aset Baru dari Sidebar */}
+      {isEditEquipmentTypeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-surface-border p-7 max-w-md w-full mx-4 animate-fade-in">
+            <h3 className="text-base font-bold text-on-surface mb-5">
+              Edit Jenis Aset (Equipment Type)
+            </h3>
+            
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const name = editEquipmentTypeName.trim();
+                if (!name || !editingEquipmentType) return;
+
+                const exists = equipmentGroups.some(
+                  g => g.name.toLowerCase() === name.toLowerCase() && g.id !== editingEquipmentType.id
+                );
+                if (exists) {
+                  alert(`Jenis aset "${name}" sudah terdaftar.`);
+                  return;
+                }
+
+                editEquipmentTypeMutation.mutate({
+                  id: editingEquipmentType.id,
+                  name: name
+                });
+              }}
+              className="space-y-6 text-xs"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-2">
+                  Nama Jenis Aset <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Trafo Start, Emergency Generator, dll"
+                  value={editEquipmentTypeName}
+                  onChange={(e) => setEditEquipmentTypeName(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-5 border-t border-surface-border">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditEquipmentTypeOpen(false);
+                    setEditingEquipmentType(null);
+                    setEditEquipmentTypeName('');
+                  }}
+                  className="px-4.5 py-2 border border-outline-variant rounded-lg text-xs font-bold text-on-surface hover:bg-surface-container-low transition-all active:scale-95 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={editEquipmentTypeMutation.isPending}
+                  className="px-5 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:brightness-110 shadow-md shadow-primary/10 transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {editEquipmentTypeMutation.isPending && (
+                    <span className="material-symbols-outlined animate-spin text-[14px] select-none">progress_activity</span>
+                  )}
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Tambah Parameter Baru */}
+      {isAddParamOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-surface-border p-7 max-w-md w-full mx-4 animate-fade-in">
+            <h3 className="text-base font-bold text-on-surface mb-5">
+              Tambah Parameter Spesifikasi Baru
+            </h3>
+            
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const name = newParamName.trim();
+                if (!name) return;
+                const cleanKey = name.toLowerCase();
+                const placeholder = newParamPlaceholder.trim();
+                
+                const exists = selectedInfoFields.some((item) => {
+                  const itemKey = typeof item === 'string' ? item : item.key;
+                  return itemKey.toLowerCase() === cleanKey.toLowerCase();
+                });
+                if (exists) {
+                  alert('Parameter tersebut sudah terdaftar.');
+                  return;
+                }
+                
+                const newItem = placeholder ? { key: cleanKey, placeholder } : cleanKey;
+                setSelectedInfoFields((prev) => [...prev, newItem]);
+                setIsAddParamOpen(false);
+                setNewParamName('');
+                setNewParamPlaceholder('');
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1.5">
+                  Nama Parameter <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Ketebalan Oli, Kapasitas Tangki, dll"
+                  value={newParamName}
+                  onChange={(e) => setNewParamName(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1.5">
+                  Contoh Nilai (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 10 mm, 500 kVA, dll"
+                  value={newParamPlaceholder}
+                  onChange={(e) => setNewParamPlaceholder(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-5 border-t border-surface-border">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddParamOpen(false);
+                    setNewParamName('');
+                    setNewParamPlaceholder('');
+                  }}
+                  className="px-4.5 py-2 border border-outline-variant rounded-lg text-xs font-bold text-on-surface hover:bg-surface-container-low transition-all active:scale-95 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:brightness-110 shadow-md shadow-primary/10 transition-all active:scale-95 cursor-pointer"
+                >
+                  Simpan Parameter
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Parameter */}
+      {isEditParamOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-surface-border p-7 max-w-md w-full mx-4 animate-fade-in">
+            <h3 className="text-base font-bold text-on-surface mb-5">
+              Edit Parameter Spesifikasi
+            </h3>
+            
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const newName = editParamNewName.trim();
+                if (!newName) return;
+                const newKey = newName.toLowerCase();
+                const placeholder = editParamPlaceholder.trim();
+                
+                const exists = selectedInfoFields.some((item) => {
+                  const itemKey = typeof item === 'string' ? item : item.key;
+                  return itemKey.toLowerCase() === newKey.toLowerCase() && itemKey.toLowerCase() !== editParamOldKey.toLowerCase();
+                });
+                if (exists) {
+                  alert('Parameter dengan nama tersebut sudah ada.');
+                  return;
+                }
+                
+                const newItem = placeholder ? { key: newKey, placeholder } : newKey;
+                setSelectedInfoFields((prev) =>
+                  prev.map((item) => {
+                    const itemKey = typeof item === 'string' ? item : item.key;
+                    return itemKey.toLowerCase() === editParamOldKey.toLowerCase() ? newItem : item;
+                  })
+                );
+                setIsEditParamOpen(false);
+                setEditParamOldName('');
+                setEditParamOldKey('');
+                setEditParamNewName('');
+                setEditParamPlaceholder('');
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1.5">
+                  Nama Parameter <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Ketebalan Oli, Kapasitas Tangki, dll"
+                  value={editParamNewName}
+                  onChange={(e) => setEditParamNewName(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1.5">
+                  Contoh Nilai (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 10 mm, 500 kVA, dll"
+                  value={editParamPlaceholder}
+                  onChange={(e) => setEditParamPlaceholder(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2.5 px-3.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-5 border-t border-surface-border">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditParamOpen(false);
+                    setEditParamOldName('');
+                    setEditParamOldKey('');
+                    setEditParamNewName('');
+                    setEditParamPlaceholder('');
+                  }}
+                  className="px-4.5 py-2 border border-outline-variant rounded-lg text-xs font-bold text-on-surface hover:bg-surface-container-low transition-all active:scale-95 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:brightness-110 shadow-md shadow-primary/10 transition-all active:scale-95 cursor-pointer"
+                >
+                  Simpan Perubahan
                 </button>
               </div>
             </form>
