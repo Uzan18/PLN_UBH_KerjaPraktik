@@ -44,30 +44,34 @@ export async function GET(request: Request) {
 
     const [logs, total] = await qb.getManyAndCount();
 
-    // Get unique user IDs and fetch user names in bulk
-    const userIds = [...new Set(logs.map((l) => l.userId))];
-    const users = userIds.length > 0
-      ? await userRepo.createQueryBuilder('u')
-          .select(['u.id', 'u.name', 'u.role'])
-          .whereInIds(userIds)
-          .getMany()
-      : [];
+    // Fetch all users to map names and roles accurately
+    const users = await userRepo.find({
+      select: ['id', 'email', 'name', 'role'],
+    });
 
-    const userMap = new Map(users.map((u) => [u.id, { name: u.name, role: u.role }]));
+    const userMap = new Map<string, { name: string; role: string }>();
+    users.forEach((u) => {
+      userMap.set(u.id, { name: u.name, role: u.role });
+      userMap.set(u.email, { name: u.name, role: u.role });
+      userMap.set(u.name.toLowerCase(), { name: u.name, role: u.role });
+    });
 
     // Map logs with user info
-    let enrichedLogs = logs.map((log) => ({
-      id: log.id,
-      userId: log.userId,
-      userName: userMap.get(log.userId)?.name || 'Sistem',
-      userRole: userMap.get(log.userId)?.role || 'SYSTEM',
-      action: log.action,
-      entity: log.entity,
-      entityId: log.entityId,
-      beforeData: log.beforeData,
-      afterData: log.afterData,
-      createdAt: log.createdAt,
-    }));
+    let enrichedLogs = logs.map((log) => {
+      const userInfo = log.userId ? userMap.get(log.userId) || userMap.get(log.userId.toLowerCase()) : null;
+      return {
+        id: log.id,
+        userId: log.userId,
+        userName: userInfo?.name || (log.userId && log.userId !== 'system' ? 'Admin Utama' : 'Sistem'),
+        userRole: userInfo?.role || 'ADMIN',
+        action: log.action,
+        entity: log.entity,
+        entityId: log.entityId,
+        beforeData: log.beforeData,
+        afterData: log.afterData,
+        createdAt: log.createdAt,
+      };
+    });
 
     // Apply search filter on userName (client-side since it's a join)
     if (searchQuery) {

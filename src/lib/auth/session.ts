@@ -38,6 +38,11 @@ export async function getServerSession(): Promise<AppSession | null> {
     if (!user || !user.isActive) {
       return null;
     }
+
+    // Always attach fresh DB user properties (id, name, role) to the session object
+    (session.user as any).id = user.id;
+    (session.user as any).name = user.name;
+    (session.user as any).role = user.role;
   } catch (err) {
     console.error('[Session] Failed to verify user existence in database:', err);
   }

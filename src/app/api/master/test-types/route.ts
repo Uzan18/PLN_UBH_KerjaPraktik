@@ -5,6 +5,7 @@ import { TestType } from '@/entities/TestType';
 import { Parameter } from '@/entities/Parameter';
 import { Criteria } from '@/entities/Criteria';
 import { TestResult } from '@/entities/TestResult';
+import { AuditLog } from '@/entities/AuditLog';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
 
@@ -154,6 +155,18 @@ export async function PUT(request: Request) {
       }
     }
 
+    // Record Audit Log
+    const auditRepo = db.getRepository(AuditLog);
+    const auditLog = auditRepo.create({
+      userId: session.user.id,
+      action: 'UPDATE',
+      entity: 'JenisAssetTestType',
+      entityId: testType.id,
+      beforeData: JSON.stringify({ name: testType.name, standard: testType.standard }),
+      afterData: JSON.stringify({ name: testType.name, standard: testType.standard, parameterCount: parameters?.length }),
+    });
+    await auditRepo.save(auditLog);
+
     return NextResponse.json({ success: true, data: testType });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal Server Error';
@@ -232,6 +245,18 @@ export async function POST(request: Request) {
       await criteriaRepo.save(criteria);
     }
 
+    // Record Audit Log
+    const auditRepo = db.getRepository(AuditLog);
+    const auditLog = auditRepo.create({
+      userId: session.user.id,
+      action: 'CREATE',
+      entity: 'JenisAssetTestType',
+      entityId: testType.id,
+      beforeData: null,
+      afterData: JSON.stringify({ name: testType.name, standard: testType.standard, parameterCount: parameters.length }),
+    });
+    await auditRepo.save(auditLog);
+
     return NextResponse.json({ success: true, data: testType }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal Server Error';
@@ -283,6 +308,18 @@ export async function DELETE(request: Request) {
 
     // Delete testType
     await testTypeRepo.delete({ id });
+
+    // Record Audit Log
+    const auditRepo = db.getRepository(AuditLog);
+    const auditLog = auditRepo.create({
+      userId: session.user.id,
+      action: 'DELETE',
+      entity: 'JenisAssetTestType',
+      entityId: id,
+      beforeData: JSON.stringify({ name: testType.name }),
+      afterData: null,
+    });
+    await auditRepo.save(auditLog);
 
     return NextResponse.json({ success: true, data: { id } });
   } catch (error) {
