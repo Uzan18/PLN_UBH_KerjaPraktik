@@ -1995,15 +1995,28 @@ export default function CombinedManagePengujianPage() {
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-between items-center border-t border-surface-border">
-                <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider">Parameter & Ambang Batas (Threshold)</h4>
-                <button
-                  type="button"
-                  onClick={handleAddParamRow}
-                  className="px-2.5 py-1 border border-primary text-primary hover:bg-primary/5 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
-                >
-                  <span className="material-symbols-outlined text-[12px] select-none">add</span> Tambah Parameter
-                </button>
+              <div className="pt-2 space-y-2 border-t border-surface-border">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider">Parameter & Ambang Batas (Threshold)</h4>
+                  <button
+                    type="button"
+                    onClick={handleAddParamRow}
+                    className="px-2.5 py-1 border border-primary text-primary hover:bg-primary/5 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-[12px] select-none">add</span> Tambah Parameter
+                  </button>
+                </div>
+
+                <div className="p-2.5 bg-blue-50/80 border border-blue-200/90 rounded-lg text-[11px] text-blue-900/90 leading-relaxed flex items-start gap-2 shadow-xs">
+                  <span className="material-symbols-outlined text-[16px] text-blue-600 shrink-0 mt-0.5 select-none">info</span>
+                  <div>
+                    <span className="font-bold text-blue-950">Petunjuk Pengisian Ambang Batas:</span>
+                    <ul className="list-disc list-inside mt-1 space-y-1 text-[10.5px]">
+                      <li><b>Mode Pengisian Angka</b>: Gunakan notasi matematis (seperti <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-[10px]">&gt; 100</code>, <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-[10px]">&lt; 0.5</code>, <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-[10px]">0.51 - 0.7</code>) serta 4 kata kunci penghubung resmi: <code className="bg-white px-1 font-bold text-blue-700 rounded border border-blue-200 font-mono text-[10px]">AND</code>, <code className="bg-white px-1 font-bold text-blue-700 rounded border border-blue-200 font-mono text-[10px]">OR</code>, <code className="bg-white px-1 font-bold text-blue-700 rounded border border-blue-200 font-mono text-[10px]">DAN</code>, <code className="bg-white px-1 font-bold text-blue-700 rounded border border-blue-200 font-mono text-[10px]">ATAU</code> (contoh: <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-[10px]">&gt; 100 OR &lt; 0</code>, <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-[10px]">&gt; 0 DAN &lt; 50</code>).</li>
+                      <li><b>Mode Pemilihan (Dropdown)</b>: Jika ambang batas mengandung kata deskriptif selain 4 kata kunci di atas (seperti <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-[10px]">JERNIH ATAU BENING</code>, <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-[10px]">NORMAL</code>, <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-[10px]">TIDAK ADA</code>), maka parameter akan otomatis menjadi <b>Mode Pemilihan (Dropdown Select Box)</b> pada form pengujian.</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-3.5 max-h-[40vh] overflow-y-auto custom-scrollbar pr-1">
