@@ -207,6 +207,11 @@ export default function LaporanPage() {
     e.preventDefault();
     if (!selectedFile || !currentFolderId) return;
 
+    if (selectedFile.size > 20 * 1024 * 1024) {
+      setErrorMsg('Ukuran file melebihi batas maksimum 20MB.');
+      return;
+    }
+
     setIsActionLoading(true);
     setErrorMsg(null);
     try {
