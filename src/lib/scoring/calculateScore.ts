@@ -126,6 +126,22 @@ export function evaluateQualitative(numValue: number, criteriaStr: string | null
  * 
  * Mengembalikan null jika parameter bernilai N/A.
  */
+function getThresholdSpecificity(t: ParsedThreshold): number {
+  // 1. Both min and max set (e.g. "0.51 - 0.7"): width of range
+  if (t.min !== null && t.max !== null) {
+    return Math.abs(t.max - t.min);
+  }
+  // 2. Only max set (e.g. "< 0.5" or "< 1"): absolute max bound
+  if (t.max !== null) {
+    return Math.abs(t.max);
+  }
+  // 3. Only min set (e.g. ">= 100" vs ">= 10"): reciprocal so higher min bound has smaller value (tighter)
+  if (t.min !== null) {
+    return 1 / (Math.abs(t.min) + 0.0001);
+  }
+  return 999999;
+}
+
 export function calculateScore(
   value: number | null,
   isNotApplicable: boolean,
@@ -150,52 +166,40 @@ export function calculateScore(
   const poor = parseThresholdBound(poorValue);
   const bad = parseThresholdBound(badValue);
 
-  // Check Good first (highest score)
-  if (good) {
-    if (matchesThreshold(numValue, good)) return 5;
-  } else if (goodValue) {
-    const mapped = mapQualitativeValueToNumber(goodValue);
-    if (mapped !== null) {
-      if (numValue === mapped) return 5;
-    } else {
-      if (numValue === 0) return 5;
+  const candidates: { score: number; specificity: number }[] = [];
+
+  const levels = [
+    { bound: good, valStr: goodValue, score: 5, defaultQual: 0 },
+    { bound: fair, valStr: fairValue, score: 4, defaultQual: 1 },
+    { bound: poor, valStr: poorValue, score: 2, defaultQual: 2 },
+    { bound: bad, valStr: badValue, score: 1, defaultQual: 3 },
+  ];
+
+  for (const lvl of levels) {
+    if (lvl.bound) {
+      if (matchesThreshold(numValue, lvl.bound)) {
+        candidates.push({ score: lvl.score, specificity: getThresholdSpecificity(lvl.bound) });
+      }
+    } else if (lvl.valStr) {
+      const mapped = mapQualitativeValueToNumber(lvl.valStr);
+      if (mapped !== null) {
+        if (numValue === mapped) candidates.push({ score: lvl.score, specificity: 0 });
+      } else {
+        if (numValue === lvl.defaultQual) candidates.push({ score: lvl.score, specificity: 0 });
+      }
     }
   }
 
-  // Check Fair next
-  if (fair) {
-    if (matchesThreshold(numValue, fair)) return 4;
-  } else if (fairValue) {
-    const mapped = mapQualitativeValueToNumber(fairValue);
-    if (mapped !== null) {
-      if (numValue === mapped) return 4;
-    } else {
-      if (numValue === 1) return 4;
-    }
-  }
-
-  // Check Poor next
-  if (poor) {
-    if (matchesThreshold(numValue, poor)) return 2;
-  } else if (poorValue) {
-    const mapped = mapQualitativeValueToNumber(poorValue);
-    if (mapped !== null) {
-      if (numValue === mapped) return 2;
-    } else {
-      if (numValue === 2) return 2;
-    }
-  }
-
-  // Check Bad last
-  if (bad) {
-    if (matchesThreshold(numValue, bad)) return 1;
-  } else if (badValue) {
-    const mapped = mapQualitativeValueToNumber(badValue);
-    if (mapped !== null) {
-      if (numValue === mapped) return 1;
-    } else {
-      if (numValue === 3) return 1;
-    }
+  if (candidates.length > 0) {
+    // Sort candidates: smallest specificity (tightest range) first.
+    // If specificities are equal, higher score first.
+    candidates.sort((a, b) => {
+      if (Math.abs(a.specificity - b.specificity) > 0.00001) {
+        return a.specificity - b.specificity;
+      }
+      return b.score - a.score;
+    });
+    return candidates[0].score;
   }
 
   // Default: if value didn't match any range, consider it Bad (worst case, safe default)
