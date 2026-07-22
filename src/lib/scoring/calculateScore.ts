@@ -75,6 +75,26 @@ function parseSingleBound(valStr: string): SingleThresholdBound | null {
 }
 
 /**
+ * Determines if a threshold string represents a numeric mathematical condition 
+ * (e.g. "> 100", "0.5 - 0.7", "< 0.5", ">= 100 OR < 0") vs descriptive qualitative text ("Jernih", "Bocor", etc.).
+ */
+function isNumericCondition(str: string): boolean {
+  if (!str) return false;
+  const trimmed = str.trim();
+  
+  // Contains math comparison operators: >, <, >=, <=, ≥, ≤
+  if (/[><=≥≤]/.test(trimmed)) return true;
+  
+  // Contains number range pattern: "10 - 20" or "0.5 - 0.7"
+  if (/^[\d.-]+\s*-\s*[\d.-]+$/.test(trimmed)) return true;
+  
+  // Is a plain number: "0.5", "100", "-5"
+  if (/^[\d.-]+$/.test(trimmed)) return true;
+  
+  return false;
+}
+
+/**
  * Parse a threshold string supporting single bounds, ranges, and compound operators (AND / OR).
  * Supported syntax examples:
  * - Multi-condition OR:  "> 100 OR < 0", "> 100 || < 0", "> 100 ; < 0", "> 100 atau < 0"
@@ -84,8 +104,9 @@ function parseThresholdBound(value: string | null): ParsedThreshold | null {
   if (!value || value.trim().toUpperCase() === 'NA') return null;
   const raw = value.trim();
 
-  // Prevent conflict with qualitative drop-down strings (e.g. "NORMAL", "TIDAK ADA", "GOOD", etc.)
-  if (mapQualitativeValueToNumber(raw) !== null) {
+  // If the threshold string is NOT a numeric math condition (i.e. it's descriptive text like "Jernih", "Bocor", etc.)
+  // Return null so it is handled exclusively by qualitative text matching.
+  if (!isNumericCondition(raw)) {
     return null;
   }
 
@@ -166,14 +187,37 @@ export function mapQualitativeValueToNumber(valStr: string): number | null {
   return null;
 }
 
+/**
+ * Universal qualitative text matching supporting custom drop-down strings ("Jernih", "Bocor", etc.).
+ */
+export function matchesQualitativeText(inputVal: any, targetThreshold: string | null): boolean {
+  if (!targetThreshold || inputVal === null || inputVal === undefined) return false;
+
+  const targetClean = targetThreshold.trim().toUpperCase();
+  const inputStr = String(inputVal).trim().toUpperCase();
+
+  // 1. Direct text equality match (e.g. input "JERNIH" === target "JERNIH")
+  if (inputStr === targetClean) return true;
+
+  // 2. Predefined PLN dictionary mapping lookup (e.g. input "NORMAL" -> 0, target "TIDAK ADA" -> 0)
+  const inputNum = mapQualitativeValueToNumber(inputStr);
+  const targetNum = mapQualitativeValueToNumber(targetClean);
+  if (inputNum !== null && targetNum !== null && inputNum === targetNum) {
+    return true;
+  }
+
+  // 3. Multi-option qualitative support (e.g. target "JERNIH OR BENING" or "JERNIH ; BENING")
+  const targetParts = targetClean.split(/\s+(?:OR|\|\||atau)\s+|\s*;\s*/i);
+  if (targetParts.length > 1) {
+    return targetParts.some((p) => matchesQualitativeText(inputVal, p));
+  }
+
+  return false;
+}
+
 export function evaluateQualitative(numValue: number, criteriaStr: string | null): boolean {
   if (!criteriaStr) return false;
-  const mapped = mapQualitativeValueToNumber(criteriaStr);
-  if (mapped === null) {
-    const parsed = parseFloat(criteriaStr);
-    return !isNaN(parsed) && numValue === parsed;
-  }
-  return numValue === mapped;
+  return matchesQualitativeText(numValue, criteriaStr);
 }
 
 function getThresholdSpecificity(t: ParsedThreshold): number {
@@ -247,11 +291,8 @@ export function calculateScore(
         candidates.push({ score: lvl.score, specificity: getThresholdSpecificity(lvl.bound) });
       }
     } else if (lvl.valStr) {
-      const mapped = mapQualitativeValueToNumber(lvl.valStr);
-      if (mapped !== null) {
-        if (numValue === mapped) candidates.push({ score: lvl.score, specificity: 0 });
-      } else {
-        if (numValue === lvl.defaultQual) candidates.push({ score: lvl.score, specificity: 0 });
+      if (matchesQualitativeText(value, lvl.valStr) || numValue === lvl.defaultQual) {
+        candidates.push({ score: lvl.score, specificity: 0 });
       }
     }
   }
