@@ -23,8 +23,8 @@ function isCompoundThreshold(t: ParsedThreshold): t is CompoundThreshold {
 function parseSingleBound(valStr: string): SingleThresholdBound | null {
   const trimmed = valStr.trim().replace(/≥/g, '>=').replace(/≤/g, '<=').replace(',', '.');
 
-  // Handle ">= X" or "> X" (supporting negative numbers)
-  const geMatch = trimmed.match(/^(>=?)\s*([\d.-]+)$/);
+  // Handle ">= X" or "> X" (supporting optional label text like "TOMBOL > 5")
+  const geMatch = trimmed.match(/(>=?)\s*([\d.-]+)/);
   if (geMatch) {
     const op = geMatch[1];
     const val = parseFloat(geMatch[2]);
@@ -36,8 +36,8 @@ function parseSingleBound(valStr: string): SingleThresholdBound | null {
     };
   }
 
-  // Handle "<= X" or "< X" (supporting negative numbers)
-  const leMatch = trimmed.match(/^(<=?)\s*([\d.-]+)$/);
+  // Handle "<= X" or "< X" (supporting optional label text like "TOMBOL < 5")
+  const leMatch = trimmed.match(/(<=?)\s*([\d.-]+)/);
   if (leMatch) {
     const op = leMatch[1];
     const val = parseFloat(leMatch[2]);
