@@ -144,7 +144,7 @@ export default function DashboardLayout({
             </h2>
           </div>
           <div className="flex items-center gap-4">
-            {userRole === 'INPUT' && (
+            {userRole === 'INPUT' && pathname !== '/input' && pathname !== '/laporan' && (
               <Link
                 href="/input"
                 className="bg-primary text-on-primary px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 active:scale-95 transition-transform hover:brightness-110"

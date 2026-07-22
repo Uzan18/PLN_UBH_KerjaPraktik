@@ -31,6 +31,8 @@ export async function GET() {
         { now, now2: now }
       )
       .orderBy('tt.orderIndex', 'ASC')
+      .addOrderBy('tt.createdAt', 'ASC')
+      .addOrderBy('tt.id', 'ASC')
       .addOrderBy('p.orderIndex', 'ASC')
       .addOrderBy('c.effective_from', 'DESC')
       .getMany();

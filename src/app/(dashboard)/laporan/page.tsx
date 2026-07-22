@@ -50,6 +50,9 @@ export default function LaporanPage() {
   // Modals State
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [isEditFolderModalOpen, setIsEditFolderModalOpen] = useState(false);
+  const [editFolderId, setEditFolderId] = useState<string | null>(null);
+  const [editFolderName, setEditFolderName] = useState('');
   const [isFileModalOpen, setIsFileModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -154,6 +157,48 @@ export default function LaporanPage() {
       alert('Gagal terhubung ke server.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Edit sub-folder (only at Level 3+)
+  const handleEditFolderClick = (dir: ReportDirectory, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditFolderId(dir.id);
+    setEditFolderName(dir.name);
+    setErrorMsg(null);
+    setIsEditFolderModalOpen(true);
+  };
+
+  const handleEditFolder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editFolderName.trim() || !editFolderId) return;
+
+    setIsActionLoading(true);
+    setErrorMsg(null);
+    try {
+      const response = await fetch('/api/reports/directories', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editFolderId,
+          name: editFolderName.trim(),
+        }),
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        setEditFolderId(null);
+        setEditFolderName('');
+        setIsEditFolderModalOpen(false);
+        fetchDirectory(currentFolderId);
+      } else {
+        setErrorMsg(result.error || 'Gagal mengubah nama folder.');
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Gagal terhubung ke server.');
+    } finally {
+      setIsActionLoading(false);
     }
   };
 
@@ -506,13 +551,22 @@ export default function LaporanPage() {
                               </span>
                             </div>
                             {isAdmin && (
-                              <button
-                                onClick={(e) => handleDeleteFolder(dir.id, e)}
-                                className="p-1 hover:bg-red-50 hover:text-red-600 text-on-surface-variant/40 rounded-md transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                                title="Hapus Folder"
-                              >
-                                <span className="material-symbols-outlined text-[18px]">delete</span>
-                              </button>
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={(e) => handleEditFolderClick(dir, e)}
+                                  className="p-1 hover:bg-[#E0E7FF] hover:text-primary text-on-surface-variant/60 rounded-md transition-colors cursor-pointer flex items-center justify-center"
+                                  title="Ubah Nama Folder"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">edit</span>
+                                </button>
+                                <button
+                                  onClick={(e) => handleDeleteFolder(dir.id, e)}
+                                  className="p-1 hover:bg-red-50 hover:text-red-600 text-on-surface-variant/40 rounded-md transition-colors cursor-pointer flex items-center justify-center"
+                                  title="Hapus Folder"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                                </button>
+                              </div>
                             )}
                           </div>
                         ))}
@@ -678,6 +732,68 @@ export default function LaporanPage() {
                     </span>
                   )}
                   Buat
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Edit Sub-Folder Modal ===== */}
+      {isEditFolderModalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-lg max-w-md w-full shadow-lg border border-surface-border overflow-hidden animate-fade-in font-sans">
+            <div className="px-6 py-4 border-b border-surface-border flex items-center justify-between">
+              <h3 className="font-bold text-on-surface text-lg font-sans">Ubah Nama Sub-Folder</h3>
+              <button
+                onClick={() => setIsEditFolderModalOpen(false)}
+                className="text-on-surface-variant/60 hover:text-on-surface cursor-pointer"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleEditFolder}>
+              <div className="p-6 space-y-4">
+                {errorMsg && (
+                  <div className="text-red-600 text-xs font-semibold bg-red-50 p-2.5 rounded border border-red-200">
+                    {errorMsg}
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono font-bold tracking-wider text-on-surface-variant uppercase">
+                    Nama Folder Baru
+                  </label>
+                  <input
+                    id="input-edit-folder-name"
+                    type="text"
+                    required
+                    placeholder="Contoh: Hasil Pengujian 2024"
+                    value={editFolderName}
+                    onChange={(e) => setEditFolderName(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-surface-border rounded-md focus:outline-none focus:border-primary bg-white text-on-surface text-sm font-sans"
+                  />
+                </div>
+              </div>
+              <div className="px-6 py-4 bg-surface-container-low border-t border-surface-border flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditFolderModalOpen(false)}
+                  className="px-4 py-2 bg-white hover:bg-surface-container border border-surface-border text-sm font-medium rounded-md text-on-surface cursor-pointer font-sans"
+                >
+                  Batal
+                </button>
+                <button
+                  id="btn-submit-edit-folder"
+                  type="submit"
+                  disabled={isActionLoading}
+                  className="px-4 py-2 bg-primary hover:bg-primary/95 disabled:opacity-50 text-sm font-medium rounded-md text-white flex items-center gap-1.5 cursor-pointer font-sans"
+                >
+                  {isActionLoading && (
+                    <span className="material-symbols-outlined animate-spin text-[16px]">
+                      progress_activity
+                    </span>
+                  )}
+                  Simpan
                 </button>
               </div>
             </form>

@@ -6,6 +6,7 @@ import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { FilterSelect } from '@/components/dashboard/FilterSelect';
 
 async function fetchTestSessions() {
   const res = await fetch('/api/test-sessions');
@@ -146,9 +147,8 @@ export default function RiwayatPage() {
   });
 
   // Extract unique filters from sessions list and master UBPs
-  const { ubpList, yearList, statusList } = useMemo(() => {
+  const { ubpList, statusList } = useMemo(() => {
     const map = new Map<string, string>();
-    const yearsSet = new Set<string>();
 
     // 1. Populate from master UBPs if loaded
     if (ubps) {
@@ -166,26 +166,53 @@ export default function RiwayatPage() {
       });
     }
 
-    // 3. Populate years (comprehensive range from 2018 to currentYear + 2)
-    const currentYear = new Date().getFullYear();
-    for (let y = currentYear + 2; y >= 2018; y--) {
-      yearsSet.add(String(y));
-    }
-    // Merge any other years present in sessions
+    return {
+      ubpList: Array.from(map.entries()).map(([id, name]) => ({ id, name })),
+      statusList: ['DRAFT', 'SUBMITTED', 'VALIDATED', 'REJECTED'],
+    };
+  }, [ubps, sessions]);
+
+  // Compute available years based on sessions matching other active filters
+  const yearList = useMemo(() => {
+    const yearsSet = new Set<string>();
     if (sessions) {
       sessions.forEach((s: any) => {
+        // Filter by searchQuery
+        if (searchQuery.trim()) {
+          const query = searchQuery.toLowerCase();
+          const unitName = (s.asset?.unitPembangkit?.name || '').toLowerCase();
+          const assetName = (s.asset?.name || '').toLowerCase();
+          const equipmentType = (s.asset?.jenisAsset?.name || '').toLowerCase();
+          const ubpName = (s.asset?.unitPembangkit?.ubp?.name || '').toLowerCase();
+          if (!unitName.includes(query) && !assetName.includes(query) && !equipmentType.includes(query) && !ubpName.includes(query)) {
+            return;
+          }
+        }
+
+        // Filter by selectedUbpId
+        if (selectedUbpId && s.asset?.unitPembangkit?.ubp?.id !== selectedUbpId) {
+          return;
+        }
+
+        // Filter by selectedStatus
+        if (selectedStatus && s.status !== selectedStatus) {
+          return;
+        }
+
         if (s.testYear) {
           yearsSet.add(String(s.testYear));
         }
       });
     }
+    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+  }, [sessions, searchQuery, selectedUbpId, selectedStatus]);
 
-    return {
-      ubpList: Array.from(map.entries()).map(([id, name]) => ({ id, name })),
-      yearList: Array.from(yearsSet).sort((a, b) => b.localeCompare(a)),
-      statusList: ['DRAFT', 'SUBMITTED', 'VALIDATED', 'REJECTED'],
-    };
-  }, [ubps, sessions]);
+  // Sync selected year filter with available years from data
+  useEffect(() => {
+    if (selectedYear && !yearList.includes(selectedYear)) {
+      setSelectedYear('');
+    }
+  }, [yearList, selectedYear]);
 
   // Filtered Sessions List
   const filteredSessions = useMemo(() => {
@@ -294,48 +321,34 @@ export default function RiwayatPage() {
             {/* Filter UBP */}
             <div className="space-y-1">
               <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">UBP</label>
-              <select
+              <FilterSelect
                 value={selectedUbpId}
-                onChange={(e) => setSelectedUbpId(e.target.value)}
-                className="w-full bg-white border border-surface-border rounded-lg text-xs py-1.5 focus:ring-1 focus:ring-primary"
-              >
-                <option value="">Semua UBP</option>
-                {ubpList.map((ubp: any) => (
-                  <option key={ubp.id} value={ubp.id}>{ubp.name}</option>
-                ))}
-              </select>
+                onChange={setSelectedUbpId}
+                options={ubpList.map((ubp: any) => ({ value: ubp.id, label: ubp.name }))}
+                placeholder="Semua UBP"
+              />
             </div>
 
             {/* Filter Tahun */}
             <div className="space-y-1">
               <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Tahun Uji</label>
-              <select
+              <FilterSelect
                 value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="w-full bg-white border border-surface-border rounded-lg text-xs py-1.5 focus:ring-1 focus:ring-primary"
-              >
-                <option value="">Semua Tahun</option>
-                {yearList.map((year: string) => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
+                onChange={setSelectedYear}
+                options={yearList.map((year: string) => ({ value: year, label: year }))}
+                placeholder="Semua Tahun"
+              />
             </div>
 
             {/* Filter Status */}
             <div className="space-y-1">
               <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Status</label>
-              <select
+              <FilterSelect
                 value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full bg-white border border-surface-border rounded-lg text-xs py-1.5 focus:ring-1 focus:ring-primary"
-              >
-                <option value="">Semua Status</option>
-                {statusList.map((status: string) => (
-                  <option key={status} value={status}>
-                    {STATUS_LABELS[status] || status}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedStatus}
+                options={statusList.map((status: string) => ({ value: status, label: STATUS_LABELS[status] || status }))}
+                placeholder="Semua Status"
+              />
             </div>
 
             {/* Clear Filters Button */}
@@ -637,11 +650,11 @@ export default function RiwayatPage() {
                               <td className="px-4 py-2 text-on-surface-variant font-medium">{r.parameter?.name}</td>
                               <td className="px-4 py-2 font-mono text-on-surface">
                                 {r.displayValue ? (
-                                  <span>{r.displayValue} <span className="text-[9px] text-outline font-sans uppercase font-bold">{r.parameter?.unit}</span></span>
+                                  <span>{r.displayValue} <span className="text-[9px] text-outline font-sans font-bold">{r.parameter?.unit}</span></span>
                                 ) : r.isNotApplicable ? (
                                   <span className="text-outline/60 italic text-[11px]">N/A</span>
                                 ) : (
-                                  <span>{r.value} <span className="text-[9px] text-outline font-sans uppercase font-bold">{r.parameter?.unit}</span></span>
+                                  <span>{r.value} <span className="text-[9px] text-outline font-sans font-bold">{r.parameter?.unit}</span></span>
                                 )}
                               </td>
                               <td className="px-4 py-2 text-center">

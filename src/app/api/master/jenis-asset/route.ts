@@ -61,9 +61,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Jenis Asset already exists under this category' }, { status: 400 });
     }
 
+    const defaultGeneralInfoFields = JSON.stringify(['manufacture', 'serialNumber', 'mfgYear']);
     const jenis = jenisRepo.create({
       name: name.trim(),
-      category: cleanCategory
+      category: cleanCategory,
+      infoFields: defaultGeneralInfoFields,
     });
     await jenisRepo.save(jenis);
 

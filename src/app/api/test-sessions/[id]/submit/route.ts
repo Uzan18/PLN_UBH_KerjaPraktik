@@ -61,7 +61,7 @@ export async function POST(
     testSession.status = 'SUBMITTED';
     const updated = await sessionRepo.save(testSession);
 
-    // Audit Log (CLAUDE.md Rule #5)
+    // Catat Audit Log submit sesi pengujian
     const auditLog = auditRepo.create({
       userId: session.user.id,
       action: 'SUBMIT_TEST_SESSION',

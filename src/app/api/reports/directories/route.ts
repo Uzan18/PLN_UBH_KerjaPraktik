@@ -322,3 +322,68 @@ async function deleteDirectoryRecursive(
   // Delete this directory record
   await dirRepo.delete(dirId);
 }
+
+/**
+ * PUT /api/reports/directories
+ * Renames a directory (sub-folder).
+ * ADMIN only.
+ */
+export async function PUT(request: Request) {
+  try {
+    const session = await getServerSession();
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    requirePermission(session.user.role, 'report:manage-folders');
+
+    const body = await request.json();
+    const { id, name } = body;
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'ID folder diperlukan' }, { status: 400 });
+    }
+
+    if (!name || name.trim() === '') {
+      return NextResponse.json({ success: false, error: 'Nama folder tidak boleh kosong' }, { status: 400 });
+    }
+
+    const db = await getDb();
+    const dirRepo = db.getRepository(ReportDirectory);
+    const auditRepo = db.getRepository(AuditLog);
+
+    const dir = await dirRepo.findOne({ where: { id } });
+    if (!dir) {
+      return NextResponse.json({ success: false, error: 'Folder tidak ditemukan' }, { status: 404 });
+    }
+
+    // Do not allow renaming root level or level 2 synced directories
+    if (!dir.parentId) {
+      return NextResponse.json({ success: false, error: 'Folder level utama tidak dapat diubah' }, { status: 400 });
+    }
+
+    const parentDir = await dirRepo.findOne({ where: { id: dir.parentId } });
+    if (parentDir && parentDir.parentId === null) {
+      return NextResponse.json({ success: false, error: 'Folder unit pembangkit tidak dapat diubah' }, { status: 400 });
+    }
+
+    const oldName = dir.name;
+    dir.name = name.trim();
+    await dirRepo.save(dir);
+
+    // Audit log
+    const auditLog = auditRepo.create({
+      userId: session.user.id,
+      action: 'UPDATE',
+      entity: 'ReportDirectory',
+      entityId: dir.id,
+      beforeData: JSON.stringify({ name: oldName }),
+      afterData: JSON.stringify({ name: dir.name }),
+    });
+    await auditRepo.save(auditLog);
+
+    return NextResponse.json({ success: true, data: dir });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}

@@ -45,11 +45,10 @@ function getMechanismScoreForSession(session: TestSession, mechanism: string): n
   if (scores.length === 0) return null;
   return Math.min(...scores);
 }
-
 /**
  * GET /api/dashboard/summary
- * Returns KPI cards data: total assets, total records, judgement distribution.
- * Only counts VALIDATED sessions (CLAUDE.md Rule #2).
+ * Mengembalikan data kartu KPI: total aset, total pengujian, dan distribusi judgement.
+ * Hanya memperhitungkan sesi pengujian berstatus VALIDATED.
  */
 export async function GET(request: Request) {
   try {

@@ -68,8 +68,8 @@ export async function GET(request: Request) {
 
 /**
  * PUT /api/master/criteria
- * Update criteria for a parameter (versioned — CLAUDE.md Rule #6).
- * Creates a new Criteria record with new effectiveFrom; does NOT overwrite old.
+ * Memperbarui kriteria parameter menggunakan sistem versi (versioned).
+ * Membuat rekam Kriteria baru dengan tanggal berlaku (effectiveFrom) tanpa menimpa data lama.
  */
 export async function PUT(request: Request) {
   try {
@@ -114,7 +114,7 @@ export async function PUT(request: Request) {
       await criteriaRepo.save(currentCriteria);
     }
 
-    // Create new criteria version (CLAUDE.md Rule #6 — versioning, not overwrite)
+    // Buat versi kriteria baru (versioning, bukan menimpa lama)
     const newCriteria = criteriaRepo.create({
       parameterId,
       goodValue: goodValue ?? null,
@@ -126,7 +126,7 @@ export async function PUT(request: Request) {
     });
     await criteriaRepo.save(newCriteria);
 
-    // Audit Log (CLAUDE.md Rule #5)
+    // Catat Audit Log pembaruan kriteria
     const auditLog = auditRepo.create({
       userId: session.user.id,
       action: 'UPDATE_CRITERIA',

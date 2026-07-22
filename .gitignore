@@ -43,5 +43,9 @@ next-env.d.ts
 # uploads
 /public/uploads/
 
+# agents & local tool files
+.agents/
+.gemini/
+
 # deployment guide
 /DEPLOYMENT.md

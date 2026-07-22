@@ -41,9 +41,8 @@ const TEST_TYPE_ORDER = [
 
 /**
  * GET /api/dashboard/matrix
- * Returns the Asset x TestType judgement matrix.
- * Only uses VALIDATED sessions (CLAUDE.md Rule #2).
- * Aggregation is worst-case (CLAUDE.md Rule #7).
+ * Mengembalikan data matriks kondisi Aset x Jenis Pengujian.
+ * Hanya memperhitungkan sesi pengujian berstatus VALIDATED dengan prinsip kondisi terburuk (Worst Case).
  */
 export async function GET(request: Request) {
   try {

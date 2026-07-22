@@ -75,8 +75,8 @@ function getMechanismScoreForSession(session: TestSession, mechanism: string): n
 
 /**
  * GET /api/assets/[id]/detail
- * Returns asset info, overall health score, and status per test type.
- * Only uses VALIDATED sessions (CLAUDE.md Rule #2).
+ * Mengembalikan informasi detail aset, status kesehatan peralatan, dan riwayat per jenis pengujian.
+ * Hanya memperhitungkan sesi pengujian berstatus VALIDATED.
  */
 export async function GET(
   request: Request,
@@ -203,15 +203,31 @@ export async function GET(
             .getOne();
 
           if (criteria) {
-            const labelOptions = [criteria.goodValue, criteria.fairValue, criteria.poorValue, criteria.badValue]
-              .filter(Boolean)
-              .map((v) => String(v).trim());
-              
-            for (const opt of labelOptions) {
-              const mapped = mapQualitativeValueToNumber(opt);
-              if (mapped !== null && mapped === valNum) {
-                displayValue = opt;
-                break;
+            let matchedOpt = null;
+            
+            if (criteria.goodValue && (mapQualitativeValueToNumber(criteria.goodValue) === valNum || (mapQualitativeValueToNumber(criteria.goodValue) === null && valNum === 0))) {
+              matchedOpt = criteria.goodValue;
+            } else if (criteria.fairValue && (mapQualitativeValueToNumber(criteria.fairValue) === valNum || (mapQualitativeValueToNumber(criteria.fairValue) === null && valNum === 1))) {
+              matchedOpt = criteria.fairValue;
+            } else if (criteria.poorValue && (mapQualitativeValueToNumber(criteria.poorValue) === valNum || (mapQualitativeValueToNumber(criteria.poorValue) === null && valNum === 2))) {
+              matchedOpt = criteria.poorValue;
+            } else if (criteria.badValue && (mapQualitativeValueToNumber(criteria.badValue) === valNum || (mapQualitativeValueToNumber(criteria.badValue) === null && valNum === 3))) {
+              matchedOpt = criteria.badValue;
+            }
+            
+            if (matchedOpt !== null) {
+              displayValue = matchedOpt;
+            } else {
+              const labelOptions = [criteria.goodValue, criteria.fairValue, criteria.poorValue, criteria.badValue]
+                .filter(Boolean)
+                .map((v) => String(v).trim());
+                
+              for (const opt of labelOptions) {
+                const mapped = mapQualitativeValueToNumber(opt);
+                if (mapped !== null && mapped === valNum) {
+                  displayValue = opt;
+                  break;
+                }
               }
             }
           }
@@ -288,7 +304,7 @@ export async function GET(
       return posA - posB;
     });
 
-    // Calculate 3-year test types status counts trend
+    // 1. Calculate 3-year test types status counts trend
     const distinctYears = Array.from(new Set((asset.testSessions || []).map((s) => s.testYear)))
       .sort((a, b) => b - a); // Descending order
     const last3Years = distinctYears.slice(0, 3); // Take latest 3 years
@@ -331,9 +347,51 @@ export async function GET(
         BAD: bad,
       };
     });
-
-    // Sort ascending by year for chart representation (e.g. 2024 -> 2025 -> 2026)
     trendData.sort((a, b) => a.year.localeCompare(b.year));
+
+    // 2. Calculate 3-latest-sessions test types status counts trend
+    const latest3Sessions = (uniqueSessions || []).slice(0, 3); // Take latest 3 unique sessions
+
+    const trendSessionsData = latest3Sessions.map((sess) => {
+      let good = 0;
+      let fair = 0;
+      let poor = 0;
+      let bad = 0;
+
+      const testTypeJudgements: Record<string, (JudgementLabel | null)[]> = {};
+      for (const r of sess.testResults || []) {
+        const testTypeId = r.parameter?.testTypeId;
+        if (testTypeId) {
+          if (!testTypeJudgements[testTypeId]) {
+            testTypeJudgements[testTypeId] = [];
+          }
+          testTypeJudgements[testTypeId].push(r.judgement as JudgementLabel | null);
+        }
+      }
+
+      for (const ttId in testTypeJudgements) {
+        const overall = aggregateAssetStatus(testTypeJudgements[ttId]);
+        if (overall === 'GOOD') good++;
+        else if (overall === 'FAIR') fair++;
+        else if (overall === 'POOR') poor++;
+        else if (overall === 'BAD') bad++;
+      }
+
+      const eventName = sess.testEvent && sess.testEvent !== 'default' ? sess.testEvent : `Tahun ${sess.testYear}`;
+
+      return {
+        id: sess.id,
+        year: String(sess.testYear),
+        event: sess.testEvent || null,
+        label: eventName,
+        GOOD: good,
+        FAIR: fair,
+        POOR: poor,
+        BAD: bad,
+      };
+    });
+    // Reverse so latest is on the right chronologically
+    trendSessionsData.reverse();
 
     return NextResponse.json({
       success: true,
@@ -360,6 +418,7 @@ export async function GET(
           event: s.testEvent || null
         })),
         trend: trendData,
+        trendSessions: trendSessionsData,
       },
     });
   } catch (error) {

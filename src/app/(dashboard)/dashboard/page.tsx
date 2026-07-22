@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { KpiCard } from '@/components/dashboard/KpiCard';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import type { JudgementLabel, MatrixRow, ApiResponse } from '@/types';
+import { FilterSelect } from '@/components/dashboard/FilterSelect';
 
 const TEST_TYPE_ABBREVIATIONS: Record<string, string> = {
   'Insulation Resistance': 'IR',
@@ -202,16 +203,13 @@ export default function DashboardPage() {
         {/* UBP Filter */}
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs tracking-wider text-on-surface-variant">UBP:</span>
-          <select 
+          <FilterSelect 
             value={ubpId}
-            onChange={(e) => setUbpId(e.target.value)}
-            className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 cursor-pointer text-on-surface"
-          >
-            <option value="">Semua UBP</option>
-            {ubps?.map((ubp: { id: string; name: string }) => (
-              <option key={ubp.id} value={ubp.id}>{ubp.name}</option>
-            ))}
-          </select>
+            onChange={setUbpId}
+            options={(ubps || []).map((ubp: { id: string; name: string }) => ({ value: ubp.id, label: ubp.name }))}
+            placeholder="Semua UBP"
+            variant="inline"
+          />
         </div>
 
         <div className="h-4 w-px bg-surface-border" />
@@ -219,19 +217,14 @@ export default function DashboardPage() {
         {/* Unit Pembangkit Filter */}
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs tracking-wider text-on-surface-variant">Unit Pembangkit:</span>
-          <select 
+          <FilterSelect 
             value={unitId}
-            onChange={(e) => setUnitId(e.target.value)}
+            onChange={setUnitId}
+            options={units.map((unit: { id: string; name: string }) => ({ value: unit.id, label: unit.name }))}
+            placeholder="Semua Unit Pembangkit"
+            variant="inline"
             disabled={!ubpId}
-            className={`bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 cursor-pointer text-on-surface ${
-              !ubpId ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            <option value="">Semua Unit Pembangkit</option>
-            {units.map((unit: { id: string; name: string }) => (
-              <option key={unit.id} value={unit.id}>{unit.name}</option>
-            ))}
-          </select>
+          />
         </div>
 
         <div className="h-4 w-px bg-surface-border" />
@@ -239,15 +232,14 @@ export default function DashboardPage() {
         {/* Jenis Asset Filter */}
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs tracking-wider text-on-surface-variant">Jenis Asset:</span>
-          <select 
+          <FilterSelect 
             value={equipmentType}
-            onChange={(e) => setEquipmentType(e.target.value)}
-            className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 cursor-pointer text-on-surface"
-          >
-            {equipmentTypes.map((type: string) => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
+            onChange={setEquipmentType}
+            options={equipmentTypes.map((type: string) => ({ value: type, label: type }))}
+            placeholder="Pilih Jenis Asset"
+            showPlaceholderOption={false}
+            variant="inline"
+          />
         </div>
 
         <div className="h-4 w-px bg-surface-border" />
@@ -255,16 +247,13 @@ export default function DashboardPage() {
         {/* Tahun Filter */}
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs tracking-wider text-on-surface-variant">Tahun:</span>
-          <select 
+          <FilterSelect 
             value={year}
-            onChange={(e) => setYear(e.target.value)}
-            className="bg-transparent border-none font-mono text-xs font-bold focus:ring-0 p-0 cursor-pointer text-on-surface"
-          >
-            <option value="">Semua Tahun (All)</option>
-            {(summary?.availableYears || []).map((y: string) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+            onChange={setYear}
+            options={(summary?.availableYears || []).map((y: string) => ({ value: y, label: y }))}
+            placeholder="Semua Tahun (All)"
+            variant="inline"
+          />
         </div>
       </div>
 

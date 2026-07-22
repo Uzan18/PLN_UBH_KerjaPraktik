@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
+import { useToast } from '@/context/ToastContext';
 
 // Fetch helper
 async function fetchValidationQueue() {
@@ -49,6 +50,7 @@ const TEST_TYPE_ORDER = [
 
 export default function ValidasiPage() {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [rejectSessionId, setRejectSessionId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [selectedReviewItem, setSelectedReviewItem] = useState<any | null>(null);
@@ -171,13 +173,15 @@ export default function ValidasiPage() {
       });
       return { previousQueue };
     },
-    onError: (err, sessionId, context) => {
+    onError: (err: any, sessionId, context) => {
       // Rollback on error
       if (context?.previousQueue) {
         queryClient.setQueryData(['validation-queue'], context.previousQueue);
       }
+      toast.error(err.message || 'Gagal menyetujui data');
     },
     onSuccess: () => {
+      toast.success('Data pengujian berhasil disetujui!');
       queryClient.invalidateQueries({ queryKey: ['validation-queue'] });
       queryClient.invalidateQueries({ queryKey: ['summary'] });
       queryClient.invalidateQueries({ queryKey: ['matrix'] });
@@ -208,16 +212,19 @@ export default function ValidasiPage() {
       });
       return { previousQueue };
     },
-    onError: (err, variables, context) => {
+    onError: (err: any, variables, context) => {
       // Rollback on error
       if (context?.previousQueue) {
         queryClient.setQueryData(['validation-queue'], context.previousQueue);
       }
+      toast.error(err.message || 'Gagal menolak data');
     },
     onSuccess: () => {
       setRejectSessionId(null);
       setRejectReason('');
       setRejectError(null);
+      setSelectedReviewItem(null);
+      toast.success('Data pengujian telah ditolak.');
       queryClient.invalidateQueries({ queryKey: ['validation-queue'] });
     },
   });
@@ -328,8 +335,8 @@ export default function ValidasiPage() {
 
       {/* Review/Detail Modal */}
       {selectedReviewItem && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 animate-fade-in p-4">
-          <div className="bg-white border border-surface-border rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-scale-up">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 animate-fade-in p-4">
+          <div className="bg-white border border-surface-border rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-scale-up relative">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-surface-container-low border-b border-surface-border flex items-center justify-between">
               <div>
@@ -518,7 +525,6 @@ export default function ValidasiPage() {
                     <button
                       onClick={() => {
                         setRejectSessionId(selectedReviewItem.sessionId);
-                        setSelectedReviewItem(null);
                       }}
                       className="px-4 py-2 bg-status-bad hover:brightness-110 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-sm active:scale-95"
                     >
@@ -537,53 +543,126 @@ export default function ValidasiPage() {
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Reject Modal */}
-      {rejectSessionId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl border border-surface-border p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-bold text-on-surface mb-2">Tolak Data Pengujian</h3>
-            <p className="text-sm text-on-surface-variant mb-4">
-              Masukkan alasan penolakan. Alasan ini akan ditampilkan kepada petugas input data.
-            </p>
-            <form onSubmit={handleRejectSubmit} className="space-y-4">
-              {rejectError && (
-                <div className="bg-status-bad/10 border border-status-bad text-status-bad text-xs p-3 rounded-lg flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">error</span>
-                  <span>{rejectError}</span>
+            {/* Inline Reject Form Overlay over the Detail Modal Card */}
+            {rejectSessionId && (
+              <div className="absolute inset-0 z-40 bg-black/50 p-4 sm:p-6 flex items-center justify-center animate-fade-in">
+                <div className="bg-white border border-surface-border rounded-2xl shadow-2xl max-w-lg w-full p-5 sm:p-6 animate-scale-up overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-3 mb-4 pb-3 border-b border-surface-border">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-status-bad/10 text-status-bad flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-xl">gavel</span>
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-on-surface">Tolak Data Pengujian</h3>
+                        <p className="text-[11px] text-on-surface-variant mt-0.5">
+                          Berikan catatan penolakan spesifik untuk petugas input data.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRejectSessionId(null);
+                        setRejectReason('');
+                        setRejectError(null);
+                      }}
+                      className="p-1 hover:bg-surface-container-high rounded-full transition-colors cursor-pointer text-outline hover:text-on-surface shrink-0"
+                    >
+                      <span className="material-symbols-outlined text-lg">close</span>
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleRejectSubmit} className="space-y-4">
+                    {rejectError && (
+                      <div className="bg-status-bad/10 border border-status-bad/30 text-status-bad text-xs p-3 rounded-xl flex items-center gap-2 font-medium">
+                        <span className="material-symbols-outlined text-sm shrink-0">error</span>
+                        <span>{rejectError}</span>
+                      </div>
+                    )}
+
+                    {/* Quick Reason Template Chips */}
+                    <div>
+                      <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
+                        Pilih Alasan Cepat (Quick Select):
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          'Nilai pengukuran tidak valid',
+                          'Data parameter kurang lengkap',
+                          'Bukti pengujian kurang jelas',
+                          'Diperlukan pengujian ulang (Re-test)',
+                        ].map((chip) => (
+                          <button
+                            key={chip}
+                            type="button"
+                            onClick={() => {
+                              setRejectReason((prev) => (prev ? `${prev}. ${chip}` : chip));
+                            }}
+                            className="text-[10px] font-medium bg-surface-container-low hover:bg-status-bad/10 hover:text-status-bad hover:border-status-bad/40 text-on-surface-variant px-2.5 py-1 rounded-lg border border-surface-border transition-all cursor-pointer text-left active:scale-95"
+                          >
+                            + {chip}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Textarea with Character Counter */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-on-surface">
+                          Catatan Perbaikan <span className="text-status-bad">*</span>
+                        </label>
+                        <span className="text-[10px] font-mono text-outline">
+                          {rejectReason.length} / 500
+                        </span>
+                      </div>
+                      <textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value.slice(0, 500))}
+                        placeholder="Tuliskan catatan perbaikan atau alasan penolakan secara mendetail..."
+                        required
+                        rows={4}
+                        className="w-full bg-surface-container-low border border-surface-border rounded-xl p-3.5 text-xs text-on-surface focus:ring-1 focus:ring-status-bad focus:border-status-bad focus:bg-white focus:outline-none transition-all placeholder:text-outline/70 resize-none"
+                      />
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-end gap-3 pt-3 border-t border-surface-border">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRejectSessionId(null);
+                          setRejectReason('');
+                          setRejectError(null);
+                        }}
+                        className="px-4 py-2 border border-outline-variant rounded-lg text-xs font-bold text-on-surface hover:bg-surface-container-low transition-all cursor-pointer active:scale-95"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={rejectMutation.isPending || !rejectReason.trim()}
+                        className="px-5 py-2 bg-status-bad text-white rounded-lg text-xs font-bold hover:brightness-110 shadow-md shadow-status-bad/20 transition-all cursor-pointer active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {rejectMutation.isPending ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <span>Mengirim...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-sm">cancel</span>
+                            <span>Kirim Penolakan</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
                 </div>
-              )}
-              <textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Alasan penolakan..."
-                required
-                className="w-full bg-white border border-surface-border rounded-lg p-3 text-sm focus:ring-primary focus:border-primary min-h-[100px]"
-              />
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRejectSessionId(null);
-                    setRejectReason('');
-                    setRejectError(null);
-                  }}
-                  className="px-4 py-2 border border-outline-variant rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={rejectMutation.isPending}
-                  className="px-4 py-2 bg-status-bad text-white rounded-lg text-sm font-semibold hover:brightness-110 transition-colors active:scale-95 disabled:opacity-50"
-                >
-                  {rejectMutation.isPending ? 'Mengirim...' : 'Tolak Data'}
-                </button>
               </div>
-            </form>
+            )}
           </div>
         </div>
       )}

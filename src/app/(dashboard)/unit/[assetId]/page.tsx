@@ -32,6 +32,9 @@ export default function AssetDetailPage() {
   const selectedSessionId = searchParams?.get('sessionId') || '';
   const selectedYear = searchParams?.get('year') || '';
 
+  // Trend chart mode state (3 tahun vs 3 pengujian)
+  const [trendMode, setTrendMode] = useState<'3-tahun' | '3-pengujian'>('3-tahun');
+
   // Accordion state for test type sections
   const [expandedTests, setExpandedTests] = useState<Record<string, boolean>>({});
 
@@ -84,40 +87,42 @@ export default function AssetDetailPage() {
         {/* Left: Asset Info Card */}
         <div className="col-span-12 lg:col-span-8 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col">
           <div>
-            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shrink-0">
                   {asset.equipmentType}
                 </span>
-                <span className="font-mono text-xs text-on-surface-variant">ID: {asset.id}</span>
-                {asset.selectedTestYear && selectedSessionId && asset.selectedSessionId !== asset.latestSessionId && (
-                  <span className="text-xs font-semibold text-outline">
-                    Tahun Uji: {asset.selectedTestYear}
-                    {asset.selectedSessionEvent && asset.selectedSessionEvent !== 'default' ? ` (${asset.selectedSessionEvent})` : ''}
-                  </span>
-                )}
+                <span
+                  className="font-mono text-xs text-on-surface-variant bg-surface-container-low px-2 py-1 rounded border border-surface-border truncate max-w-[220px] sm:max-w-[280px] lg:max-w-[360px]"
+                  title={`ID: ${asset.id}`}
+                >
+                  ID: {asset.id}
+                </span>
               </div>
+
               {/* Year Selector */}
               {asset.availableSessions && asset.availableSessions.length > 1 && (
-                <select
-                  value={asset.selectedSessionId || ''}
-                  onChange={(e) => {
-                    const sId = e.target.value;
-                    const found = asset.availableSessions.find((s: any) => s.id === sId);
-                    if (found) {
-                      router.push(`/unit/${assetId}?sessionId=${found.id}`);
-                    }
-                  }}
-                  className="bg-primary/5 border border-primary/20 rounded-full font-mono text-xs font-bold px-3 py-1 pr-7 cursor-pointer text-primary focus:ring-1 focus:ring-primary/30 focus:outline-none"
-                >
-                  {asset.availableSessions.map((s: any) => (
-                    <option key={s.id} value={s.id}>
-                      Tahun {s.year}
-                      {s.event && s.event !== 'default' ? ` (${s.event})` : ''}
-                      {s.id === asset.latestSessionId ? ' (Terbaru)' : ''}
-                    </option>
-                  ))}
-                </select>
+                <div className="shrink-0 sm:ml-auto">
+                  <select
+                    value={asset.selectedSessionId || ''}
+                    onChange={(e) => {
+                      const sId = e.target.value;
+                      const found = asset.availableSessions.find((s: any) => s.id === sId);
+                      if (found) {
+                        router.push(`/unit/${assetId}?sessionId=${found.id}`);
+                      }
+                    }}
+                    className="bg-primary/5 hover:bg-primary/10 border border-primary/20 rounded-lg font-mono text-xs font-bold px-3 py-1.5 pr-8 cursor-pointer text-primary focus:ring-1 focus:ring-primary/30 focus:outline-none transition-all shadow-sm"
+                  >
+                    {asset.availableSessions.map((s: any) => (
+                      <option key={s.id} value={s.id}>
+                        Tahun {s.year}
+                        {s.event && s.event !== 'default' ? ` (${s.event})` : ''}
+                        {s.id === asset.latestSessionId ? ' (Terbaru)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
             </div>
             <h2 className="text-3xl font-bold text-on-surface mb-2 leading-tight tracking-tight">
@@ -150,12 +155,40 @@ export default function AssetDetailPage() {
           </div>
         </div>
 
-        {/* Right: Trend Chart Card (Raised!) */}
-        <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
-            <h4 className="font-bold text-on-surface text-sm">Tren Hasil Pengujian Aset</h4>
+        {/* Right: Trend Chart Card */}
+        <div className="col-span-12 lg:col-span-4 bg-white p-5 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
+          <div className="flex flex-col gap-2.5 mb-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h4 className="font-bold text-on-surface text-sm">Tren Hasil Pengujian Aset</h4>
+              {/* Category Selector Toggle */}
+              <div className="flex items-center bg-surface-container-low p-0.5 rounded-lg border border-surface-border">
+                <button
+                  type="button"
+                  onClick={() => setTrendMode('3-tahun')}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                    trendMode === '3-tahun'
+                      ? 'bg-white text-primary shadow-2xs'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  3 Tahun
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrendMode('3-pengujian')}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                    trendMode === '3-pengujian'
+                      ? 'bg-white text-primary shadow-2xs'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  3 Pengujian
+                </button>
+              </div>
+            </div>
+
             {/* Legend */}
-            <div className="flex flex-wrap items-center gap-1.5 bg-surface-container-low px-2 py-1 rounded border border-surface-border">
+            <div className="flex items-center justify-end gap-1.5 bg-surface-container-low px-2 py-1 rounded border border-surface-border/60 self-end">
               <div className="flex items-center gap-0.5">
                 <div className="w-2 h-2 rounded-xs bg-status-good" />
                 <span className="text-[8px] font-bold text-on-surface-variant uppercase">G</span>
@@ -175,27 +208,44 @@ export default function AssetDetailPage() {
             </div>
           </div>
           
-          <div className="h-44 flex items-end justify-around relative pt-4 pb-6 px-1 border-b border-surface-border">
+          <div className="h-44 flex items-end justify-around relative pt-4 pb-7 px-1 border-b border-surface-border">
             {/* Background Grid Lines */}
-            <div className="absolute inset-x-0 top-4 bottom-6 flex flex-col justify-between pointer-events-none">
+            <div className="absolute inset-x-0 top-4 bottom-7 flex flex-col justify-between pointer-events-none">
               <div className="w-full border-t border-surface-border/40" />
               <div className="w-full border-t border-surface-border/40" />
               <div className="w-full border-t border-surface-border/40" />
             </div>
 
             {/* Trend Columns Group */}
-            {asset?.trend && asset.trend.length > 0 ? (
-              (() => {
-                const maxCount = Math.max(
-                  ...asset.trend.map((item: any) => 
-                    Math.max(item.GOOD || 0, item.FAIR || 0, item.POOR || 0, item.BAD || 0)
-                  ), 
-                  1
+            {(() => {
+              const activeTrendData = trendMode === '3-tahun'
+                ? (asset?.trend || [])
+                : (asset?.trendSessions || []);
+
+              if (!activeTrendData || activeTrendData.length === 0) {
+                return (
+                  <div className="w-full text-center py-10 text-on-surface-variant font-medium text-xs">
+                    Tidak ada data tren pengujian.
+                  </div>
                 );
-                return asset.trend.map((t: any) => (
-                  <div key={t.year} className="flex flex-col items-center gap-1 w-1/4 z-10">
+              }
+
+              const maxCount = Math.max(
+                ...activeTrendData.map((item: any) =>
+                  Math.max(item.GOOD || 0, item.FAIR || 0, item.POOR || 0, item.BAD || 0)
+                ),
+                1
+              );
+
+              return activeTrendData.map((t: any, idx: number) => {
+                const labelText = trendMode === '3-tahun'
+                  ? t.year
+                  : (t.label || t.event || `Tahun ${t.year}`);
+
+                return (
+                  <div key={t.id || t.year || idx} className="flex flex-col items-center gap-1 w-1/3 z-10 min-w-0">
                     {/* Columns container */}
-                    <div className="flex items-end justify-center gap-1.5 h-28 w-full">
+                    <div className="flex items-end justify-center gap-1.5 h-26 w-full">
                       {/* Good Column */}
                       <div 
                         style={{ height: `${((t.GOOD || 0) / maxCount) * 100}%` }} 
@@ -237,19 +287,24 @@ export default function AssetDetailPage() {
                       </div>
                     </div>
                     
-                    {/* Year Label */}
-                    <span className="font-mono text-[10px] font-bold text-on-surface">{t.year}</span>
+                    {/* Label Badge */}
+                    <div className="w-full text-center px-0.5 mt-1">
+                      <span
+                        className="font-mono text-[9px] font-bold text-on-surface bg-surface-container-low px-1.5 py-0.5 rounded border border-surface-border block max-w-[85px] sm:max-w-[105px] truncate mx-auto"
+                        title={labelText}
+                      >
+                        {labelText}
+                      </span>
+                    </div>
                   </div>
-                ));
-              })()
-            ) : (
-              <div className="w-full text-center py-10 text-on-surface-variant font-medium text-xs">
-                Tidak ada data tren pengujian.
-              </div>
-            )}
+                );
+              });
+            })()}
           </div>
           <div className="mt-2 text-[9px] text-center text-on-surface-variant/80 italic">
-            *Jumlah jenis pengujian berdasarkan status kondisi per tahun
+            {trendMode === '3-tahun'
+              ? '*Jumlah jenis pengujian berdasarkan status kondisi per tahun'
+              : '*Jumlah jenis pengujian berdasarkan status kondisi per event pengujian'}
           </div>
         </div>
       </div>

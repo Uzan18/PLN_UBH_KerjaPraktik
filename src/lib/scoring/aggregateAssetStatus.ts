@@ -2,17 +2,12 @@ import type { JudgementLabel } from '@/types';
 import { JUDGEMENT_SEVERITY } from '@/types';
 
 /**
- * Aggregate status for a set of judgements using WORST-CASE logic.
+ * Agregasi status kondisi aset menggunakan metode Kondisi Terburuk (Worst-Case Logic).
+ * Sesuai standar PLN, agregasi kesehatan peralatan ditentukan oleh parameter dengan tingkat keparahan tertinggi.
+ * Urutan Keparahan: BAD > POOR > FAIR > GOOD
  * 
- * CRITICAL RULE (CLAUDE.md Rule #7):
- * Aggregation uses worst-case from all judgement parameters within a test type.
- * Severity order: BAD > POOR > FAIR > GOOD
- * 
- * DO NOT use average/mean for this aggregation — it obscures the worst
- * condition which is most important for maintenance decisions.
- * 
- * @param judgements - Array of JudgementLabel values from TestResults
- * @returns The worst (most severe) JudgementLabel, or 'NA' if no valid judgements
+ * @param judgements - Array label judgement dari parameter hasil pengujian
+ * @returns Label judgement terburuk, atau 'NA' jika tidak ada data valid
  */
 export function aggregateAssetStatus(judgements: (JudgementLabel | null)[]): JudgementLabel {
   const validJudgements = judgements.filter(

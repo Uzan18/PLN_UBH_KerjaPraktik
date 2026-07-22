@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
+import { FilterSelect } from '@/components/dashboard/FilterSelect';
 
 async function fetchUbpAssets() {
   const res = await fetch('/api/master/ubp-asset');
@@ -25,6 +26,7 @@ export default function InformasiAssetPage() {
   const [exportUnitName, setExportUnitName] = useState('ALL');
   const [exportJenisId, setExportJenisId] = useState('ALL');
   const [exportTestYear, setExportTestYear] = useState('ALL');
+  const [trendMode, setTrendMode] = useState<'3-tahun' | '3-pengujian'>('3-tahun');
 
   const { data: ubps, isLoading, error } = useQuery({
     queryKey: ['ubp-assets-info-branched'],
@@ -428,13 +430,6 @@ export default function InformasiAssetPage() {
                                 {assetDetail.equipmentType}
                               </span>
                               <span className="font-mono text-xs text-on-surface-variant">ID: {assetDetail.id}</span>
-                              {assetDetail.selectedTestYear && (
-                                <span className="text-xs font-semibold text-outline">
-                                  {(!assetDetail.selectedSessionId || assetDetail.selectedSessionId === assetDetail.latestSessionId)
-                                    ? `Tahun Terkini: ${assetDetail.selectedTestYear}${assetDetail.selectedSessionEvent && assetDetail.selectedSessionEvent !== 'default' ? ` (${assetDetail.selectedSessionEvent})` : ''}`
-                                    : `Tahun Uji: ${assetDetail.selectedTestYear}${assetDetail.selectedSessionEvent && assetDetail.selectedSessionEvent !== 'default' ? ` (${assetDetail.selectedSessionEvent})` : ''}`}
-                                </span>
-                              )}
                             </div>
                             <h2 className="text-3xl font-bold text-on-surface mb-2 leading-tight tracking-tight">
                               {assetDetail.unitName || ''} - {assetDetail.name}
@@ -509,11 +504,39 @@ export default function InformasiAssetPage() {
                         </div>
 
                         {/* Right Card: Trend Chart */}
-                        <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
-                            <h4 className="font-bold text-on-surface text-sm">Tren Hasil Pengujian Aset</h4>
+                        <div className="col-span-12 lg:col-span-4 bg-white p-5 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
+                          <div className="flex flex-col gap-2.5 mb-2">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <h4 className="font-bold text-on-surface text-sm">Tren Hasil Pengujian Aset</h4>
+                              {/* Category Selector Toggle */}
+                              <div className="flex items-center bg-surface-container-low p-0.5 rounded-lg border border-surface-border">
+                                <button
+                                  type="button"
+                                  onClick={() => setTrendMode('3-tahun')}
+                                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                                    trendMode === '3-tahun'
+                                      ? 'bg-white text-primary shadow-2xs'
+                                      : 'text-on-surface-variant hover:text-on-surface'
+                                  }`}
+                                >
+                                  3 Tahun
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setTrendMode('3-pengujian')}
+                                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                                    trendMode === '3-pengujian'
+                                      ? 'bg-white text-primary shadow-2xs'
+                                      : 'text-on-surface-variant hover:text-on-surface'
+                                  }`}
+                                >
+                                  3 Pengujian
+                                </button>
+                              </div>
+                            </div>
+
                             {/* Legend */}
-                            <div className="flex flex-wrap items-center gap-1.5 bg-surface-container-low px-2 py-1 rounded border border-surface-border">
+                            <div className="flex items-center justify-end gap-1.5 bg-surface-container-low px-2 py-1 rounded border border-surface-border/60 self-end">
                               <div className="flex items-center gap-0.5">
                                 <div className="w-2 h-2 rounded-xs bg-status-good" />
                                 <span className="text-[8px] font-bold text-on-surface-variant uppercase">G</span>
@@ -533,27 +556,44 @@ export default function InformasiAssetPage() {
                             </div>
                           </div>
                           
-                          <div className="h-44 flex items-end justify-around relative pt-4 pb-6 px-1 border-b border-surface-border">
+                          <div className="h-44 flex items-end justify-around relative pt-4 pb-7 px-1 border-b border-surface-border">
                             {/* Background Grid Lines */}
-                            <div className="absolute inset-x-0 top-4 bottom-6 flex flex-col justify-between pointer-events-none">
+                            <div className="absolute inset-x-0 top-4 bottom-7 flex flex-col justify-between pointer-events-none">
                               <div className="w-full border-t border-surface-border/40" />
                               <div className="w-full border-t border-surface-border/40" />
                               <div className="w-full border-t border-surface-border/40" />
                             </div>
 
                             {/* Trend Columns Group */}
-                            {assetDetail?.trend && assetDetail.trend.length > 0 ? (
-                              (() => {
-                                const maxCount = Math.max(
-                                  ...assetDetail.trend.map((item: any) => 
-                                    Math.max(item.GOOD || 0, item.FAIR || 0, item.POOR || 0, item.BAD || 0)
-                                  ), 
-                                  1
+                            {(() => {
+                              const activeTrendData = trendMode === '3-tahun'
+                                ? (assetDetail?.trend || [])
+                                : (assetDetail?.trendSessions || []);
+
+                              if (!activeTrendData || activeTrendData.length === 0) {
+                                return (
+                                  <div className="w-full text-center py-10 text-on-surface-variant font-medium text-xs">
+                                    Tidak ada data tren pengujian.
+                                  </div>
                                 );
-                                return assetDetail.trend.map((t: any) => (
-                                  <div key={t.year} className="flex flex-col items-center gap-1 w-1/4 z-10">
+                              }
+
+                              const maxCount = Math.max(
+                                ...activeTrendData.map((item: any) =>
+                                  Math.max(item.GOOD || 0, item.FAIR || 0, item.POOR || 0, item.BAD || 0)
+                                ),
+                                1
+                              );
+
+                              return activeTrendData.map((t: any, idx: number) => {
+                                const labelText = trendMode === '3-tahun'
+                                  ? t.year
+                                  : (t.label || t.event || `Tahun ${t.year}`);
+
+                                return (
+                                  <div key={t.id || t.year || idx} className="flex flex-col items-center gap-1 w-1/3 z-10 min-w-0">
                                     {/* Columns container */}
-                                    <div className="flex items-end justify-center gap-1.5 h-28 w-full">
+                                    <div className="flex items-end justify-center gap-1.5 h-26 w-full">
                                       {/* Good Column */}
                                       <div 
                                         style={{ height: `${((t.GOOD || 0) / maxCount) * 100}%` }} 
@@ -595,19 +635,24 @@ export default function InformasiAssetPage() {
                                       </div>
                                     </div>
                                     
-                                    {/* Year Label */}
-                                    <span className="font-mono text-[10px] font-bold text-on-surface">{t.year}</span>
+                                    {/* Label Badge */}
+                                    <div className="w-full text-center px-0.5 mt-1">
+                                      <span
+                                        className="font-mono text-[9px] font-bold text-on-surface bg-surface-container-low px-1.5 py-0.5 rounded border border-surface-border block max-w-[85px] sm:max-w-[105px] truncate mx-auto"
+                                        title={labelText}
+                                      >
+                                        {labelText}
+                                      </span>
+                                    </div>
                                   </div>
-                                ));
-                              })()
-                            ) : (
-                              <div className="w-full text-center py-10 text-on-surface-variant font-medium text-xs">
-                                Tidak ada data tren pengujian.
-                              </div>
-                            )}
+                                );
+                              });
+                            })()}
                           </div>
                           <div className="mt-2 text-[9px] text-center text-on-surface-variant/80 italic">
-                            *Jumlah jenis pengujian berdasarkan status kondisi per tahun
+                            {trendMode === '3-tahun'
+                              ? '*Jumlah jenis pengujian berdasarkan status kondisi per tahun'
+                              : '*Jumlah jenis pengujian berdasarkan status kondisi per event pengujian'}
                           </div>
                         </div>
                       </div>
@@ -778,27 +823,17 @@ export default function InformasiAssetPage() {
                 <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
                   Filter UBP
                 </label>
-                <select
-                  value={exportUbpId}
-                  onChange={(e) => {
-                    setExportUbpId(e.target.value);
+                <FilterSelect
+                  value={exportUbpId === 'ALL' ? '' : exportUbpId}
+                  onChange={(val) => {
+                    setExportUbpId(val || 'ALL');
                     setExportUnitName('ALL');
                     setExportJenisId('ALL');
                     setExportTestYear('ALL');
                   }}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs font-semibold text-primary focus:border-primary focus:ring-0 cursor-pointer transition-all"
-                >
-                  <option value="ALL">SEMUA UBP (ALL)</option>
-                  {isLoading ? (
-                    <option disabled>Memuat data UBP...</option>
-                  ) : (
-                    ubps?.map((u: any) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name}
-                      </option>
-                    ))
-                  )}
-                </select>
+                  options={(ubps || []).map((u: any) => ({ value: u.id, label: u.name }))}
+                  placeholder="SEMUA UBP (ALL)"
+                />
               </div>
 
               {/* Filter Unit Pembangkit */}
@@ -806,22 +841,16 @@ export default function InformasiAssetPage() {
                 <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
                   Filter Unit Pembangkit
                 </label>
-                <select
-                  value={exportUnitName}
-                  onChange={(e) => {
-                    setExportUnitName(e.target.value);
+                <FilterSelect
+                  value={exportUnitName === 'ALL' ? '' : exportUnitName}
+                  onChange={(val) => {
+                    setExportUnitName(val || 'ALL');
                     setExportJenisId('ALL');
                     setExportTestYear('ALL');
                   }}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs font-semibold text-primary focus:border-primary focus:ring-0 cursor-pointer transition-all"
-                >
-                  <option value="ALL">SEMUA UNIT (ALL)</option>
-                  {exportUniqueUnits.map((name: string) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
+                  options={exportUniqueUnits.map((name: string) => ({ value: name, label: name }))}
+                  placeholder="SEMUA UNIT (ALL)"
+                />
               </div>
 
               {/* Filter Jenis Alat */}
@@ -829,18 +858,12 @@ export default function InformasiAssetPage() {
                 <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
                   Filter Jenis Alat
                 </label>
-                <select
-                  value={exportJenisId}
-                  onChange={(e) => setExportJenisId(e.target.value)}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs font-semibold text-primary focus:border-primary focus:ring-0 cursor-pointer transition-all"
-                >
-                  <option value="ALL">SEMUA JENIS ALAT (ALL)</option>
-                  {exportJenisAssetChoices.map((ja: any) => (
-                    <option key={ja.id} value={ja.id}>
-                      {ja.name}
-                    </option>
-                  ))}
-                </select>
+                <FilterSelect
+                  value={exportJenisId === 'ALL' ? '' : exportJenisId}
+                  onChange={(val) => setExportJenisId(val || 'ALL')}
+                  options={exportJenisAssetChoices.map((ja: any) => ({ value: ja.id, label: ja.name }))}
+                  placeholder="SEMUA JENIS ALAT (ALL)"
+                />
               </div>
 
               {/* Filter Tahun */}
@@ -848,18 +871,12 @@ export default function InformasiAssetPage() {
                 <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
                   Filter Tahun
                 </label>
-                <select
-                  value={exportTestYear}
-                  onChange={(e) => setExportTestYear(e.target.value)}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-3 text-xs font-semibold text-primary focus:border-primary focus:ring-0 cursor-pointer transition-all"
-                >
-                  <option value="ALL">SEMUA TAHUN (ALL)</option>
-                  {exportYearChoices.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
+                <FilterSelect
+                  value={exportTestYear === 'ALL' ? '' : exportTestYear}
+                  onChange={(val) => setExportTestYear(val || 'ALL')}
+                  options={exportYearChoices.map((y) => ({ value: y, label: y }))}
+                  placeholder="SEMUA TAHUN (ALL)"
+                />
               </div>
             </div>
 

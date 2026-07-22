@@ -66,10 +66,10 @@ interface NewParamInput {
 }
 
 const METADATA_FIELDS = [
-  { key: 'type', label: 'TYPE' },
+  { key: 'manufacture', label: 'MANUFACTURE' },
   { key: 'serialNumber', label: 'SERIAL NUMBER' },
   { key: 'mfgYear', label: 'TAHUN BUAT' },
-  { key: 'manufacture', label: 'MANUFACTURE' },
+  { key: 'type', label: 'TYPE' },
   { key: 'coolingMethod', label: 'COOLING METHOD' },
   { key: 'ratedPower', label: 'RATED POWER' },
   { key: 'frequency', label: 'FREQUENCY' },
@@ -90,6 +90,7 @@ export default function CombinedManagePengujianPage() {
   const [selectedTestTypeIds, setSelectedTestTypeIds] = useState<string[]>([]);
   const [selectedInfoFields, setSelectedInfoFields] = useState<any[]>([]);
   const [searchTestQuery, setSearchTestQuery] = useState('');
+  const [showAllMasterTestTypes, setShowAllMasterTestTypes] = useState(false);
   const [isAddEquipmentTypeOpen, setIsAddEquipmentTypeOpen] = useState(false);
   const [newEquipmentTypeName, setNewEquipmentTypeName] = useState('');
   const [isEditEquipmentTypeOpen, setIsEditEquipmentTypeOpen] = useState(false);
@@ -316,6 +317,7 @@ export default function CombinedManagePengujianPage() {
   // Sync selected group test type checkboxes when a group is selected (Pemetaan Tab)
   const handleSelectGroup = (group: EquipmentTypeGroup) => {
     setSelectedGroup(group);
+    setShowAllMasterTestTypes(false);
     const configuredIds = group.testTypes?.map((t) => t.id) || [];
     setSelectedTestTypeIds(configuredIds);
     setRightPanelTab('informasi');
@@ -323,14 +325,16 @@ export default function CombinedManagePengujianPage() {
     const dbJenis = jenisAssetList?.find((j: any) => j.name === group.name);
     if (dbJenis && dbJenis.infoFields) {
       try {
-        setSelectedInfoFields(JSON.parse(dbJenis.infoFields));
+        const parsed = JSON.parse(dbJenis.infoFields);
+        const generalKeys = ['manufacture', 'serialNumber', 'mfgYear'];
+        const existingKeys = parsed.map((i: any) => typeof i === 'string' ? i : i.key);
+        const missingGeneral = generalKeys.filter((gk) => !existingKeys.includes(gk));
+        setSelectedInfoFields([...missingGeneral, ...parsed]);
       } catch (e) {
-        setSelectedInfoFields([]);
+        setSelectedInfoFields(['manufacture', 'serialNumber', 'mfgYear']);
       }
     } else {
-      setSelectedInfoFields([
-        'type', 'serialNumber', 'mfgYear', 'manufacture', 'coolingMethod', 'ratedPower', 'frequency', 'hvSide', 'hvRatedCurrent', 'lvSide', 'lvRatedCurrent'
-      ]);
+      setSelectedInfoFields(['manufacture', 'serialNumber', 'mfgYear']);
     }
   };
 
@@ -378,7 +382,7 @@ export default function CombinedManagePengujianPage() {
       }
     } else {
       configuredInfoFields = [
-        'type', 'serialNumber', 'mfgYear', 'manufacture', 'coolingMethod', 'ratedPower', 'frequency', 'hvSide', 'hvRatedCurrent', 'lvSide', 'lvRatedCurrent'
+        'manufacture', 'serialNumber', 'mfgYear', 'type', 'coolingMethod', 'ratedPower', 'frequency', 'hvSide', 'hvRatedCurrent', 'lvSide', 'lvRatedCurrent'
       ];
     }
     return JSON.stringify(configuredInfoFields) !== JSON.stringify(selectedInfoFields);
@@ -904,11 +908,37 @@ export default function CombinedManagePengujianPage() {
       return res.json();
     },
     onSuccess: (data) => {
-      alert(`Jenis pengujian "${data.data.name}" berhasil ditambahkan!`);
+      const createdTestType = data.data;
+      alert(`Jenis pengujian "${createdTestType.name}" berhasil ditambahkan!`);
       queryClient.invalidateQueries({ queryKey: ['test-types'] });
       setIsCreateModalOpen(false);
       resetCreateModalState();
       setEditingTestType(null);
+
+      if (selectedGroup && createdTestType?.id) {
+        const nextIds = Array.from(new Set([...selectedTestTypeIds, createdTestType.id]));
+        setSelectedTestTypeIds(nextIds);
+
+        if (selectedGroup.id) {
+          saveMutation.mutate({
+            jenisAssetId: selectedGroup.id,
+            testTypeIds: nextIds,
+            infoFields: selectedInfoFields,
+          });
+        } else if (typeof window !== 'undefined') {
+          const mappingsStr = localStorage.getItem('app_custom_equipment_type_mappings') || '{}';
+          try {
+            const mappings = JSON.parse(mappingsStr);
+            mappings[selectedGroup.name] = nextIds;
+            localStorage.setItem('app_custom_equipment_type_mappings', JSON.stringify(mappings));
+            queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
+            queryClient.invalidateQueries({ queryKey: ['ubp-assets-manage'] });
+            queryClient.invalidateQueries({ queryKey: ['ubp-assets-info-branched'] });
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
     },
     onError: (error) => {
       alert(error.message || 'Terjadi kesalahan saat menyimpan pengujian baru.');
@@ -916,7 +946,7 @@ export default function CombinedManagePengujianPage() {
   });
 
   const updateTestTypeMutation = useMutation({
-    mutationFn: async (payload: { id: string; name: string; standard: string; parameters: any[] }) => {
+    mutationFn: async (payload: { id: string; name: string; standard: string; orderIndex?: number; parameters: any[] }) => {
       const res = await fetch('/api/master/test-types', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -984,6 +1014,7 @@ export default function CombinedManagePengujianPage() {
         id: editingTestType.id,
         name: newTestName,
         standard: newTestStandard,
+        orderIndex: editingTestType.orderIndex,
         parameters: newTestParameters
       });
     } else {
@@ -1073,9 +1104,15 @@ export default function CombinedManagePengujianPage() {
   };
 
   // Filters & Loading
-  const filteredTestTypes = testTypes?.filter((t) =>
-    t.name.toLowerCase().includes(searchTestQuery.toLowerCase())
-  );
+  const filteredTestTypes = useMemo(() => {
+    if (!testTypes) return [];
+    return testTypes.filter((t) => {
+      const matchesSearch = t.name.toLowerCase().includes(searchTestQuery.toLowerCase());
+      if (!matchesSearch) return false;
+      if (showAllMasterTestTypes) return true;
+      return selectedTestTypeIds.includes(t.id);
+    });
+  }, [testTypes, selectedTestTypeIds, searchTestQuery, showAllMasterTestTypes]);
 
   const isLoading = isUbpsLoading || isTestTypesLoading;
 
@@ -1301,7 +1338,7 @@ export default function CombinedManagePengujianPage() {
                               const { key, placeholder } = resolveField(item);
                               const standardField = METADATA_FIELDS.find((f) => f.key === key);
                               const label = standardField ? standardField.label : key.toUpperCase();
-                              const isGeneral = key === 'type' || key === 'serialNumber' || key === 'mfgYear';
+                              const isGeneral = key === 'manufacture' || key === 'serialNumber' || key === 'mfgYear';
 
                               return (
                                 <tr key={key} className="h-11 hover:bg-surface-container-low/10 transition-colors">
@@ -1369,14 +1406,27 @@ export default function CombinedManagePengujianPage() {
                   {rightPanelTab === 'pengujian' && (
                     <div className="flex flex-col space-y-3 animate-fade-in">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1.5 border-b border-surface-border">
-                      <h3 className="text-xs font-bold text-on-surface uppercase tracking-wide">Pilih Jenis Pengujian yang Berlaku</h3>
+                      <h3 className="text-xs font-bold text-on-surface uppercase tracking-wide">
+                        {showAllMasterTestTypes
+                          ? 'Seluruh Master Jenis Pengujian'
+                          : `Jenis Pengujian Berlaku (${selectedGroup?.name || ''})`}
+                      </h3>
                       <div className="flex items-center gap-2.5">
                         <button
-                          onClick={handleSelectAll}
-                          className="text-xs font-semibold text-primary hover:underline focus:outline-none cursor-pointer"
+                          type="button"
+                          onClick={() => setShowAllMasterTestTypes(!showAllMasterTestTypes)}
+                          className="text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                         >
-                          {testTypes && selectedTestTypeIds.length === testTypes.length ? 'Batal Semua' : 'Pilih Semua'}
+                          {showAllMasterTestTypes ? 'Tampilkan Aset Ini Saja' : 'Kelola dari Master'}
                         </button>
+                        {showAllMasterTestTypes && (
+                          <button
+                            onClick={handleSelectAll}
+                            className="text-xs font-semibold text-primary hover:underline focus:outline-none cursor-pointer"
+                          >
+                            {testTypes && selectedTestTypeIds.length === testTypes.length ? 'Batal Semua' : 'Pilih Semua'}
+                          </button>
+                        )}
                         <div className="relative w-44">
                           <input
                             type="text"

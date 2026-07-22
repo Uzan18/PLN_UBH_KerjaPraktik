@@ -2,31 +2,41 @@
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import type { JudgementLabel } from '@/types';
-import { mapQualitativeValueToNumber } from '@/lib/scoring/calculateScore';
+import { calculateScore, mapQualitativeValueToNumber } from '@/lib/scoring/calculateScore';
+import { determineJudgement } from '@/lib/scoring/determineJudgement';
+import { FilterSelect } from '@/components/dashboard/FilterSelect';
+import { useToast } from '@/context/ToastContext';
 
 function getQualitativeChoices(criteria: any): string[] | null {
   const criteriaList = Array.isArray(criteria) ? criteria : [criteria];
   const c = criteriaList[0];
   if (!c) return null;
   
-  const values = [c.goodValue, c.fairValue, c.poorValue, c.badValue]
+  const rawValues = [c.goodValue, c.fairValue, c.poorValue, c.badValue]
     .filter(Boolean)
-    .map((v) => String(v).trim().toUpperCase());
+    .map((v) => String(v).trim());
     
-  if (values.includes('TIDAK ADA') || values.includes('ADA')) {
-    return ['TIDAK ADA', 'ADA'];
-  }
-  if (values.includes('GOOD') || values.includes('FAIR') || values.includes('POOR') || values.includes('BAD')) {
-    return ['GOOD', 'FAIR', 'POOR', 'BAD'];
-  }
-  if (values.includes('NORMAL WINDING') || values.includes('SLIGHT DEFORMATION') || values.includes('OBVIOUS DEFORMATION') || values.includes('SEVERE DEFORMATION')) {
-    return ['Normal winding', 'Slight Deformation', 'Obvious Deformation', 'Severe Deformation'];
-  }
-  
-  return null;
+  if (rawValues.length === 0) return null;
+
+  // Helper to check if a value is a numeric expression
+  const isNumericExpression = (valStr: string) => {
+    const v = valStr.trim();
+    if (v.toUpperCase() === 'NA') return false;
+    if (!isNaN(parseFloat(v)) && isFinite(Number(v))) return true;
+    if (/^[><=]/.test(v)) return true;
+    if (/^[\d.-]+\s*-\s*[\d.-]+$/.test(v)) return true;
+    return false;
+  };
+
+  // If ALL values are numeric expressions, then it is a purely numeric threshold. We return null.
+  const allNumeric = rawValues.every((v) => isNumericExpression(v));
+  if (allNumeric) return null;
+
+  // Otherwise, return exactly the non-empty threshold strings as dropdown choices!
+  return rawValues;
 }
 
 // Fetch helpers
@@ -73,6 +83,8 @@ const TEST_TYPE_ORDER = [
 ];
 
 function InputForm() {
+  const router = useRouter();
+  const toast = useToast();
   const searchParams = useSearchParams();
   const paramAssetId = searchParams.get('assetId');
   const paramTestYear = searchParams.get('testYear');
@@ -210,7 +222,7 @@ function InputForm() {
     return Object.keys(additionalInfo).filter((k) => !standardKeys.includes(k));
   }, [additionalInfo]);
 
-  // Sync URL search params with states
+  // Sync URL search params & sessionStorage with states on mount/load
   useEffect(() => {
     if (paramAssetId && paramTestYear) {
       setTestYear(paramTestYear);
@@ -244,8 +256,47 @@ function InputForm() {
           setSelectedAssetId(paramAssetId);
         }
       }
+    } else if (ubps) {
+      // Restore from sessionStorage if no URL search params exist
+      try {
+        const saved = sessionStorage.getItem('siat_input_form_state');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.testYear) setTestYear(parsed.testYear);
+          if (parsed.testEvent) setTestEvent(parsed.testEvent);
+          if (parsed.selectedUbpId) setSelectedUbpId(parsed.selectedUbpId);
+          if (parsed.selectedUnitName) setSelectedUnitName(parsed.selectedUnitName);
+          if (parsed.selectedJenisId) setSelectedJenisId(parsed.selectedJenisId);
+          if (parsed.selectedAssetId) setSelectedAssetId(parsed.selectedAssetId);
+        }
+      } catch (e) {}
     }
   }, [paramAssetId, paramTestYear, paramTestEvent, ubps]);
+
+  // Save selections to sessionStorage and update URL query params on user selection
+  useEffect(() => {
+    if (selectedAssetId && testYear) {
+      try {
+        const stateToSave = {
+          selectedUbpId,
+          selectedUnitName,
+          selectedJenisId,
+          selectedAssetId,
+          testYear,
+          testEvent,
+        };
+        sessionStorage.setItem('siat_input_form_state', JSON.stringify(stateToSave));
+
+        const params = new URLSearchParams();
+        params.set('assetId', selectedAssetId);
+        params.set('testYear', testYear);
+        if (testEvent && testEvent !== 'default') {
+          params.set('testEvent', testEvent);
+        }
+        router.replace(`/input?${params.toString()}`, { scroll: false });
+      } catch (e) {}
+    }
+  }, [selectedUbpId, selectedUnitName, selectedJenisId, selectedAssetId, testYear, testEvent, router]);
 
   // Fetch existing events for the selected asset and year
   useEffect(() => {
@@ -552,6 +603,46 @@ function InputForm() {
     availableAssetsInUnit
   ]);
 
+  const mapValueToNumericValue = (parameterId: string, val: string): number | null => {
+    if (!val) return null;
+    let numericValue = parseFloat(val);
+    
+    const qualMapped = mapQualitativeValueToNumber(val);
+    if (qualMapped !== null) {
+      return qualMapped;
+    }
+    
+    // Find the parameter's criteria to check for custom qualitative mappings
+    const activeTestTypesList = availableTestTypes.filter((tt: any) => selectedTestTypeIds.includes(tt.id));
+    let matchedParam: any = null;
+    for (const tt of activeTestTypesList) {
+      const found = tt.parameters?.find((p: any) => p.id === parameterId);
+      if (found) {
+        matchedParam = found;
+        break;
+      }
+    }
+
+    if (matchedParam && matchedParam.criteria?.[0]) {
+      const c = matchedParam.criteria[0];
+      const cleanVal = val.trim().toUpperCase();
+      if (c.goodValue && cleanVal === c.goodValue.trim().toUpperCase()) {
+        return 0;
+      }
+      if (c.fairValue && cleanVal === c.fairValue.trim().toUpperCase()) {
+        return 1;
+      }
+      if (c.poorValue && cleanVal === c.poorValue.trim().toUpperCase()) {
+        return 2;
+      }
+      if (c.badValue && cleanVal === c.badValue.trim().toUpperCase()) {
+        return 3;
+      }
+    }
+    
+    return isNaN(numericValue) ? null : numericValue;
+  };
+
   // Mutations
   const createSessionMutation = useMutation({
     mutationFn: async () => {
@@ -602,7 +693,6 @@ function InputForm() {
       return res.json();
     },
     onSuccess: () => {
-      alert('Data pengujian berhasil disubmit untuk validasi!');
       // Reset form
       setInputValues({});
       setCalculatedStatuses({});
@@ -623,12 +713,27 @@ function InputForm() {
       return;
     }
 
+    const c = criteria?.[0]; // Active criteria
+
     // Embed client-side preview of scoring if criteria is present
     let parsedVal = parseFloat(val);
     const qualMapped = mapQualitativeValueToNumber(val);
     if (qualMapped !== null) {
       parsedVal = qualMapped;
-    } else if (isNaN(parsedVal)) {
+    } else if (c) {
+      const cleanVal = val.trim().toUpperCase();
+      if (c.goodValue && cleanVal === c.goodValue.trim().toUpperCase()) {
+        parsedVal = 0;
+      } else if (c.fairValue && cleanVal === c.fairValue.trim().toUpperCase()) {
+        parsedVal = 1;
+      } else if (c.poorValue && cleanVal === c.poorValue.trim().toUpperCase()) {
+        parsedVal = 2;
+      } else if (c.badValue && cleanVal === c.badValue.trim().toUpperCase()) {
+        parsedVal = 3;
+      }
+    }
+
+    if (isNaN(parsedVal)) {
       setCalculatedStatuses((prev) => {
         const copy = { ...prev };
         delete copy[parameterId];
@@ -636,68 +741,17 @@ function InputForm() {
       });
       return;
     }
-
-    const c = criteria?.[0]; // Active criteria
     
     if (c) {
-      // Helper to parse threshold bound
-      const parseBound = (boundStr: string | null) => {
-        if (!boundStr || boundStr.toUpperCase() === 'NA') return null;
-        const trimmed = boundStr.trim();
-        const geMatch = trimmed.match(/^>=?\s*([\d.-]+)$/);
-        if (geMatch) return { min: parseFloat(geMatch[1]), max: null };
-        const leMatch = trimmed.match(/^<=?\s*([\d.-]+)$/);
-        if (leMatch) return { min: null, max: parseFloat(leMatch[1]) };
-        const rangeMatch = trimmed.match(/^([\d.-]+)\s*-\s*([\d.-]+)$/);
-        if (rangeMatch) return { min: parseFloat(rangeMatch[1]), max: parseFloat(rangeMatch[2]) };
-        const numMatch = trimmed.match(/^([\d.-]+)$/);
-        if (numMatch) return { min: parseFloat(numMatch[1]), max: parseFloat(numMatch[1]) };
-        return null;
-      };
-
-      const evalQual = (numVal: number, critStr: string | null) => {
-        if (!critStr) return false;
-        const mapped = mapQualitativeValueToNumber(critStr);
-        if (mapped === null) {
-          const parsed = parseFloat(critStr);
-          return !isNaN(parsed) && numVal === parsed;
-        }
-        return numVal === mapped;
-      };
-
-      const good = parseBound(c.goodValue);
-      const fair = parseBound(c.fairValue);
-      const poor = parseBound(c.poorValue);
-      const bad = parseBound(c.badValue);
-
-      let score: number | null = 1;
-      let judgement: JudgementLabel = 'BAD';
-
-      const isGoodMatch = good 
-        ? ((good.min === null || parsedVal >= good.min) && (good.max === null || parsedVal <= good.max))
-        : (c.goodValue ? evalQual(parsedVal, c.goodValue) : false);
-
-      const isFairMatch = fair
-        ? ((fair.min === null || parsedVal >= fair.min) && (fair.max === null || parsedVal <= fair.max))
-        : (c.fairValue ? evalQual(parsedVal, c.fairValue) : false);
-
-      const isPoorMatch = poor
-        ? ((poor.min === null || parsedVal >= poor.min) && (poor.max === null || parsedVal <= poor.max))
-        : (c.poorValue ? evalQual(parsedVal, c.poorValue) : false);
-
-      const isBadMatch = bad
-        ? ((bad.min === null || parsedVal >= bad.min) && (bad.max === null || parsedVal <= bad.max))
-        : (c.badValue ? evalQual(parsedVal, c.badValue) : false);
-
-      if (isGoodMatch) {
-        score = 5; judgement = 'GOOD';
-      } else if (isFairMatch) {
-        score = 4; judgement = 'FAIR';
-      } else if (isPoorMatch) {
-        score = 2; judgement = 'POOR';
-      } else if (isBadMatch) {
-        score = 1; judgement = 'BAD';
-      }
+      const score = calculateScore(
+        parsedVal,
+        false,
+        c.goodValue,
+        c.fairValue,
+        c.poorValue,
+        c.badValue
+      );
+      const judgement = determineJudgement(score);
 
       setCalculatedStatuses((prev) => ({
         ...prev,
@@ -708,11 +762,11 @@ function InputForm() {
 
   async function handleSaveDraft() {
     if (!selectedAssetId) {
-      alert('Silakan pilih Unit Pembangkit/Asset terlebih dahulu.');
+      toast.warning('Silakan pilih Unit Pembangkit/Asset terlebih dahulu.');
       return;
     }
     if (sessionStatus === 'VALIDATED' || sessionStatus === 'SUBMITTED') {
-      alert('Data tidak dapat disimpan karena status pengujian saat ini adalah ' + sessionStatus);
+      toast.warning('Data tidak dapat disimpan karena status pengujian saat ini adalah ' + sessionStatus);
       return;
     }
 
@@ -726,16 +780,10 @@ function InputForm() {
       }
 
       const results = Object.entries(inputValues).map(([parameterId, val]) => {
-        let numericValue = val ? parseFloat(val) : null;
-        if (val) {
-          const qualMapped = mapQualitativeValueToNumber(val);
-          if (qualMapped !== null) {
-            numericValue = qualMapped;
-          }
-        }
+        const numericValue = mapValueToNumericValue(parameterId, val);
         return {
           parameterId,
-          value: val && isNaN(numericValue as number) ? null : numericValue,
+          value: numericValue,
           isNotApplicable: !val,
         };
       });
@@ -744,19 +792,19 @@ function InputForm() {
       if (sessionStatus === 'REJECTED') {
         setSessionStatus('DRAFT');
       }
-      alert('Draft berhasil disimpan!');
+      toast.success('Draft berhasil disimpan!');
     } catch (e: any) {
-      alert(e.message || 'Terjadi kesalahan saat menyimpan draft.');
+      toast.error(e.message || 'Terjadi kesalahan saat menyimpan draft.');
     }
   }
 
   async function handleSubmit() {
     if (!selectedAssetId) {
-      alert('Silakan pilih Unit Pembangkit/Asset terlebih dahulu.');
+      toast.warning('Silakan pilih Unit Pembangkit/Asset terlebih dahulu.');
       return;
     }
     if (sessionStatus === 'VALIDATED' || sessionStatus === 'SUBMITTED') {
-      alert('Data tidak dapat disubmit karena status pengujian saat ini adalah ' + sessionStatus);
+      toast.warning('Data tidak dapat disubmit karena status pengujian saat ini adalah ' + sessionStatus);
       return;
     }
 
@@ -770,16 +818,10 @@ function InputForm() {
       }
 
       const results = Object.entries(inputValues).map(([parameterId, val]) => {
-        let numericValue = val ? parseFloat(val) : null;
-        if (val) {
-          const qualMapped = mapQualitativeValueToNumber(val);
-          if (qualMapped !== null) {
-            numericValue = qualMapped;
-          }
-        }
+        const numericValue = mapValueToNumericValue(parameterId, val);
         return {
           parameterId,
-          value: val && isNaN(numericValue as number) ? null : numericValue,
+          value: numericValue,
           isNotApplicable: !val,
         };
       });
@@ -787,9 +829,9 @@ function InputForm() {
       await saveResultsMutation.mutateAsync({ sessionId: sessionId!, results });
       await submitSessionMutation.mutateAsync(sessionId!);
       setSessionStatus('SUBMITTED');
-      alert('Data pengujian berhasil dikirim untuk validasi!');
+      toast.success('Data pengujian berhasil dikirim untuk validasi!');
     } catch (e: any) {
-      alert(e.message || 'Terjadi kesalahan saat mengirim data.');
+      toast.error(e.message || 'Terjadi kesalahan saat mengirim data.');
     }
   }
 
@@ -810,48 +852,42 @@ function InputForm() {
           {/* 1. UBP */}
           <div className="space-y-1">
             <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">UBP</label>
-            <select 
+            <FilterSelect 
               value={selectedUbpId}
-              onChange={(e) => {
-                setSelectedUbpId(e.target.value);
+              onChange={(val) => {
+                setSelectedUbpId(val);
                 setSelectedUnitName('');
                 setSelectedJenisId('');
                 setSelectedAssetId('');
                 setTestEvent('default');
                 setIsCustomEvent(false);
               }}
-              className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary font-semibold text-primary cursor-pointer h-[30px]"
-            >
-              <option value="">Pilih UBP</option>
-              {ubps?.map((ubp: any) => (
-                <option key={ubp.id} value={ubp.id}>{ubp.name}</option>
-              ))}
-            </select>
+              options={(ubps || []).map((ubp: any) => ({ value: ubp.id, label: ubp.name }))}
+              placeholder="Pilih UBP"
+              buttonClassName="bg-surface-container-low border border-surface-border font-semibold text-primary h-[30px] min-h-[30px] py-1"
+            />
           </div>
 
           {/* 2. Unit Pembangkit */}
           <div className="space-y-1">
             <label className="block font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Unit Pembangkit</label>
-            <select 
+            <FilterSelect 
               value={selectedUnitName}
-              onChange={(e) => {
-                setSelectedUnitName(e.target.value);
+              onChange={(val) => {
+                setSelectedUnitName(val);
                 setSelectedJenisId('');
                 setSelectedAssetId('');
                 setTestEvent('default');
                 setIsCustomEvent(false);
               }}
-              disabled={!selectedUbpId}
-              className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary disabled:opacity-50 font-semibold text-primary cursor-pointer h-[30px]"
-            >
-              <option value="">Pilih Unit</option>
-              {(() => {
+              options={(() => {
                 const unitsInUbp = selectedUbp?.unitPembangkit || [];
-                return unitsInUbp.map((unit: any) => (
-                  <option key={unit.id} value={unit.name}>{unit.name}</option>
-                ));
+                return unitsInUbp.map((unit: any) => ({ value: unit.name, label: unit.name }));
               })()}
-            </select>
+              placeholder="Pilih Unit"
+              disabled={!selectedUbpId}
+              buttonClassName="bg-surface-container-low border border-surface-border font-semibold text-primary h-[30px] min-h-[30px] py-1"
+            />
           </div>
 
           {/* 3. Jenis Asset */}
@@ -872,21 +908,18 @@ function InputForm() {
                 className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:outline-none font-semibold text-primary h-[30px]"
               />
             ) : (
-              <select 
+              <FilterSelect 
                 value={selectedJenisId}
-                onChange={(e) => {
-                  setSelectedJenisId(e.target.value);
+                onChange={(val) => {
+                  setSelectedJenisId(val);
                   setSelectedAssetId('');
                   setTestEvent('default');
                   setIsCustomEvent(false);
                 }}
-                className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary font-semibold text-primary cursor-pointer h-[30px]"
-              >
-                <option value="">Pilih Jenis Aset</option>
-                {availableJenisAssets.map((ja: any) => (
-                  <option key={ja.id} value={ja.id}>{ja.name}</option>
-                ))}
-              </select>
+                options={availableJenisAssets.map((ja: any) => ({ value: ja.id, label: ja.name }))}
+                placeholder="Pilih Jenis Aset"
+                buttonClassName="bg-surface-container-low border border-surface-border font-semibold text-primary h-[30px] min-h-[30px] py-1"
+              />
             )}
           </div>
 
@@ -908,20 +941,17 @@ function InputForm() {
                 className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:outline-none font-semibold text-primary h-[30px]"
               />
             ) : (
-              <select 
+              <FilterSelect 
                 value={selectedAssetId}
-                onChange={(e) => {
-                  setSelectedAssetId(e.target.value);
+                onChange={(val) => {
+                  setSelectedAssetId(val);
                   setTestEvent('default');
                   setIsCustomEvent(false);
                 }}
-                className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary font-semibold text-primary cursor-pointer h-[30px]"
-              >
-                <option value="">Pilih Nama Aset</option>
-                {availableAssetsInUnit.map((asset: any) => (
-                  <option key={asset.id} value={asset.id}>{asset.name}</option>
-                ))}
-              </select>
+                options={availableAssetsInUnit.map((asset: any) => ({ value: asset.id, label: asset.name }))}
+                placeholder="Pilih Nama Aset"
+                buttonClassName="bg-surface-container-low border border-surface-border font-semibold text-primary h-[30px] min-h-[30px] py-1"
+              />
             )}
           </div>
 
@@ -972,19 +1002,17 @@ function InputForm() {
               </div>
             ) : (
               <div key="event-select-mode" className="flex items-center gap-1.5 w-full">
-                <select 
-                  value={testEvent}
-                  onChange={(e) => setTestEvent(e.target.value)}
-                  disabled={!selectedAssetId}
-                  className="flex-1 min-w-0 bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:ring-primary font-semibold text-primary cursor-pointer disabled:opacity-50 h-[30px]"
-                >
-                  <option value="default">Rutin (Default)</option>
-                  {existingEvents
+                <FilterSelect 
+                  value={testEvent === 'default' ? '' : testEvent}
+                  onChange={(val) => setTestEvent(val || 'default')}
+                  options={existingEvents
                     .filter((e) => e !== 'default' && e !== '')
-                    .map((evt) => (
-                      <option key={evt} value={evt}>{evt}</option>
-                    ))}
-                </select>
+                    .map((evt) => ({ value: evt, label: evt }))}
+                  placeholder="Rutin (Default)"
+                  disabled={!selectedAssetId}
+                  className="flex-1 min-w-0"
+                  buttonClassName="bg-surface-container-low border border-surface-border font-semibold text-primary h-[30px] min-h-[30px] py-1"
+                />
                 <button
                   key="btn-add-custom"
                   type="button"
@@ -1015,16 +1043,14 @@ function InputForm() {
               }
 
               return (
-                <select 
+                <FilterSelect 
                   value={testYear}
-                  onChange={(e) => setTestYear(e.target.value)}
+                  onChange={setTestYear}
+                  options={years.map((y) => ({ value: y, label: y }))}
+                  placeholder="Pilih Tahun"
                   disabled={!selectedAssetId}
-                  className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1.5 focus:ring-primary font-semibold text-primary cursor-pointer disabled:opacity-50 h-[30px]"
-                >
-                  {years.map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
+                  buttonClassName="bg-surface-container-low border border-surface-border font-semibold text-primary h-[30px] min-h-[30px] py-1"
+                />
               );
             })()}
           </div>
@@ -1210,7 +1236,7 @@ function InputForm() {
                                               />
                                               {param.unit && (
                                                 <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center text-outline select-none pointer-events-none">
-                                                  <span className="text-[9px] font-bold uppercase">{param.unit}</span>
+                                                  <span className="text-[9px] font-bold">{param.unit}</span>
                                                 </div>
                                               )}
                                             </>

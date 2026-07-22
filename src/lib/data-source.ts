@@ -3,41 +3,34 @@ import { DataSource } from 'typeorm';
 import fs from 'fs';
 import path from 'path';
 
-// Try standard Node env loader
-try {
-  if (typeof process.loadEnvFile === 'function') {
-    process.loadEnvFile();
-  }
-} catch (e) {
-  // Ignore
-}
-
-// Fallback manual env loader for older Node.js versions or custom environments
-try {
-  const envPath = path.resolve(process.cwd(), '.env');
-  if (fs.existsSync(envPath)) {
-    const content = fs.readFileSync(envPath, 'utf8');
-    content.split(/\r?\n/).forEach((line) => {
-      const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith('#')) {
-        const index = trimmed.indexOf('=');
-        if (index > 0) {
-          const key = trimmed.substring(0, index).trim();
-          let val = trimmed.substring(index + 1).trim();
-          // Strip surrounding quotes
-          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-            val = val.substring(1, val.length - 1);
-          }
-          if (key && !process.env[key]) {
-            process.env[key] = val;
+// Robust env loader for Node.js scripts (.env and .env.local)
+const envFiles = ['.env.local', '.env'];
+envFiles.forEach((file) => {
+  try {
+    const envPath = path.resolve(process.cwd(), file);
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf8').replace(/^\uFEFF/, '');
+      content.split(/\r?\n/).forEach((line) => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+          const index = trimmed.indexOf('=');
+          if (index > 0) {
+            const key = trimmed.substring(0, index).trim();
+            let val = trimmed.substring(index + 1).trim();
+            if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+              val = val.substring(1, val.length - 1);
+            }
+            if (key && (process.env[key] === undefined || process.env[key] === '')) {
+              process.env[key] = val;
+            }
           }
         }
-      }
-    });
+      });
+    }
+  } catch (e) {
+    // Ignore manual load errors
   }
-} catch (e) {
-  // Ignore manual load errors
-}
+});
 import { Ubp } from '@/entities/Ubp';
 import { UnitPembangkit } from '@/entities/UnitPembangkit';
 import { JenisAsset } from '@/entities/JenisAsset';

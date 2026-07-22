@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { useSession } from 'next-auth/react';
+import { FilterSelect } from '@/components/dashboard/FilterSelect';
 
 interface AuditLogEntry {
   id: string;
@@ -226,34 +227,28 @@ export default function LogPage() {
         </div>
 
         {/* Action Filter */}
-        <select
+        <FilterSelect
           value={actionFilter}
-          onChange={(e) => {
-            setActionFilter(e.target.value);
+          onChange={(val) => {
+            setActionFilter(val);
             setCurrentPage(1);
           }}
-          className="px-3 py-2 rounded-md border border-surface-border bg-white text-sm text-on-surface focus:outline-none focus:border-primary"
-        >
-          <option value="">Semua Aksi</option>
-          {filters.actions.map((a) => (
-            <option key={a} value={a}>{getActionMeta(a).label} ({a})</option>
-          ))}
-        </select>
+          options={filters.actions.map((a) => ({ value: a, label: `${getActionMeta(a).label} (${a})` }))}
+          placeholder="Semua Aksi"
+          className="min-w-[150px]"
+        />
 
         {/* Entity Filter */}
-        <select
+        <FilterSelect
           value={entityFilter}
-          onChange={(e) => {
-            setEntityFilter(e.target.value);
+          onChange={(val) => {
+            setEntityFilter(val);
             setCurrentPage(1);
           }}
-          className="px-3 py-2 rounded-md border border-surface-border bg-white text-sm text-on-surface focus:outline-none focus:border-primary"
-        >
-          <option value="">Semua Entitas</option>
-          {filters.entities.map((e) => (
-            <option key={e} value={e}>{getEntityLabel(e)}</option>
-          ))}
-        </select>
+          options={filters.entities.map((e) => ({ value: e, label: getEntityLabel(e) }))}
+          placeholder="Semua Entitas"
+          className="min-w-[150px]"
+        />
 
         {/* Refresh */}
         <button

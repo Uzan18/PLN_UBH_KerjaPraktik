@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     });
     await sessionRepo.save(testSession);
 
-    // Audit Log (CLAUDE.md Rule #5)
+    // Catat Audit Log pembuat sesi pengujian baru
     const auditLog = auditRepo.create({
       userId: session.user.id,
       action: 'CREATE_TEST_SESSION',

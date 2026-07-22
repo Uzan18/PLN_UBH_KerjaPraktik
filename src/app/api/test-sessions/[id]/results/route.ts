@@ -14,10 +14,8 @@ import { LessThanOrEqual, IsNull, MoreThanOrEqual } from 'typeorm';
 
 /**
  * PUT /api/test-sessions/[id]/results
- * Save/update parameter values for a test session.
- * 
- * CRITICAL (CLAUDE.md Rule #1): Score and judgement are ALWAYS calculated
- * server-side. Client only sends value + parameterId.
+ * Menyimpan/memperbarui hasil pengukuran parameter untuk sesi pengujian.
+ * Skor dan judgement dihitung secara otomatis di server-side.
  */
 export async function PUT(
   request: Request,
@@ -86,7 +84,7 @@ export async function PUT(
       const now = new Date();
 
       for (const r of results) {
-      // Get criteria for this parameter (CLAUDE.md Rule #6 - versioned)
+      // Ambil kriteria aktif untuk parameter ini (versi kriteria yang berlaku)
       const criteria = await criteriaRepo.createQueryBuilder('c')
         .where('c.parameter_id = :parameterId', { parameterId: r.parameterId })
         .andWhere('c.effective_from <= :now', { now })
@@ -94,7 +92,7 @@ export async function PUT(
         .orderBy('c.effective_from', 'DESC')
         .getOne();
 
-      // Server-side score calculation (CLAUDE.md Rule #1)
+      // Kalkulasi skor dan judgement server-side
       const score = calculateScore(
         r.value,
         r.isNotApplicable,
@@ -136,7 +134,7 @@ export async function PUT(
     }
     }
 
-    // Audit Log (CLAUDE.md Rule #5)
+    // Catat Audit Log aktivitas pembaruan hasil pengukuran
     const auditLog = auditRepo.create({
       userId: session.user.id,
       action: 'UPDATE_TEST_RESULTS',
@@ -218,15 +216,31 @@ export async function GET(
       if (r.isNotApplicable) {
         displayValue = 'N/A';
       } else if (valNum !== null && criteria) {
-        const labelOptions = [criteria.goodValue, criteria.fairValue, criteria.poorValue, criteria.badValue]
-          .filter(Boolean)
-          .map((v) => String(v).trim());
-          
-        for (const opt of labelOptions) {
-          const mapped = mapQualitativeValueToNumber(opt);
-          if (mapped !== null && mapped === valNum) {
-            displayValue = opt;
-            break;
+        let matchedOpt = null;
+        
+        if (criteria.goodValue && (mapQualitativeValueToNumber(criteria.goodValue) === valNum || (mapQualitativeValueToNumber(criteria.goodValue) === null && valNum === 0))) {
+          matchedOpt = criteria.goodValue;
+        } else if (criteria.fairValue && (mapQualitativeValueToNumber(criteria.fairValue) === valNum || (mapQualitativeValueToNumber(criteria.fairValue) === null && valNum === 1))) {
+          matchedOpt = criteria.fairValue;
+        } else if (criteria.poorValue && (mapQualitativeValueToNumber(criteria.poorValue) === valNum || (mapQualitativeValueToNumber(criteria.poorValue) === null && valNum === 2))) {
+          matchedOpt = criteria.poorValue;
+        } else if (criteria.badValue && (mapQualitativeValueToNumber(criteria.badValue) === valNum || (mapQualitativeValueToNumber(criteria.badValue) === null && valNum === 3))) {
+          matchedOpt = criteria.badValue;
+        }
+        
+        if (matchedOpt !== null) {
+          displayValue = matchedOpt;
+        } else {
+          const labelOptions = [criteria.goodValue, criteria.fairValue, criteria.poorValue, criteria.badValue]
+            .filter(Boolean)
+            .map((v) => String(v).trim());
+            
+          for (const opt of labelOptions) {
+            const mapped = mapQualitativeValueToNumber(opt);
+            if (mapped !== null && mapped === valNum) {
+              displayValue = opt;
+              break;
+            }
           }
         }
       }

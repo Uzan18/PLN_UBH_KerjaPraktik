@@ -2,16 +2,14 @@ import type { JudgementLabel } from '@/types';
 import { SCORE_TO_JUDGEMENT } from '@/types';
 
 /**
- * Determine JudgementLabel from a numeric score.
+ * Menentukan label judgement berdasarkan skor nilai pengujian.
  * 
- * Score mapping:
+ * Pemetaan Skor PLN:
  * - 5 → GOOD
  * - 4 → FAIR
  * - 2 → POOR
  * - 1 → BAD
  * - null → NA
- * 
- * IMPORTANT (CLAUDE.md Rule #1): This function MUST only be called server-side.
  */
 export function determineJudgement(score: number | null): JudgementLabel {
   if (score === null || score === undefined) {

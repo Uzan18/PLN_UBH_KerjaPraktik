@@ -84,7 +84,7 @@ export async function POST(
 
     const updated = await sessionRepo.save(testSession);
 
-    // Audit Log (CLAUDE.md Rule #5)
+    // Catat Audit Log aktivitas persetujuan sesi pengujian
     const auditLog = auditRepo.create({
       userId: session.user.id,
       action: 'APPROVE_TEST_SESSION',

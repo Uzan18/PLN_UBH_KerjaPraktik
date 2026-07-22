@@ -2,49 +2,78 @@
  * Threshold definition parsed from Criteria string values.
  * Criteria values are stored as strings to support operators (>=, <) and "NA".
  */
-interface ThresholdRange {
-  goodMin: number | null;
-  fairMin: number | null;
-  fairMax: number | null;
-  poorMin: number | null;
-  poorMax: number | null;
-  badMax: number | null;
+interface ParsedThreshold {
+  min: number | null;
+  minInclusive: boolean;
+  max: number | null;
+  maxInclusive: boolean;
 }
 
 /**
  * Parse a threshold string like ">= 2", "1.25 - 1.99", "< 1.0", etc.
- * Returns { min, max } or null if "NA"
+ * Returns ParsedThreshold or null if "NA"
  */
-function parseThresholdBound(value: string | null): { min: number | null; max: number | null } | null {
+function parseThresholdBound(value: string | null): ParsedThreshold | null {
   if (!value || value.trim().toUpperCase() === 'NA') return null;
 
-  const trimmed = value.trim();
+  const trimmed = value.trim().replace(/≥/g, '>=').replace(/≤/g, '<=').replace(',', '.');
 
   // Handle ">= X" or "> X" (supporting negative numbers)
-  const geMatch = trimmed.match(/^>=?\s*([\d.-]+)$/);
+  const geMatch = trimmed.match(/^(>=?)\s*([\d.-]+)$/);
   if (geMatch) {
-    return { min: parseFloat(geMatch[1]), max: null };
+    const op = geMatch[1];
+    const val = parseFloat(geMatch[2]);
+    return {
+      min: val,
+      minInclusive: op === '>=',
+      max: null,
+      maxInclusive: true,
+    };
   }
 
   // Handle "<= X" or "< X" (supporting negative numbers)
-  const leMatch = trimmed.match(/^<=?\s*([\d.-]+)$/);
+  const leMatch = trimmed.match(/^(<=?)\s*([\d.-]+)$/);
   if (leMatch) {
-    return { min: null, max: parseFloat(leMatch[1]) };
+    const op = leMatch[1];
+    const val = parseFloat(leMatch[2]);
+    return {
+      min: null,
+      minInclusive: true,
+      max: val,
+      maxInclusive: op === '<=',
+    };
   }
 
   // Handle range "X - Y" or "X-Y" (supporting negative numbers)
   const rangeMatch = trimmed.match(/^([\d.-]+)\s*-\s*([\d.-]+)$/);
   if (rangeMatch) {
-    return { min: parseFloat(rangeMatch[1]), max: parseFloat(rangeMatch[2]) };
+    return {
+      min: parseFloat(rangeMatch[1]),
+      minInclusive: true,
+      max: parseFloat(rangeMatch[2]),
+      maxInclusive: true,
+    };
   }
 
   // Handle plain number (supporting negative numbers)
   const numMatch = trimmed.match(/^([\d.-]+)$/);
   if (numMatch) {
-    return { min: parseFloat(numMatch[1]), max: parseFloat(numMatch[1]) };
+    return {
+      min: parseFloat(numMatch[1]),
+      minInclusive: true,
+      max: parseFloat(numMatch[1]),
+      maxInclusive: true,
+    };
   }
 
   return null;
+}
+
+function matchesThreshold(numValue: number, t: ParsedThreshold | null): boolean {
+  if (!t) return false;
+  const minOk = t.min === null || (t.minInclusive ? numValue >= t.min : numValue > t.min);
+  const maxOk = t.max === null || (t.maxInclusive ? numValue <= t.max : numValue < t.max);
+  return minOk && maxOk;
 }
 
 export function mapQualitativeValueToNumber(valStr: string): number | null {
@@ -89,16 +118,13 @@ export function evaluateQualitative(numValue: number, criteriaStr: string | null
 /**
  * Calculate score for a test result based on the parameter value and criteria thresholds.
  * 
- * Scores:
- * - 5 = Good
- * - 4 = Fair
- * - 2 = Poor
- * - 1 = Bad
+ * Skala Skor PLN:
+ * - 5 = Good (Kondisi Sangat Baik)
+ * - 4 = Fair (Kondisi Cukup / Perlu Perhatian)
+ * - 2 = Poor (Kondisi Buruk / Perlu Pemeliharaan)
+ * - 1 = Bad (Kondisi Critical / Sangat Buruk)
  * 
- * Returns null if value is NA or thresholds are missing.
- * 
- * IMPORTANT (CLAUDE.md Rule #1): This function MUST only be called server-side.
- * Score and judgement are NEVER accepted from client input.
+ * Mengembalikan null jika parameter bernilai N/A.
  */
 export function calculateScore(
   value: number | null,
@@ -114,6 +140,9 @@ export function calculateScore(
   }
 
   const numValue = typeof value === 'number' ? value : Number(value);
+  if (isNaN(numValue)) {
+    return null;
+  }
 
   // Parse thresholds
   const good = parseThresholdBound(goodValue);
@@ -121,40 +150,52 @@ export function calculateScore(
   const poor = parseThresholdBound(poorValue);
   const bad = parseThresholdBound(badValue);
 
-  // Check Good first (highest score)
-  if (good) {
-    if (good.min !== null && good.max === null && numValue >= good.min) return 5;
-    if (good.max !== null && good.min === null && numValue <= good.max) return 5;
-    if (good.min !== null && good.max !== null && numValue >= good.min && numValue <= good.max) return 5;
-  } else if (goodValue) {
-    if (evaluateQualitative(numValue, goodValue)) return 5;
-  }
-
-  // Check Fair
-  if (fair) {
-    if (fair.min !== null && fair.max !== null && numValue >= fair.min && numValue <= fair.max) return 4;
-    if (fair.min !== null && fair.max === null && numValue >= fair.min) return 4;
-    if (fair.max !== null && fair.min === null && numValue <= fair.max) return 4;
-  } else if (fairValue) {
-    if (evaluateQualitative(numValue, fairValue)) return 4;
-  }
-
-  // Check Poor
-  if (poor) {
-    if (poor.min !== null && poor.max !== null && numValue >= poor.min && numValue <= poor.max) return 2;
-    if (poor.min !== null && poor.max === null && numValue >= poor.min) return 2;
-    if (poor.max !== null && poor.min === null && numValue <= poor.max) return 2;
-  } else if (poorValue) {
-    if (evaluateQualitative(numValue, poorValue)) return 2;
-  }
-
-  // Check Bad
+  // Check Bad first (lowest score)
   if (bad) {
-    if (bad.max !== null && bad.min === null && numValue < bad.max) return 1;
-    if (bad.min !== null && bad.max === null && numValue >= bad.min) return 1;
-    if (bad.min !== null && bad.max !== null && numValue >= bad.min && numValue <= bad.max) return 1;
+    if (matchesThreshold(numValue, bad)) return 1;
   } else if (badValue) {
-    if (evaluateQualitative(numValue, badValue)) return 1;
+    const mapped = mapQualitativeValueToNumber(badValue);
+    if (mapped !== null) {
+      if (numValue === mapped) return 1;
+    } else {
+      if (numValue === 3) return 1;
+    }
+  }
+
+  // Check Poor next
+  if (poor) {
+    if (matchesThreshold(numValue, poor)) return 2;
+  } else if (poorValue) {
+    const mapped = mapQualitativeValueToNumber(poorValue);
+    if (mapped !== null) {
+      if (numValue === mapped) return 2;
+    } else {
+      if (numValue === 2) return 2;
+    }
+  }
+
+  // Check Fair next
+  if (fair) {
+    if (matchesThreshold(numValue, fair)) return 4;
+  } else if (fairValue) {
+    const mapped = mapQualitativeValueToNumber(fairValue);
+    if (mapped !== null) {
+      if (numValue === mapped) return 4;
+    } else {
+      if (numValue === 1) return 4;
+    }
+  }
+
+  // Check Good last
+  if (good) {
+    if (matchesThreshold(numValue, good)) return 5;
+  } else if (goodValue) {
+    const mapped = mapQualitativeValueToNumber(goodValue);
+    if (mapped !== null) {
+      if (numValue === mapped) return 5;
+    } else {
+      if (numValue === 0) return 5;
+    }
   }
 
   // Default: if value didn't match any range, consider it Bad (worst case, safe default)

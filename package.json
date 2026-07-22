@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "npx tsx src/scripts/seed.ts",
+    "seed": "npx tsx src/scripts/seed-clean.ts",
+    "seed:clean": "npx tsx src/scripts/seed-clean.ts",
+    "seed:testing": "npx tsx src/scripts/seed-testing.ts",
+    "test-db": "npx tsx src/scripts/test-db-connection.ts",
     "typeorm": "npx typeorm-ts-node-commonjs"
   },
   "dependencies": {
