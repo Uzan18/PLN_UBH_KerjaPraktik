@@ -96,9 +96,9 @@ function isNumericCondition(str: string): boolean {
 
 /**
  * Parse a threshold string supporting single bounds, ranges, and compound operators (AND / OR).
- * Supported syntax examples:
- * - Multi-condition OR:  "> 100 OR < 0", "> 100 || < 0", "> 100 ; < 0", "> 100 atau < 0"
- * - Multi-condition AND: "> 0 AND < 50", "> 0 && < 50", "> 0 dan < 50"
+ * Supported quantitative syntax examples:
+ * - Multi-condition OR:  "> 100 OR < 0", "> 100 ATAU < 0"
+ * - Multi-condition AND: "> 0 AND < 50", "> 0 DAN < 50"
  */
 function parseThresholdBound(value: string | null): ParsedThreshold | null {
   if (!value || value.trim().toUpperCase() === 'NA') return null;
@@ -110,8 +110,8 @@ function parseThresholdBound(value: string | null): ParsedThreshold | null {
     return null;
   }
 
-  // 1. Check for OR operators: "OR", "||", ";", "atau"
-  const orParts = raw.split(/\s+(?:OR|\|\||atau)\s+|\s*;\s*/i);
+  // 1. Check for strict OR operators: "OR" and "ATAU"
+  const orParts = raw.split(/\s+(?:OR|ATAU)\s+|\s*;\s*/i);
   if (orParts.length > 1) {
     const parsedSub = orParts.map((p) => parseThresholdBound(p)).filter((p): p is ParsedThreshold => p !== null);
     if (parsedSub.length > 0) {
@@ -119,8 +119,8 @@ function parseThresholdBound(value: string | null): ParsedThreshold | null {
     }
   }
 
-  // 2. Check for AND operators: "AND", "&&", "dan"
-  const andParts = raw.split(/\s+(?:AND|&&|dan)\s+/i);
+  // 2. Check for strict AND operators: "AND" and "DAN"
+  const andParts = raw.split(/\s+(?:AND|DAN)\s+/i);
   if (andParts.length > 1) {
     const parsedSub = andParts.map((p) => parseThresholdBound(p)).filter((p): p is ParsedThreshold => p !== null);
     if (parsedSub.length > 0) {
@@ -206,8 +206,8 @@ export function matchesQualitativeText(inputVal: any, targetThreshold: string | 
     return true;
   }
 
-  // 3. Multi-option qualitative support (e.g. target "JERNIH OR BENING" or "JERNIH ; BENING")
-  const targetParts = targetClean.split(/\s+(?:OR|\|\||atau)\s+|\s*;\s*/i);
+  // 3. Multi-option qualitative support (e.g. target "JERNIH OR BENING" or "JERNIH ATAU BENING")
+  const targetParts = targetClean.split(/\s+(?:OR|ATAU)\s+|\s*;\s*/i);
   if (targetParts.length > 1) {
     return targetParts.some((p) => matchesQualitativeText(inputVal, p));
   }
