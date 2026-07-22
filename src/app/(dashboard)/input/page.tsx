@@ -40,8 +40,19 @@ function getQualitativeChoices(criteria: any): string[] | null {
   const allPureNumeric = rawValues.every((v) => isPureNumericExpression(v));
   if (allPureNumeric) return null;
 
-  // Otherwise, if any threshold contains words outside (AND, OR, DAN, ATAU), it enters Mode Pemilihan (Dropdown)!
-  return rawValues;
+  // Otherwise (if any threshold contains words outside AND, OR, DAN, ATAU), it enters Mode Pemilihan (Dropdown)!
+  // Extract and split choices for dropdown display (e.g. "JERNIH ATAU BENING" -> ["JERNIH", "BENING"])
+  const choices: string[] = [];
+  for (const val of rawValues) {
+    const parts = val.split(/\s+(?:AND|OR|DAN|ATAU)\s+|\s*;\s*/gi).map((p) => p.trim()).filter(Boolean);
+    for (const p of parts) {
+      if (!choices.includes(p)) {
+        choices.push(p);
+      }
+    }
+  }
+
+  return choices.length > 0 ? choices : rawValues;
 }
 
 // Fetch helpers
