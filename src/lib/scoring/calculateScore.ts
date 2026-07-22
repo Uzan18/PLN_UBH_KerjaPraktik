@@ -84,6 +84,11 @@ function parseThresholdBound(value: string | null): ParsedThreshold | null {
   if (!value || value.trim().toUpperCase() === 'NA') return null;
   const raw = value.trim();
 
+  // Prevent conflict with qualitative drop-down strings (e.g. "NORMAL", "TIDAK ADA", "GOOD", etc.)
+  if (mapQualitativeValueToNumber(raw) !== null) {
+    return null;
+  }
+
   // 1. Check for OR operators: "OR", "||", ";", "atau"
   const orParts = raw.split(/\s+(?:OR|\|\||atau)\s+|\s*;\s*/i);
   if (orParts.length > 1) {
@@ -148,6 +153,16 @@ export function mapQualitativeValueToNumber(valStr: string): number | null {
   if (clean === 'BAD') {
     return 1;
   }
+
+  // Check if valStr contains multiple qualitative values (e.g. "NORMAL OR TIDAK ADA")
+  const parts = clean.split(/\s+(?:OR|\|\||atau)\s+|\s*;\s*/i);
+  if (parts.length > 1) {
+    for (const p of parts) {
+      const mapped = mapQualitativeValueToNumber(p);
+      if (mapped !== null) return mapped;
+    }
+  }
+
   return null;
 }
 
