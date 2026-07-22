@@ -10,6 +10,7 @@
     "seed": "npx tsx src/scripts/seed-clean.ts",
     "seed:clean": "npx tsx src/scripts/seed-clean.ts",
     "seed:testing": "npx tsx src/scripts/seed-testing.ts",
+    "sync-db": "npx tsx src/scripts/sync-db.ts",
     "test-db": "npx tsx src/scripts/test-db-connection.ts",
     "typeorm": "npx typeorm-ts-node-commonjs"
   },

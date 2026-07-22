@@ -20,7 +20,7 @@ envFiles.forEach((file) => {
             if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
               val = val.substring(1, val.length - 1);
             }
-            if (key && (process.env[key] === undefined || process.env[key] === '')) {
+            if (key) {
               process.env[key] = val;
             }
           }

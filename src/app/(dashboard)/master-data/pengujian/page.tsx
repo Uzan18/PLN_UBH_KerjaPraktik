@@ -90,7 +90,6 @@ export default function CombinedManagePengujianPage() {
   const [selectedTestTypeIds, setSelectedTestTypeIds] = useState<string[]>([]);
   const [selectedInfoFields, setSelectedInfoFields] = useState<any[]>([]);
   const [searchTestQuery, setSearchTestQuery] = useState('');
-  const [showAllMasterTestTypes, setShowAllMasterTestTypes] = useState(false);
   const [isAddEquipmentTypeOpen, setIsAddEquipmentTypeOpen] = useState(false);
   const [newEquipmentTypeName, setNewEquipmentTypeName] = useState('');
   const [isEditEquipmentTypeOpen, setIsEditEquipmentTypeOpen] = useState(false);
@@ -317,7 +316,6 @@ export default function CombinedManagePengujianPage() {
   // Sync selected group test type checkboxes when a group is selected (Pemetaan Tab)
   const handleSelectGroup = (group: EquipmentTypeGroup) => {
     setSelectedGroup(group);
-    setShowAllMasterTestTypes(false);
     const configuredIds = group.testTypes?.map((t) => t.id) || [];
     setSelectedTestTypeIds(configuredIds);
     setRightPanelTab('informasi');
@@ -1103,16 +1101,12 @@ export default function CombinedManagePengujianPage() {
     }
   };
 
-  // Filters & Loading
   const filteredTestTypes = useMemo(() => {
     if (!testTypes) return [];
-    return testTypes.filter((t) => {
-      const matchesSearch = t.name.toLowerCase().includes(searchTestQuery.toLowerCase());
-      if (!matchesSearch) return false;
-      if (showAllMasterTestTypes) return true;
-      return selectedTestTypeIds.includes(t.id);
-    });
-  }, [testTypes, selectedTestTypeIds, searchTestQuery, showAllMasterTestTypes]);
+    return testTypes.filter((t) =>
+      t.name.toLowerCase().includes(searchTestQuery.toLowerCase())
+    );
+  }, [testTypes, searchTestQuery]);
 
   const isLoading = isUbpsLoading || isTestTypesLoading;
 
@@ -1407,26 +1401,15 @@ export default function CombinedManagePengujianPage() {
                     <div className="flex flex-col space-y-3 animate-fade-in">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1.5 border-b border-surface-border">
                       <h3 className="text-xs font-bold text-on-surface uppercase tracking-wide">
-                        {showAllMasterTestTypes
-                          ? 'Seluruh Master Jenis Pengujian'
-                          : `Jenis Pengujian Berlaku (${selectedGroup?.name || ''})`}
+                        Jenis Pengujian ({selectedGroup?.name || ''})
                       </h3>
                       <div className="flex items-center gap-2.5">
                         <button
-                          type="button"
-                          onClick={() => setShowAllMasterTestTypes(!showAllMasterTestTypes)}
-                          className="text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                          onClick={handleSelectAll}
+                          className="text-xs font-semibold text-primary hover:underline focus:outline-none cursor-pointer"
                         >
-                          {showAllMasterTestTypes ? 'Tampilkan Aset Ini Saja' : 'Kelola dari Master'}
+                          {testTypes && selectedTestTypeIds.length === testTypes.length ? 'Batal Semua' : 'Pilih Semua'}
                         </button>
-                        {showAllMasterTestTypes && (
-                          <button
-                            onClick={handleSelectAll}
-                            className="text-xs font-semibold text-primary hover:underline focus:outline-none cursor-pointer"
-                          >
-                            {testTypes && selectedTestTypeIds.length === testTypes.length ? 'Batal Semua' : 'Pilih Semua'}
-                          </button>
-                        )}
                         <div className="relative w-44">
                           <input
                             type="text"
