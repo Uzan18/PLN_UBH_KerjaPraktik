@@ -893,7 +893,7 @@ export default function CombinedManagePengujianPage() {
   };
 
   const createTestTypeMutation = useMutation({
-    mutationFn: async (payload: { name: string; standard: string; parameters: NewParamInput[] }) => {
+    mutationFn: async (payload: { name: string; standard: string; parameters: NewParamInput[]; jenisAssetId?: string }) => {
       const res = await fetch('/api/master/test-types', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1019,7 +1019,8 @@ export default function CombinedManagePengujianPage() {
       createTestTypeMutation.mutate({
         name: newTestName,
         standard: newTestStandard,
-        parameters: newTestParameters
+        parameters: newTestParameters,
+        jenisAssetId: selectedGroup?.id,
       });
     }
   };
@@ -1102,11 +1103,18 @@ export default function CombinedManagePengujianPage() {
   };
 
   const filteredTestTypes = useMemo(() => {
-    if (!testTypes) return [];
-    return testTypes.filter((t) =>
-      t.name.toLowerCase().includes(searchTestQuery.toLowerCase())
-    );
-  }, [testTypes, searchTestQuery]);
+    if (!selectedGroup || !testTypes) return [];
+    return testTypes.filter((t: any) => {
+      const matchesSearch = t.name.toLowerCase().includes(searchTestQuery.toLowerCase());
+      if (!matchesSearch) return false;
+
+      if (t.jenisAssetId) {
+        return t.jenisAssetId === selectedGroup.id;
+      }
+
+      return selectedGroup.testTypes?.some((gt) => gt.id === t.id);
+    });
+  }, [selectedGroup, testTypes, searchTestQuery]);
 
   const isLoading = isUbpsLoading || isTestTypesLoading;
 
@@ -1431,7 +1439,9 @@ export default function CombinedManagePengujianPage() {
                       </div>
                     ) : !filteredTestTypes || filteredTestTypes.length === 0 ? (
                       <div className="text-center py-10 text-on-surface-variant font-medium text-xs">
-                        {searchTestQuery ? 'Tidak ada jenis pengujian yang cocok.' : 'Tidak ada jenis pengujian tersedia.'}
+                        {searchTestQuery
+                          ? 'Tidak ada jenis pengujian yang cocok.'
+                          : `Belum ada jenis pengujian untuk jenis aset "${selectedGroup?.name || ''}". Klik tombol "Tambah Pengujian Baru" di bawah untuk menambahkan.`}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 content-start pr-1 pb-4">

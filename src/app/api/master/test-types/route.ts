@@ -12,7 +12,7 @@ import { requirePermission } from '@/lib/auth/rbac';
  * GET /api/master/test-types
  * List all test types with their parameters.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession();
     if (!session) {
@@ -20,16 +20,25 @@ export async function GET() {
     }
     requirePermission(session.user.role, 'master-data:read');
 
+    const url = new URL(request.url);
+    const jenisAssetId = url.searchParams.get('jenisAssetId');
+
     const db = await getDb();
     const now = new Date();
 
-    const testTypes = await db.getRepository(TestType)
+    const query = db.getRepository(TestType)
       .createQueryBuilder('tt')
       .leftJoinAndSelect('tt.parameters', 'p')
       .leftJoinAndSelect('p.criteria', 'c',
         'c.effective_from <= :now AND (c.effective_to IS NULL OR c.effective_to >= :now2)',
         { now, now2: now }
-      )
+      );
+
+    if (jenisAssetId) {
+      query.where('tt.jenisAssetId = :jenisAssetId', { jenisAssetId });
+    }
+
+    const testTypes = await query
       .orderBy('tt.orderIndex', 'ASC')
       .addOrderBy('tt.createdAt', 'ASC')
       .addOrderBy('tt.id', 'ASC')
@@ -166,7 +175,7 @@ export async function POST(request: Request) {
     requirePermission(session.user.role, 'master-data:write');
 
     const body = await request.json();
-    const { name, standard, parameters } = body;
+    const { name, standard, parameters, jenisAssetId } = body;
 
     if (!name || name.trim() === '') {
       return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
@@ -193,6 +202,7 @@ export async function POST(request: Request) {
       name: name.trim(),
       standard: standard ? standard.trim() : null,
       orderIndex: nextOrderIndex,
+      jenisAssetId: jenisAssetId || null,
     });
     await testTypeRepo.save(testType);
 
