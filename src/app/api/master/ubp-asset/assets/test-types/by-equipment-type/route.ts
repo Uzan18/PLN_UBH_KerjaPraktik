@@ -60,12 +60,18 @@ export async function POST(request: Request) {
       relations: ['testTypes'],
     });
 
-    // Find requested test types
+    // Find requested test types and link jenisAssetId
     let selectedTestTypes: TestType[] = [];
     if (testTypeIds.length > 0) {
       selectedTestTypes = await testTypeRepo.find({
         where: { id: In(testTypeIds) },
       });
+      for (const tt of selectedTestTypes) {
+        if (tt.jenisAssetId !== jenisAssetId) {
+          tt.jenisAssetId = jenisAssetId;
+          await testTypeRepo.save(tt);
+        }
+      }
     }
 
     // Update relationship for all assets of this jenisAssetId

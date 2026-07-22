@@ -259,7 +259,7 @@ export default function CombinedManagePengujianPage() {
       for (const ja of jenisAssetList) {
         const mappedIds = localMappings[ja.name] || [];
         const mappedTestTypes = testTypes 
-          ? testTypes.filter((t) => mappedIds.includes(t.id))
+          ? testTypes.filter((t: any) => t.jenisAssetId === ja.id || mappedIds.includes(t.id))
           : [];
 
         map.set(ja.name, {
@@ -374,14 +374,16 @@ export default function CombinedManagePengujianPage() {
     let configuredInfoFields: any[] = [];
     if (dbJenis && dbJenis.infoFields) {
       try {
-        configuredInfoFields = JSON.parse(dbJenis.infoFields);
+        const parsed = JSON.parse(dbJenis.infoFields);
+        const generalKeys = ['manufacture', 'serialNumber', 'mfgYear'];
+        const existingKeys = parsed.map((i: any) => typeof i === 'string' ? i : i.key);
+        const missingGeneral = generalKeys.filter((gk) => !existingKeys.includes(gk));
+        configuredInfoFields = [...missingGeneral, ...parsed];
       } catch (e) {
-        configuredInfoFields = [];
+        configuredInfoFields = ['manufacture', 'serialNumber', 'mfgYear'];
       }
     } else {
-      configuredInfoFields = [
-        'manufacture', 'serialNumber', 'mfgYear', 'type', 'coolingMethod', 'ratedPower', 'frequency', 'hvSide', 'hvRatedCurrent', 'lvSide', 'lvRatedCurrent'
-      ];
+      configuredInfoFields = ['manufacture', 'serialNumber', 'mfgYear'];
     }
     return JSON.stringify(configuredInfoFields) !== JSON.stringify(selectedInfoFields);
   }, [selectedGroup, jenisAssetList, selectedInfoFields]);
@@ -686,10 +688,21 @@ export default function CombinedManagePengujianPage() {
     onSuccess: (data, variables) => {
       const gName = equipmentGroups.find((g) => g.id === variables.jenisAssetId)?.name || 'Jenis Aset';
       alert(`Konfigurasi pengujian untuk jenis aset "${gName}" berhasil disimpan!`);
+
+      setSelectedGroup((prev) => {
+        if (!prev) return null;
+        const matchingTestTypes = (testTypes || []).filter((t) => variables.testTypeIds.includes(t.id));
+        return {
+          ...prev,
+          testTypes: matchingTestTypes,
+        };
+      });
+
       queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
       queryClient.invalidateQueries({ queryKey: ['ubp-assets-manage'] });
       queryClient.invalidateQueries({ queryKey: ['ubp-assets-info-branched'] });
       queryClient.invalidateQueries({ queryKey: ['jenis-asset'] });
+      queryClient.invalidateQueries({ queryKey: ['test-types'] });
     },
     onError: (error) => {
       alert(error.message || 'Terjadi kesalahan saat menyimpan.');
@@ -864,6 +877,16 @@ export default function CombinedManagePengujianPage() {
           localStorage.setItem('app_custom_equipment_type_mappings', JSON.stringify(mappings));
           
           alert(`Konfigurasi pengujian untuk jenis aset "${selectedGroup.name}" berhasil disimpan sebagai template! Konfigurasi ini akan otomatis diterapkan saat Anda menambahkan unit pembangkit baru dengan jenis tersebut di menu Master UBP & Aset.`);
+
+          setSelectedGroup((prev) => {
+            if (!prev) return null;
+            const matchingTestTypes = (testTypes || []).filter((t) => selectedTestTypeIds.includes(t.id));
+            return {
+              ...prev,
+              testTypes: matchingTestTypes,
+            };
+          });
+
           queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
           queryClient.invalidateQueries({ queryKey: ['ubp-assets-manage'] });
           queryClient.invalidateQueries({ queryKey: ['ubp-assets-info-branched'] });
@@ -917,25 +940,15 @@ export default function CombinedManagePengujianPage() {
         const nextIds = Array.from(new Set([...selectedTestTypeIds, createdTestType.id]));
         setSelectedTestTypeIds(nextIds);
 
-        if (selectedGroup.id) {
-          saveMutation.mutate({
-            jenisAssetId: selectedGroup.id,
-            testTypeIds: nextIds,
-            infoFields: selectedInfoFields,
-          });
-        } else if (typeof window !== 'undefined') {
-          const mappingsStr = localStorage.getItem('app_custom_equipment_type_mappings') || '{}';
-          try {
-            const mappings = JSON.parse(mappingsStr);
-            mappings[selectedGroup.name] = nextIds;
-            localStorage.setItem('app_custom_equipment_type_mappings', JSON.stringify(mappings));
-            queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
-            queryClient.invalidateQueries({ queryKey: ['ubp-assets-manage'] });
-            queryClient.invalidateQueries({ queryKey: ['ubp-assets-info-branched'] });
-          } catch (e) {
-            console.error(e);
+        // Add to selectedGroup.testTypes locally so it shows in the grid as checked, turning Simpan Konfigurasi active
+        setSelectedGroup((prev) => {
+          if (!prev) return null;
+          const existingTypes = prev.testTypes || [];
+          if (!existingTypes.some((t) => t.id === createdTestType.id)) {
+            return { ...prev, testTypes: [...existingTypes, createdTestType] };
           }
-        }
+          return prev;
+        });
       }
     },
     onError: (error) => {
