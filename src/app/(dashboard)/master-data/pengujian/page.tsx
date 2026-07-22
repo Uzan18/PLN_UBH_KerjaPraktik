@@ -937,18 +937,7 @@ export default function CombinedManagePengujianPage() {
       setEditingTestType(null);
 
       if (selectedGroup && createdTestType?.id) {
-        const nextIds = Array.from(new Set([...selectedTestTypeIds, createdTestType.id]));
-        setSelectedTestTypeIds(nextIds);
-
-        // Add to selectedGroup.testTypes locally so it shows in the grid as checked, turning Simpan Konfigurasi active
-        setSelectedGroup((prev) => {
-          if (!prev) return null;
-          const existingTypes = prev.testTypes || [];
-          if (!existingTypes.some((t) => t.id === createdTestType.id)) {
-            return { ...prev, testTypes: [...existingTypes, createdTestType] };
-          }
-          return prev;
-        });
+        setSelectedTestTypeIds((prev) => Array.from(new Set([...prev, createdTestType.id])));
       }
     },
     onError: (error) => {
@@ -1125,9 +1114,11 @@ export default function CombinedManagePengujianPage() {
         return t.jenisAssetId === selectedGroup.id;
       }
 
-      return selectedGroup.testTypes?.some((gt) => gt.id === t.id);
+      const inDraft = selectedTestTypeIds.includes(t.id);
+      const inSaved = selectedGroup.testTypes?.some((gt) => gt.id === t.id);
+      return inDraft || inSaved;
     });
-  }, [selectedGroup, testTypes, searchTestQuery]);
+  }, [selectedGroup, testTypes, searchTestQuery, selectedTestTypeIds]);
 
   const isLoading = isUbpsLoading || isTestTypesLoading;
 
