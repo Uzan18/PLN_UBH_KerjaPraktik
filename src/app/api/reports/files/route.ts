@@ -30,14 +30,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'File dan ID folder diperlukan' }, { status: 400 });
     }
 
-    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { success: false, error: 'Ukuran file melebihi batas maksimum 20MB' },
-        { status: 400 }
-      );
-    }
-
     // Ensure uploads directory exists
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'reports');
     if (!fs.existsSync(uploadsDir)) {

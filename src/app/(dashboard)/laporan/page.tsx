@@ -207,11 +207,6 @@ export default function LaporanPage() {
     e.preventDefault();
     if (!selectedFile || !currentFolderId) return;
 
-    if (selectedFile.size > 20 * 1024 * 1024) {
-      setErrorMsg('Ukuran file melebihi batas maksimum 20MB.');
-      return;
-    }
-
     setIsActionLoading(true);
     setErrorMsg(null);
     try {
@@ -834,7 +829,7 @@ export default function LaporanPage() {
                     className="w-full text-sm text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-surface-container file:text-primary hover:file:bg-[#dae2ff] file:cursor-pointer font-sans"
                   />
                   <p className="text-[11px] text-on-surface-variant mt-1 font-sans">
-                    Hanya berkas format PDF (.pdf) dengan ukuran maksimum 20MB.
+                    Format berkas PDF (.pdf).
                   </p>
                 </div>
               </div>
