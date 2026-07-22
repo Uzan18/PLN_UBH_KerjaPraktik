@@ -21,21 +21,26 @@ function getQualitativeChoices(criteria: any): string[] | null {
     
   if (rawValues.length === 0) return null;
 
-  // Helper to check if a value is a numeric expression
-  const isNumericExpression = (valStr: string) => {
+  // Helper to check if a threshold string is a pure numeric math expression
+  const isPureNumericExpression = (valStr: string) => {
     const v = valStr.trim();
-    if (v.toUpperCase() === 'NA') return false;
-    if (!isNaN(parseFloat(v)) && isFinite(Number(v))) return true;
-    if (/^[><=]/.test(v)) return true;
-    if (/^[\d.-]+\s*-\s*[\d.-]+$/.test(v)) return true;
-    return false;
+    if (v.toUpperCase() === 'NA') return true;
+    
+    // Strip out allowed math keywords: AND, OR, DAN, ATAU
+    const sanitized = v
+      .replace(/\s+(?:AND|OR|DAN|ATAU)\s+|\s*;\s*/gi, ' ')
+      .replace(/[\s><=≥≤.-]+/g, '');
+    
+    // If sanitized string contains non-digit words (like "TOMBOL", "NORMAL", "JERNIH"), it is NOT a pure numeric expression!
+    return sanitized === '' || (!isNaN(Number(sanitized)) && isFinite(Number(sanitized)));
   };
 
-  // If ALL values are numeric expressions, then it is a purely numeric threshold. We return null.
-  const allNumeric = rawValues.every((v) => isNumericExpression(v));
-  if (allNumeric) return null;
+  // If ALL threshold values consist purely of math conditions with optional (AND, OR, DAN, ATAU),
+  // it is in Mode Pengisian (Number Input). We return null.
+  const allPureNumeric = rawValues.every((v) => isPureNumericExpression(v));
+  if (allPureNumeric) return null;
 
-  // Otherwise, return exactly the non-empty threshold strings as dropdown choices!
+  // Otherwise, if any threshold contains words outside (AND, OR, DAN, ATAU), it enters Mode Pemilihan (Dropdown)!
   return rawValues;
 }
 
