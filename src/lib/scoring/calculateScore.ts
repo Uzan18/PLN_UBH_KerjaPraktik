@@ -77,23 +77,6 @@ function parseSingleBound(valStr: string): SingleThresholdBound | null {
 /**
  * Determines if a threshold string represents a numeric mathematical condition 
  * (e.g. "> 100", "0.5 - 0.7", "< 0.5", ">= 100 OR < 0") vs descriptive qualitative text ("Jernih", "Bocor", etc.).
- */
-function isNumericCondition(str: string): boolean {
-  if (!str) return false;
-  const trimmed = str.trim();
-  
-  // Contains math comparison operators: >, <, >=, <=, ≥, ≤
-  if (/[><=≥≤]/.test(trimmed)) return true;
-  
-  // Contains number range pattern: "10 - 20" or "0.5 - 0.7"
-  if (/^[\d.-]+\s*-\s*[\d.-]+$/.test(trimmed)) return true;
-  
-  // Is a plain number: "0.5", "100", "-5"
-  if (/^[\d.-]+$/.test(trimmed)) return true;
-  
-  return false;
-}
-
 /**
  * Parse a threshold string supporting single bounds, ranges, and compound operators (AND / OR).
  * Supported quantitative syntax examples:
@@ -103,12 +86,6 @@ function isNumericCondition(str: string): boolean {
 function parseThresholdBound(value: string | null): ParsedThreshold | null {
   if (!value || value.trim().toUpperCase() === 'NA') return null;
   const raw = value.trim();
-
-  // If the threshold string is NOT a numeric math condition (i.e. it's descriptive text like "Jernih", "Bocor", etc.)
-  // Return null so it is handled exclusively by qualitative text matching.
-  if (!isNumericCondition(raw)) {
-    return null;
-  }
 
   // 1. Check for strict OR operators: "OR" and "ATAU"
   const orParts = raw.split(/\s+(?:OR|ATAU)\s+|\s*;\s*/i);
