@@ -2,21 +2,26 @@
  * Threshold definition parsed from Criteria string values.
  * Criteria values are stored as strings to support operators (>=, <) and "NA".
  */
-interface ParsedThreshold {
+export interface SingleThresholdBound {
   min: number | null;
   minInclusive: boolean;
   max: number | null;
   maxInclusive: boolean;
 }
 
-/**
- * Parse a threshold string like ">= 2", "1.25 - 1.99", "< 1.0", etc.
- * Returns ParsedThreshold or null if "NA"
- */
-function parseThresholdBound(value: string | null): ParsedThreshold | null {
-  if (!value || value.trim().toUpperCase() === 'NA') return null;
+export interface CompoundThreshold {
+  operator: 'AND' | 'OR';
+  bounds: (SingleThresholdBound | CompoundThreshold)[];
+}
 
-  const trimmed = value.trim().replace(/≥/g, '>=').replace(/≤/g, '<=').replace(',', '.');
+export type ParsedThreshold = SingleThresholdBound | CompoundThreshold;
+
+function isCompoundThreshold(t: ParsedThreshold): t is CompoundThreshold {
+  return 'operator' in t && 'bounds' in t;
+}
+
+function parseSingleBound(valStr: string): SingleThresholdBound | null {
+  const trimmed = valStr.trim().replace(/≥/g, '>=').replace(/≤/g, '<=').replace(',', '.');
 
   // Handle ">= X" or "> X" (supporting negative numbers)
   const geMatch = trimmed.match(/^(>=?)\s*([\d.-]+)$/);
@@ -69,8 +74,49 @@ function parseThresholdBound(value: string | null): ParsedThreshold | null {
   return null;
 }
 
+/**
+ * Parse a threshold string supporting single bounds, ranges, and compound operators (AND / OR).
+ * Supported syntax examples:
+ * - Multi-condition OR:  "> 100 OR < 0", "> 100 || < 0", "> 100 ; < 0", "> 100 atau < 0"
+ * - Multi-condition AND: "> 0 AND < 50", "> 0 && < 50", "> 0 dan < 50"
+ */
+function parseThresholdBound(value: string | null): ParsedThreshold | null {
+  if (!value || value.trim().toUpperCase() === 'NA') return null;
+  const raw = value.trim();
+
+  // 1. Check for OR operators: "OR", "||", ";", "atau"
+  const orParts = raw.split(/\s+(?:OR|\|\||atau)\s+|\s*;\s*/i);
+  if (orParts.length > 1) {
+    const parsedSub = orParts.map((p) => parseThresholdBound(p)).filter((p): p is ParsedThreshold => p !== null);
+    if (parsedSub.length > 0) {
+      return { operator: 'OR', bounds: parsedSub };
+    }
+  }
+
+  // 2. Check for AND operators: "AND", "&&", "dan"
+  const andParts = raw.split(/\s+(?:AND|&&|dan)\s+/i);
+  if (andParts.length > 1) {
+    const parsedSub = andParts.map((p) => parseThresholdBound(p)).filter((p): p is ParsedThreshold => p !== null);
+    if (parsedSub.length > 0) {
+      return { operator: 'AND', bounds: parsedSub };
+    }
+  }
+
+  // 3. Fallback to single bound parser
+  return parseSingleBound(raw);
+}
+
 function matchesThreshold(numValue: number, t: ParsedThreshold | null): boolean {
   if (!t) return false;
+
+  if (isCompoundThreshold(t)) {
+    if (t.operator === 'OR') {
+      return t.bounds.some((b) => matchesThreshold(numValue, b));
+    } else {
+      return t.bounds.every((b) => matchesThreshold(numValue, b));
+    }
+  }
+
   const minOk = t.min === null || (t.minInclusive ? numValue >= t.min : numValue > t.min);
   const maxOk = t.max === null || (t.maxInclusive ? numValue <= t.max : numValue < t.max);
   return minOk && maxOk;
@@ -115,18 +161,11 @@ export function evaluateQualitative(numValue: number, criteriaStr: string | null
   return numValue === mapped;
 }
 
-/**
- * Calculate score for a test result based on the parameter value and criteria thresholds.
- * 
- * Skala Skor PLN:
- * - 5 = Good (Kondisi Sangat Baik)
- * - 4 = Fair (Kondisi Cukup / Perlu Perhatian)
- * - 2 = Poor (Kondisi Buruk / Perlu Pemeliharaan)
- * - 1 = Bad (Kondisi Critical / Sangat Buruk)
- * 
- * Mengembalikan null jika parameter bernilai N/A.
- */
 function getThresholdSpecificity(t: ParsedThreshold): number {
+  if (isCompoundThreshold(t)) {
+    const specificities = t.bounds.map((b) => getThresholdSpecificity(b));
+    return Math.min(...specificities);
+  }
   // 1. Both min and max set (e.g. "0.51 - 0.7"): width of range
   if (t.min !== null && t.max !== null) {
     return Math.abs(t.max - t.min);
