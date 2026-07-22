@@ -150,27 +150,15 @@ export function calculateScore(
   const poor = parseThresholdBound(poorValue);
   const bad = parseThresholdBound(badValue);
 
-  // Check Bad first (lowest score)
-  if (bad) {
-    if (matchesThreshold(numValue, bad)) return 1;
-  } else if (badValue) {
-    const mapped = mapQualitativeValueToNumber(badValue);
+  // Check Good first (highest score)
+  if (good) {
+    if (matchesThreshold(numValue, good)) return 5;
+  } else if (goodValue) {
+    const mapped = mapQualitativeValueToNumber(goodValue);
     if (mapped !== null) {
-      if (numValue === mapped) return 1;
+      if (numValue === mapped) return 5;
     } else {
-      if (numValue === 3) return 1;
-    }
-  }
-
-  // Check Poor next
-  if (poor) {
-    if (matchesThreshold(numValue, poor)) return 2;
-  } else if (poorValue) {
-    const mapped = mapQualitativeValueToNumber(poorValue);
-    if (mapped !== null) {
-      if (numValue === mapped) return 2;
-    } else {
-      if (numValue === 2) return 2;
+      if (numValue === 0) return 5;
     }
   }
 
@@ -186,15 +174,27 @@ export function calculateScore(
     }
   }
 
-  // Check Good last
-  if (good) {
-    if (matchesThreshold(numValue, good)) return 5;
-  } else if (goodValue) {
-    const mapped = mapQualitativeValueToNumber(goodValue);
+  // Check Poor next
+  if (poor) {
+    if (matchesThreshold(numValue, poor)) return 2;
+  } else if (poorValue) {
+    const mapped = mapQualitativeValueToNumber(poorValue);
     if (mapped !== null) {
-      if (numValue === mapped) return 5;
+      if (numValue === mapped) return 2;
     } else {
-      if (numValue === 0) return 5;
+      if (numValue === 2) return 2;
+    }
+  }
+
+  // Check Bad last
+  if (bad) {
+    if (matchesThreshold(numValue, bad)) return 1;
+  } else if (badValue) {
+    const mapped = mapQualitativeValueToNumber(badValue);
+    if (mapped !== null) {
+      if (numValue === mapped) return 1;
+    } else {
+      if (numValue === 3) return 1;
     }
   }
 
