@@ -160,6 +160,18 @@ export function calculateScore(
     return null;
   }
 
+  // Check if any criteria/threshold is actually configured
+  const hasAnyThresholdConfigured = Boolean(
+    (goodValue && goodValue.trim() !== '' && goodValue.trim().toUpperCase() !== 'NA') ||
+    (fairValue && fairValue.trim() !== '' && fairValue.trim().toUpperCase() !== 'NA') ||
+    (poorValue && poorValue.trim() !== '' && poorValue.trim().toUpperCase() !== 'NA') ||
+    (badValue && badValue.trim() !== '' && badValue.trim().toUpperCase() !== 'NA')
+  );
+
+  if (!hasAnyThresholdConfigured) {
+    return null;
+  }
+
   // Parse thresholds
   const good = parseThresholdBound(goodValue);
   const fair = parseThresholdBound(fairValue);
@@ -202,6 +214,6 @@ export function calculateScore(
     return candidates[0].score;
   }
 
-  // Default: if value didn't match any range, consider it Bad (worst case, safe default)
-  return 1;
+  // Return null (N/A) if criteria were configured but value did not match any threshold
+  return null;
 }
