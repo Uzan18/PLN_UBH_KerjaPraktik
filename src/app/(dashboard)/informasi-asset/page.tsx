@@ -799,11 +799,11 @@ export default function InformasiAssetPage() {
       {/* Export Modal Overlay */}
       {isExportModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-xl border border-surface-border max-w-md w-full flex flex-col overflow-hidden animate-fade-in">
-            <div className="p-4 border-b border-surface-border bg-surface-background flex justify-between items-center">
+          <div className="bg-white rounded-xl shadow-xl border border-surface-border max-w-md w-full flex flex-col animate-fade-in relative overflow-visible">
+            <div className="p-4 border-b border-surface-border bg-surface-background flex justify-between items-center rounded-t-xl">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary select-none font-bold">download</span>
-                <h3 className="text-sm font-bold text-on-surface uppercase tracking-wider">Ekspor Data</h3>
+                <h3 className="text-sm font-bold text-on-surface uppercase tracking-wider">Ekspor Database Assessment</h3>
               </div>
               <button
                 onClick={() => setIsExportModalOpen(false)}
@@ -815,20 +815,19 @@ export default function InformasiAssetPage() {
 
             <div className="p-5 space-y-4">
               <p className="text-xs text-on-surface-variant leading-relaxed">
-                Unduh seluruh data pengujian yang telah divalidasi ke format berkas Excel yang kompatibel untuk di-import kembali.
+                Unduh seluruh data hasil pengujian terverifikasi ke dalam format berkas Excel berstandar Master Database Assessment PLN.
               </p>
 
               {/* Filter UBP */}
               <div>
                 <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
-                  Filter UBP
+                  Unit Bisnis Pembangkitan (UBP)
                 </label>
                 <FilterSelect
                   value={exportUbpId === 'ALL' ? '' : exportUbpId}
                   onChange={(val) => {
                     setExportUbpId(val || 'ALL');
                     setExportUnitName('ALL');
-                    setExportJenisId('ALL');
                     setExportTestYear('ALL');
                   }}
                   options={(ubps || []).map((u: any) => ({ value: u.id, label: u.name }))}
@@ -839,13 +838,12 @@ export default function InformasiAssetPage() {
               {/* Filter Unit Pembangkit */}
               <div>
                 <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
-                  Filter Unit Pembangkit
+                  Unit Pembangkit
                 </label>
                 <FilterSelect
                   value={exportUnitName === 'ALL' ? '' : exportUnitName}
                   onChange={(val) => {
                     setExportUnitName(val || 'ALL');
-                    setExportJenisId('ALL');
                     setExportTestYear('ALL');
                   }}
                   options={exportUniqueUnits.map((name: string) => ({ value: name, label: name }))}
@@ -856,31 +854,37 @@ export default function InformasiAssetPage() {
               {/* Filter Jenis Alat */}
               <div>
                 <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
-                  Filter Jenis Alat
+                  Kategori Jenis Peralatan <span className="text-status-bad">*</span>
                 </label>
                 <FilterSelect
-                  value={exportJenisId === 'ALL' ? '' : exportJenisId}
-                  onChange={(val) => setExportJenisId(val || 'ALL')}
+                  value={
+                    exportJenisId === 'ALL' || !exportJenisId
+                      ? exportJenisAssetChoices[0]?.id || ''
+                      : exportJenisId
+                  }
+                  onChange={(val) => setExportJenisId(val)}
                   options={exportJenisAssetChoices.map((ja: any) => ({ value: ja.id, label: ja.name }))}
-                  placeholder="SEMUA JENIS ALAT (ALL)"
+                  placeholder="PILIH JENIS PERALATAN"
+                  showPlaceholderOption={false}
                 />
               </div>
 
               {/* Filter Tahun */}
               <div>
                 <label className="block text-[10px] font-mono font-bold tracking-wider text-on-surface-variant uppercase mb-1.5">
-                  Filter Tahun
+                  Tahun Assessment
                 </label>
                 <FilterSelect
                   value={exportTestYear === 'ALL' ? '' : exportTestYear}
                   onChange={(val) => setExportTestYear(val || 'ALL')}
                   options={exportYearChoices.map((y) => ({ value: y, label: y }))}
                   placeholder="SEMUA TAHUN (ALL)"
+                  placement="top"
                 />
               </div>
             </div>
 
-            <div className="p-4 border-t border-surface-border bg-surface-background flex justify-end gap-3">
+            <div className="p-4 border-t border-surface-border bg-surface-background flex justify-end gap-3 rounded-b-xl">
               <button
                 onClick={() => setIsExportModalOpen(false)}
                 className="px-4 py-2 border border-surface-border hover:bg-surface-container rounded-lg font-bold text-xs text-on-surface-variant transition-colors cursor-pointer"
@@ -894,7 +898,7 @@ export default function InformasiAssetPage() {
                 className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-sm select-none font-bold">download</span>
-                Mulai Ekspor
+                <span>Ekspor Berkas Excel</span>
               </a>
             </div>
           </div>

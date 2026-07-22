@@ -74,12 +74,21 @@ export default function AssetDetailPage() {
 
   return (
     <div className="animate-fade-in max-w-[1440px] mx-auto">
-      {/* Back Link */}
-      <div className="mb-6">
+      {/* Top Bar with Back Link on Left and Export Button on Right */}
+      <div className="flex items-center justify-between gap-4 mb-6">
         <Link href="/dashboard" className="inline-flex items-center gap-2 text-primary hover:underline font-medium text-sm">
           <span className="material-symbols-outlined text-sm">arrow_back</span>
           Kembali ke Dashboard
         </Link>
+        <a
+          href={`/api/master/export?assetId=${assetId}&sessionId=${asset.selectedSessionId || ''}&testYear=${asset.selectedTestYear || ''}`}
+          download
+          title="Ekspor Hasil Pengujian Sesi Ini ke Excel"
+          className="bg-primary hover:brightness-110 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0"
+        >
+          <span className="material-symbols-outlined text-base select-none">download</span>
+          <span>Ekspor Database Assessment</span>
+        </a>
       </div>
 
       {/* Asset Header (Bento Style) */}

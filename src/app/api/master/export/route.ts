@@ -24,6 +24,7 @@ export async function GET(request: Request) {
     requirePermission(session.user.role, 'export:read'); // Allow any user role with export access to download
 
     const { searchParams } = new URL(request.url);
+    const sessionIdParam = searchParams.get('sessionId');
     const ubpId = searchParams.get('ubpId');
     const unitName = searchParams.get('unitName');
     const assetId = searchParams.get('assetId');
@@ -37,18 +38,29 @@ export async function GET(request: Request) {
     const paramRepo = db.getRepository(Parameter);
     const sessionRepo = db.getRepository(TestSession);
 
-    // 1. Fetch all parameters ordered by testType and orderIndex
-    // We want to reconstruct exactly the columns J to CV (columns 9 to 100).
-    const parameters = await paramRepo.find({
-      relations: ['testType'],
-      order: {
-        testType: { orderIndex: 'ASC' },
-        orderIndex: 'ASC',
-      },
-    });
+    // 1. Fetch parameters ordered by testType and orderIndex
+    let parameters: Parameter[] = [];
+    if (jenisAssetId && jenisAssetId !== 'ALL' && jenisAssetId !== '') {
+      parameters = await paramRepo.createQueryBuilder('p')
+        .innerJoinAndSelect('p.testType', 'tt')
+        .innerJoin('tt.assets', 'asset')
+        .innerJoin('asset.jenisAsset', 'ja')
+        .where('ja.id = :jenisAssetId', { jenisAssetId })
+        .orderBy('tt.orderIndex', 'ASC')
+        .addOrderBy('p.orderIndex', 'ASC')
+        .getMany();
+    }
+    if (parameters.length === 0) {
+      parameters = await paramRepo.find({
+        relations: ['testType'],
+        order: {
+          testType: { orderIndex: 'ASC' },
+          orderIndex: 'ASC',
+        },
+      });
+    }
 
-    // We can only put up to 92 parameters in J to CV (index 9 to 100)
-    const paramCols = parameters.slice(0, 92);
+    const paramCols = parameters;
 
     // 2. Fetch Sessions based on filters
     const queryBuilder = sessionRepo
@@ -60,7 +72,9 @@ export async function GET(request: Request) {
       .leftJoinAndSelect('ts.testResults', 'tr')
       .leftJoinAndSelect('tr.parameter', 'p')
       .leftJoinAndSelect('p.testType', 'tt')
-      .where('ts.status = :status', { status: 'VALIDATED' });
+    if (sessionIdParam && sessionIdParam !== 'ALL' && sessionIdParam !== '') {
+      queryBuilder.andWhere('ts.id = :sessionIdParam', { sessionIdParam });
+    }
 
     if (ubpId && ubpId !== 'ALL' && ubpId !== '') {
       queryBuilder.andWhere('ubp.id = :ubpId', { ubpId });
@@ -268,22 +282,34 @@ export async function GET(request: Request) {
 
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
-    // Build short filename: Laporan_UBP_UnitPembangkit_Alat.xlsx
-    let ubpPart = 'ALL';
-    let unitPart = 'ALL';
-    let toolPart = 'ALL';
+    // Build professional filename: Database_Assessment_[ALAT]_[UBP]_[UNIT]_[TAHUN].xlsx
+    let toolPart = 'ASSET';
+    let ubpPart = 'SEMUA_UBP';
+    let unitPart = '';
+    let yearPart = testYear && testYear !== 'ALL' ? `_${testYear}` : '';
+    let assetPart = '';
 
-    if (ubpId && ubpId !== 'ALL' && filteredSessions.length > 0) {
-      ubpPart = (filteredSessions[0].asset.unitPembangkit?.ubp?.name || 'ALL').replace(/[^a-zA-Z0-9]/g, '_');
+    if (filteredSessions.length > 0) {
+      const firstS = filteredSessions[0];
+      if (assetId && assetId !== 'ALL') {
+        assetPart = `_${(firstS.asset?.name || 'Unit').replace(/[^a-zA-Z0-9]/g, '_')}`;
+      }
+      if (ubpId && ubpId !== 'ALL') {
+        ubpPart = (firstS.asset?.unitPembangkit?.ubp?.name || 'UBP').replace(/[^a-zA-Z0-9]/g, '_');
+      }
+      if (unitName && unitName !== 'ALL') {
+        unitPart = `_${unitName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      }
+      if (firstS.asset?.jenisAsset?.name) {
+        toolPart = firstS.asset.jenisAsset.name.toUpperCase().replace(/[^a-zA-Z0-9]/g, '_');
+      }
     }
-    if (unitName && unitName !== 'ALL') {
-      unitPart = unitName.replace(/[^a-zA-Z0-9]/g, '_');
-    }
+
     if (equipmentType && equipmentType !== 'ALL') {
-      toolPart = equipmentType.replace(/[^a-zA-Z0-9]/g, '_');
+      toolPart = equipmentType.toUpperCase().replace(/[^a-zA-Z0-9]/g, '_');
     }
 
-    const filename = `Laporan_${ubpPart}_${unitPart}_${toolPart}.xlsx`;
+    const filename = `Database_Assessment_${toolPart}_${ubpPart}${unitPart}${assetPart}${yearPart}.xlsx`;
 
     return new Response(buf, {
       headers: {

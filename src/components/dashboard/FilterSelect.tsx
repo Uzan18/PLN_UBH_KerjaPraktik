@@ -17,6 +17,7 @@ interface FilterSelectProps {
   variant?: 'outline' | 'inline';
   disabled?: boolean;
   showPlaceholderOption?: boolean;
+  placement?: 'bottom' | 'top';
 }
 
 export function FilterSelect({
@@ -29,6 +30,7 @@ export function FilterSelect({
   variant = 'outline',
   disabled = false,
   showPlaceholderOption = true,
+  placement = 'bottom',
 }: FilterSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,7 +128,7 @@ export function FilterSelect({
 
       {/* Dropdown List */}
       {isOpen && (
-        <div className={`absolute z-50 bg-white border border-surface-border rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto text-xs py-1 flex flex-col ${variant === 'inline' ? 'left-0 w-52' : 'left-0 right-0 w-full'}`}>
+        <div className={`absolute z-50 bg-white border border-surface-border rounded-lg shadow-xl ${placement === 'top' ? 'bottom-full mb-1' : 'mt-1'} max-h-60 overflow-y-auto text-xs py-1 flex flex-col ${variant === 'inline' ? 'left-0 w-52' : 'left-0 right-0 w-full'}`}>
           {/* Query Indicator (if user typed something) */}
           {searchQuery && (
             <div className="px-3 py-1.5 bg-surface-container-low border-b border-surface-border flex items-center justify-between text-[10px] text-on-surface-variant font-mono font-medium shrink-0">
