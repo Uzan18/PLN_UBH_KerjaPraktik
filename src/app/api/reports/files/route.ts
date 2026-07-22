@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // 5 minutes timeout window for large 100MB+ file uploads
 import { getDb } from '@/lib/db';
 import { ReportFile } from '@/entities/ReportFile';
 import { AuditLog } from '@/entities/AuditLog';

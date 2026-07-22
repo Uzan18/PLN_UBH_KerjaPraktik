@@ -4,6 +4,13 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['reflect-metadata', 'oracledb', 'typeorm'],
   allowedDevOrigins: ['trinity-paramedic-reviver.ngrok-free.dev'],
 
+  // Enable large file upload payload sizes (up to 500MB) for official server deployment
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '500mb',
+    },
+  },
+
   // Remove X-Powered-By header to avoid leaking server technology
   poweredByHeader: false,
 
