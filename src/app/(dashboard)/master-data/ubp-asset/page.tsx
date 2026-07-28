@@ -561,9 +561,9 @@ export default function UbpAssetManagementPage() {
                                                     <tr className="bg-surface-container-low font-mono text-[9px] text-on-surface-variant uppercase tracking-wider border-b border-surface-border">
                                                       <th className="px-3 py-1.5">Nama Aset</th>
                                                       <th className="px-3 py-1.5 text-center">Jenis Aset</th>
-                                                      <th className="px-3 py-1.5 text-center">Tahun Pembuatan</th>
+                                                      <th className="px-3 py-1.5 text-center">Year of Manufacturing</th>
                                                       <th className="px-3 py-1.5 text-center">Manufacture</th>
-                                                      <th className="px-3 py-1.5 text-center">Nomor Seri</th>
+                                                      <th className="px-3 py-1.5 text-center">Serial Number</th>
                                                       <th className="px-3 py-1.5 text-center">Aksi</th>
                                                     </tr>
                                                   </thead>
@@ -576,7 +576,7 @@ export default function UbpAssetManagementPage() {
                                                             {asset.jenisAsset?.name || '—'}
                                                           </td>
                                                           <td className="px-3 py-2 text-center font-mono">{asset.mfgYear ?? '—'}</td>
-                                                          <td className="px-3 py-2 text-center font-mono">{asset.vectorGroup ?? '—'}</td>
+                                                          <td className="px-3 py-2 text-center font-mono">{asset.manufacture ?? '—'}</td>
                                                           <td className="px-3 py-2 text-center font-mono">{asset.serialNumber ?? '—'}</td>
                                                           <td className="px-3 py-2 text-center space-x-2">
                                                             <button

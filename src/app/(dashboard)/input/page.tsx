@@ -223,15 +223,11 @@ function InputForm() {
             result.push(standard);
           }
         } else {
-          // Custom parameter added by admin
-          const cleanLabel = rawKey
-            .split(' ')
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
+          const customLabel = (typeof item === 'object' && item?.label) ? item.label : rawKey;
 
           result.push({
             key: normalizedKey,
-            label: cleanLabel,
+            label: customLabel,
             placeholder: placeholder,
             type: 'text',
           });
