@@ -171,27 +171,12 @@ function InputForm() {
   const activeFieldsList = useMemo(() => {
     const fields = [
       { key: 'manufacture', label: 'Manufacture', placeholder: 'Contoh: LUNENGCHENMING' },
-      { key: 'type', label: 'Type', placeholder: 'Contoh: SFPZ10-370000/150 TH' },
-      { key: 'serialNumber', label: 'Serial Number', placeholder: 'Contoh: 200911126' },
-      { key: 'mfgYear', label: 'Year of Manufacturing', placeholder: 'Contoh: 2010', type: 'number' },
-      { key: 'vectorGroup', label: 'Vector Group', placeholder: 'Contoh: YNd1' },
-      { key: 'coolingMethod', label: 'Cooling Method', placeholder: 'Contoh: OFAF' },
-      { key: 'ratedPower', label: 'Rated Power', placeholder: 'Contoh: 370 MVA' },
-      { key: 'frequency', label: 'Frequency', placeholder: 'Contoh: 50 Hz' },
-      { key: 'hvSide', label: 'HV Side', placeholder: 'Contoh: 150 kV' },
-      { key: 'hvRatedCurrent', label: 'HV Rated Current', placeholder: 'Contoh: 1424 A' },
-      { key: 'lvSide', label: 'LV Side', placeholder: 'Contoh: 20 kV' },
-      { key: 'lvRatedCurrent', label: 'LV Rated Current', placeholder: 'Contoh: 10680 A' },
-    ];
-
-    const defaultFields = [
-      { key: 'manufacture', label: 'Manufacture', placeholder: 'Contoh: LUNENGCHENMING' },
       { key: 'serialNumber', label: 'Serial Number', placeholder: 'Contoh: 200911126' },
       { key: 'mfgYear', label: 'Year of Manufacturing', placeholder: 'Contoh: 2010', type: 'number' },
     ];
 
     if (!selectedAsset?.jenisAsset?.infoFields) {
-      return defaultFields;
+      return fields;
     }
 
     const ALIAS_MAP: Record<string, string> = {
@@ -202,24 +187,6 @@ function InputForm() {
       serialnumber: 'serialNumber',
       'serial number': 'serialNumber',
       manufacture: 'manufacture',
-      type: 'type',
-      vectorgroup: 'vectorGroup',
-      'vector group': 'vectorGroup',
-      'vector grup': 'vectorGroup',
-      coolingmethod: 'coolingMethod',
-      'cooling method': 'coolingMethod',
-      ratedpower: 'ratedPower',
-      'rated power': 'ratedPower',
-      frequency: 'frequency',
-      hvside: 'hvSide',
-      'hv side': 'hvSide',
-      hvratedcurrent: 'hvRatedCurrent',
-      'hv rated current': 'hvRatedCurrent',
-      lvside: 'lvSide',
-      'lv side': 'lvSide',
-      lvratedcurrent: 'lvRatedCurrent',
-      'lv rated current': 'lvRatedCurrent',
-      'lc rated current': 'lvRatedCurrent',
     };
 
     try {
@@ -278,11 +245,7 @@ function InputForm() {
   }, [selectedAsset]);
 
   const customKeysInInfo = useMemo(() => {
-    const standardKeys = [
-      'manufacture', 'type', 'serialNumber', 'mfgYear', 'vectorGroup',
-      'coolingMethod', 'ratedPower', 'frequency', 'hvSide',
-      'hvRatedCurrent', 'lvSide', 'lvRatedCurrent'
-    ];
+    const standardKeys = ['manufacture', 'serialNumber', 'mfgYear'];
     return Object.keys(additionalInfo).filter((k) => {
       const lower = k.toLowerCase();
       return !standardKeys.some((sk) => sk.toLowerCase() === lower || ['year of manufacturing', 'year of manufacture', 'tahun buat'].includes(lower));

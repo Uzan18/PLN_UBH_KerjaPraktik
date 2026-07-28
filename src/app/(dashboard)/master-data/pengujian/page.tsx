@@ -69,15 +69,6 @@ const METADATA_FIELDS = [
   { key: 'manufacture', label: 'MANUFACTURE' },
   { key: 'serialNumber', label: 'SERIAL NUMBER' },
   { key: 'mfgYear', label: 'YEAR OF MANUFACTURING' },
-  { key: 'type', label: 'TYPE' },
-  { key: 'vectorGroup', label: 'VECTOR GROUP' },
-  { key: 'coolingMethod', label: 'COOLING METHOD' },
-  { key: 'ratedPower', label: 'RATED POWER' },
-  { key: 'frequency', label: 'FREQUENCY' },
-  { key: 'hvSide', label: 'HV SIDE' },
-  { key: 'hvRatedCurrent', label: 'HV RATED CURRENT' },
-  { key: 'lvSide', label: 'LV SIDE' },
-  { key: 'lvRatedCurrent', label: 'LV RATED CURRENT' },
 ];
 
 export default function CombinedManagePengujianPage() {

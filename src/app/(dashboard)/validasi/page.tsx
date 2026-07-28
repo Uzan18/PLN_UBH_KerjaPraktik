@@ -400,17 +400,8 @@ export default function ValidasiPage() {
                       <tbody className="divide-y divide-surface-border">
                         {[
                           { key: 'manufacture', label: 'Manufacture' },
-                          { key: 'type', label: 'Type' },
                           { key: 'serialNumber', label: 'Serial Number' },
                           { key: 'mfgYear', label: 'Year of Manufacturing' },
-                          { key: 'vectorGroup', label: 'Vector Group' },
-                          { key: 'coolingMethod', label: 'Cooling Method' },
-                          { key: 'ratedPower', label: 'Rated Power' },
-                          { key: 'frequency', label: 'Frequency' },
-                          { key: 'hvSide', label: 'HV Side' },
-                          { key: 'hvRatedCurrent', label: 'HV Rated Current' },
-                          { key: 'lvSide', label: 'LV Side' },
-                          { key: 'lvRatedCurrent', label: 'LV Rated Current' },
                         ].map((field) => (
                           <tr key={field.key} className="hover:bg-surface-container-low/10 transition-colors">
                             <td className="px-4 py-2 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/35 w-[45%]">

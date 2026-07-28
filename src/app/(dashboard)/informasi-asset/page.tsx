@@ -460,7 +460,7 @@ export default function InformasiAssetPage() {
                               })();
 
                               const customKeys = activeKeys
-                                ? activeKeys.filter((k: string) => k && !['type', 'serialnumber', 'mfgyear', 'manufacture', 'vectorgroup', 'coolingmethod', 'ratedpower', 'frequency', 'hvside', 'hvratedcurrent', 'lvside', 'lvratedcurrent', 'year of manufacturing', 'year of manufacture', 'tahun buat'].includes(k.toLowerCase()))
+                                ? activeKeys.filter((k: string) => k && !['serialnumber', 'mfgyear', 'manufacture', 'year of manufacturing', 'year of manufacture', 'tahun buat'].includes(k.toLowerCase()))
                                 : Object.keys(customFieldsDict);
 
                               const customFields = customKeys.map((k: string) => {
@@ -471,23 +471,14 @@ export default function InformasiAssetPage() {
                                 return {
                                   key: k,
                                   label: cleanLabel,
-                                  value: customFieldsDict[k] || '—'
+                                  value: customFieldsDict[k] || (assetDetail as any)[k] || '—'
                                 };
                               });
 
                               return [
                                 { key: 'manufacture', label: 'Manufacture', value: assetDetail.manufacture || '—' },
-                                { key: 'type', label: 'Type', value: assetDetail.type || '—' },
                                 { key: 'serialNumber', label: 'Serial Number', value: assetDetail.serialNumber || '—' },
                                 { key: 'mfgYear', label: 'Year of Manufacturing', value: assetDetail.mfgYear ? String(assetDetail.mfgYear) : '—' },
-                                { key: 'vectorGroup', label: 'Vector Group', value: assetDetail.vectorGroup || '—' },
-                                { key: 'coolingMethod', label: 'Cooling Method', value: assetDetail.coolingMethod || '—' },
-                                { key: 'ratedPower', label: 'Rated Power', value: assetDetail.ratedPower || '—' },
-                                { key: 'frequency', label: 'Frequency', value: assetDetail.frequency || '—' },
-                                { key: 'hvSide', label: 'HV Side', value: assetDetail.hvSide || '—' },
-                                { key: 'hvRatedCurrent', label: 'HV Rated Current', value: assetDetail.hvRatedCurrent || '—' },
-                                { key: 'lvSide', label: 'LV Side', value: assetDetail.lvSide || '—' },
-                                { key: 'lvRatedCurrent', label: 'LV Rated Current', value: assetDetail.lvRatedCurrent || '—' },
                               ]
                                 .filter((item) => !activeFields || activeFields.some((af: any) => {
                                   const afKey = typeof af === 'string' ? af : af?.key || '';

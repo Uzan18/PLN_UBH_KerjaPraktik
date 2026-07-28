@@ -141,17 +141,8 @@ export default function AssetDetailPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 border-t border-surface-border/50">
             {[
               { label: 'Manufacture', value: asset.manufacture || '—' },
-              { label: 'Type', value: asset.type || '—' },
               { label: 'Serial Number', value: asset.serialNumber || '—' },
               { label: 'Year of Manufacturing', value: asset.mfgYear ? String(asset.mfgYear) : '—' },
-              { label: 'Vector Group', value: asset.vectorGroup || '—' },
-              { label: 'Cooling Method', value: asset.coolingMethod || '—' },
-              { label: 'Rated Power', value: asset.ratedPower || '—' },
-              { label: 'Frequency', value: asset.frequency || '—' },
-              { label: 'HV Side', value: asset.hvSide || '—' },
-              { label: 'HV Rated Current', value: asset.hvRatedCurrent || '—' },
-              { label: 'LV Side', value: asset.lvSide || '—' },
-              { label: 'LV Rated Current', value: asset.lvRatedCurrent || '—' },
             ].map((item) => (
               <div 
                 key={item.label} 
