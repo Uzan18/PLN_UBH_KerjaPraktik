@@ -122,25 +122,14 @@ export default function DashboardPage() {
     return jenisAssetList.map((ja: any) => ja.name.trim()).sort();
   }, [jenisAssetList]);
 
-  // Sync selected equipment type when list loads (default to first available, no 'Semua Jenis' allowed)
-  useEffect(() => {
-    if (equipmentTypes.length > 0) {
-      if (!equipmentType || !equipmentTypes.includes(equipmentType)) {
-        setEquipmentType(equipmentTypes[0]);
-      }
-    }
-  }, [equipmentTypes, equipmentType]);
-
   const { data: summary, isLoading: isSummaryLoading } = useQuery({
     queryKey: ['summary', year, ubpId, unitId, equipmentType],
     queryFn: () => fetchSummary(year, ubpId, unitId, equipmentType),
-    enabled: !!equipmentType,
   });
 
   const { data: matrix, isLoading: isMatrixLoading } = useQuery({
     queryKey: ['matrix', year, ubpId, unitId, equipmentType],
     queryFn: () => fetchMatrix(year, ubpId, unitId, equipmentType),
-    enabled: !!equipmentType,
   });
 
   // Sync selected year filter with available years from data
@@ -236,8 +225,8 @@ export default function DashboardPage() {
             value={equipmentType}
             onChange={setEquipmentType}
             options={equipmentTypes.map((type: string) => ({ value: type, label: type }))}
-            placeholder="Pilih Jenis Asset"
-            showPlaceholderOption={false}
+            placeholder="Semua Jenis Asset"
+            showPlaceholderOption={true}
             variant="inline"
           />
         </div>
