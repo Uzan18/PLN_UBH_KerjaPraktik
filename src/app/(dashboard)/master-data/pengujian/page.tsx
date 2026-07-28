@@ -1408,7 +1408,7 @@ export default function CombinedManagePengujianPage() {
                                               setSelectedInfoFields((prev) =>
                                                 prev.filter((i) => {
                                                   const k = typeof i === 'string' ? i : i.key;
-                                                  return k !== key;
+                                                  return k.toLowerCase() !== key.toLowerCase();
                                                 })
                                               );
                                             }
@@ -2350,7 +2350,7 @@ export default function CombinedManagePengujianPage() {
                   return;
                 }
                 
-                const newItem = placeholder ? { key: cleanKey, placeholder } : cleanKey;
+                const newItem = { key: cleanKey, label: name, placeholder };
                 setSelectedInfoFields((prev) => [...prev, newItem]);
                 setIsAddParamOpen(false);
                 setNewParamName('');
@@ -2434,7 +2434,7 @@ export default function CombinedManagePengujianPage() {
                   return;
                 }
                 
-                const newItem = placeholder ? { key: newKey, placeholder } : newKey;
+                const newItem = { key: newKey, label: newName, placeholder };
                 setSelectedInfoFields((prev) =>
                   prev.map((item) => {
                     const itemKey = typeof item === 'string' ? item : item.key;

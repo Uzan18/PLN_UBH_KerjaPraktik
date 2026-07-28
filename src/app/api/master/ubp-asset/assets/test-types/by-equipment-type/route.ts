@@ -60,13 +60,14 @@ export async function POST(request: Request) {
 
         infoFields.forEach((item) => {
           const rawKey = typeof item === 'string' ? item : item?.key || '';
+          const rawLabel = typeof item === 'object' && item?.label ? item.label : rawKey;
           const norm = normalizeKey(rawKey);
           if (norm && !seen.has(norm.toLowerCase())) {
             seen.add(norm.toLowerCase());
             if (typeof item === 'string') {
-              deduplicated.push(norm);
+              deduplicated.push({ key: norm, label: rawLabel });
             } else {
-              deduplicated.push({ ...item, key: norm });
+              deduplicated.push({ ...item, key: norm, label: rawLabel });
             }
           }
         });
