@@ -82,19 +82,24 @@ export default function ValidasiPage() {
   const selectedReviewAssetInfo = useMemo(() => {
     if (!selectedReviewItem) return null;
     
-    const info = {
-      manufacture: selectedReviewItem.asset?.manufacture || '—',
-      type: selectedReviewItem.asset?.type || '—',
-      serialNumber: selectedReviewItem.asset?.serialNumber || '—',
-      mfgYear: selectedReviewItem.asset?.mfgYear ? String(selectedReviewItem.asset.mfgYear) : '—',
-      vectorGroup: selectedReviewItem.asset?.vectorGroup || '—',
-      coolingMethod: selectedReviewItem.asset?.coolingMethod || '—',
-      ratedPower: selectedReviewItem.asset?.ratedPower || '—',
-      frequency: selectedReviewItem.asset?.frequency || '—',
-      hvSide: selectedReviewItem.asset?.hvSide || '—',
-      hvRatedCurrent: selectedReviewItem.asset?.hvRatedCurrent || '—',
-      lvSide: selectedReviewItem.asset?.lvSide || '—',
-      lvRatedCurrent: selectedReviewItem.asset?.lvRatedCurrent || '—',
+    const ALIAS_MAP: Record<string, string> = {
+      mfgyear: 'mfgYear',
+      'year of manufacturing': 'mfgYear',
+      'year of manufacture': 'mfgYear',
+      'tahun buat': 'mfgYear',
+      'tahun pembuatan': 'mfgYear',
+      serialnumber: 'serialNumber',
+      'serial number': 'serialNumber',
+      'nomor seri': 'serialNumber',
+      'no seri': 'serialNumber',
+      manufacture: 'manufacture',
+      pabrikan: 'manufacture',
+    };
+
+    const info: Record<string, string> = {
+      manufacture: selectedReviewItem.asset?.manufacture || '',
+      serialNumber: selectedReviewItem.asset?.serialNumber || '',
+      mfgYear: selectedReviewItem.asset?.mfgYear ? String(selectedReviewItem.asset.mfgYear) : '',
     };
 
     // 1. Merge approved specifications stored in the session
@@ -103,7 +108,8 @@ export default function ValidasiPage() {
         const approved = JSON.parse(selectedReviewItem.additionalInfo);
         Object.entries(approved).forEach(([k, v]) => {
           if (v !== undefined && v !== null && v !== '') {
-            info[k as keyof typeof info] = String(v);
+            const canonicalKey = ALIAS_MAP[k.trim().toLowerCase()] || k.trim();
+            info[canonicalKey] = String(v);
           }
         });
       } catch (err) {
@@ -117,15 +123,45 @@ export default function ValidasiPage() {
         const pending = JSON.parse(selectedReviewItem.additionalInfoPending);
         Object.entries(pending).forEach(([k, v]) => {
           if (v !== undefined && v !== null && v !== '') {
-            info[k as keyof typeof info] = String(v);
+            const canonicalKey = ALIAS_MAP[k.trim().toLowerCase()] || k.trim();
+            info[canonicalKey] = String(v);
           }
         });
       } catch (err) {
         console.error('Failed to parse pending additional info:', err);
       }
     }
-    
-    return info;
+
+    // Build fields list (3 default fields + any custom fields)
+    const fieldsList: { key: string; label: string }[] = [
+      { key: 'manufacture', label: 'Manufacture' },
+      { key: 'serialNumber', label: 'Serial Number' },
+      { key: 'mfgYear', label: 'Year of Manufacturing' },
+    ];
+
+    if (selectedReviewItem.asset?.jenisAsset?.infoFields) {
+      try {
+        const parsed = JSON.parse(selectedReviewItem.asset.jenisAsset.infoFields);
+        parsed.forEach((item: any) => {
+          const rawKey = typeof item === 'string' ? item : item?.key || '';
+          const customLabel = typeof item === 'object' && item?.label ? item.label : rawKey;
+          const normKey = ALIAS_MAP[rawKey.trim().toLowerCase()] || rawKey.trim();
+          if (!fieldsList.some((f) => f.key.toLowerCase() === normKey.toLowerCase())) {
+            fieldsList.push({ key: normKey, label: customLabel });
+          }
+        });
+      } catch (e) {}
+    }
+
+    // Also include any extra keys present in info that are not yet in fieldsList
+    Object.keys(info).forEach((k) => {
+      const normKey = ALIAS_MAP[k.trim().toLowerCase()] || k.trim();
+      if (info[normKey] && !fieldsList.some((f) => f.key.toLowerCase() === normKey.toLowerCase())) {
+        fieldsList.push({ key: normKey, label: k });
+      }
+    });
+
+    return { info, fieldsList };
   }, [selectedReviewItem]);
 
   // Sort parameter results
@@ -398,17 +434,13 @@ export default function ValidasiPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-surface-border">
-                        {[
-                          { key: 'manufacture', label: 'Manufacture' },
-                          { key: 'serialNumber', label: 'Serial Number' },
-                          { key: 'mfgYear', label: 'Year of Manufacturing' },
-                        ].map((field) => (
+                        {selectedReviewAssetInfo.fieldsList.map((field) => (
                           <tr key={field.key} className="hover:bg-surface-container-low/10 transition-colors">
                             <td className="px-4 py-2 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/35 w-[45%]">
                               {field.label}
                             </td>
                             <td className="px-4 py-2 w-[55%] font-semibold text-on-surface-variant">
-                              {selectedReviewAssetInfo[field.key as keyof typeof selectedReviewAssetInfo] || '—'}
+                              {selectedReviewAssetInfo.info[field.key] || '—'}
                             </td>
                           </tr>
                         ))}

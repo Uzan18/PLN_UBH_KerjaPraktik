@@ -61,6 +61,7 @@ export async function GET(request: Request) {
         createdByInitials: initials,
         submittedAt: s.updatedAt?.toISOString() || s.createdAt?.toISOString(),
         resultCount: s.testResults?.length || 0,
+        additionalInfo: s.additionalInfo,
         additionalInfoPending: s.additionalInfoPending,
         asset: s.asset,
       };

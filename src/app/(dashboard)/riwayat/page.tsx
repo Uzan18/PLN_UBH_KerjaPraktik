@@ -67,20 +67,24 @@ export default function RiwayatPage() {
   const selectedSessionAssetInfo = useMemo(() => {
     if (!selectedSession) return null;
     
-    // Default from asset
-    const info = {
-      manufacture: selectedSession.asset?.manufacture || '—',
-      type: selectedSession.asset?.type || '—',
-      serialNumber: selectedSession.asset?.serialNumber || '—',
-      mfgYear: selectedSession.asset?.mfgYear ? String(selectedSession.asset.mfgYear) : '—',
-      vectorGroup: selectedSession.asset?.vectorGroup || '—',
-      coolingMethod: selectedSession.asset?.coolingMethod || '—',
-      ratedPower: selectedSession.asset?.ratedPower || '—',
-      frequency: selectedSession.asset?.frequency || '—',
-      hvSide: selectedSession.asset?.hvSide || '—',
-      hvRatedCurrent: selectedSession.asset?.hvRatedCurrent || '—',
-      lvSide: selectedSession.asset?.lvSide || '—',
-      lvRatedCurrent: selectedSession.asset?.lvRatedCurrent || '—',
+    const ALIAS_MAP: Record<string, string> = {
+      mfgyear: 'mfgYear',
+      'year of manufacturing': 'mfgYear',
+      'year of manufacture': 'mfgYear',
+      'tahun buat': 'mfgYear',
+      'tahun pembuatan': 'mfgYear',
+      serialnumber: 'serialNumber',
+      'serial number': 'serialNumber',
+      'nomor seri': 'serialNumber',
+      'no seri': 'serialNumber',
+      manufacture: 'manufacture',
+      pabrikan: 'manufacture',
+    };
+
+    const info: Record<string, string> = {
+      manufacture: selectedSession.asset?.manufacture || '',
+      serialNumber: selectedSession.asset?.serialNumber || '',
+      mfgYear: selectedSession.asset?.mfgYear ? String(selectedSession.asset.mfgYear) : '',
     };
 
     // 1. Merge approved specifications stored in the session (for historical reports)
@@ -89,7 +93,8 @@ export default function RiwayatPage() {
         const approved = JSON.parse(selectedSession.additionalInfo);
         Object.entries(approved).forEach(([k, v]) => {
           if (v !== undefined && v !== null && v !== '') {
-            info[k as keyof typeof info] = String(v);
+            const canonicalKey = ALIAS_MAP[k.trim().toLowerCase()] || k.trim();
+            info[canonicalKey] = String(v);
           }
         });
       } catch (err) {
@@ -103,15 +108,45 @@ export default function RiwayatPage() {
         const pending = JSON.parse(selectedSession.additionalInfoPending);
         Object.entries(pending).forEach(([k, v]) => {
           if (v !== undefined && v !== null && v !== '') {
-            info[k as keyof typeof info] = String(v);
+            const canonicalKey = ALIAS_MAP[k.trim().toLowerCase()] || k.trim();
+            info[canonicalKey] = String(v);
           }
         });
       } catch (err) {
         console.error('Failed to parse pending additional info:', err);
       }
     }
-    
-    return info;
+
+    // Build fields list (3 default fields + any custom fields)
+    const fieldsList: { key: string; label: string }[] = [
+      { key: 'manufacture', label: 'Manufacture' },
+      { key: 'serialNumber', label: 'Serial Number' },
+      { key: 'mfgYear', label: 'Year of Manufacturing' },
+    ];
+
+    if (selectedSession.asset?.jenisAsset?.infoFields) {
+      try {
+        const parsed = JSON.parse(selectedSession.asset.jenisAsset.infoFields);
+        parsed.forEach((item: any) => {
+          const rawKey = typeof item === 'string' ? item : item?.key || '';
+          const customLabel = typeof item === 'object' && item?.label ? item.label : rawKey;
+          const normKey = ALIAS_MAP[rawKey.trim().toLowerCase()] || rawKey.trim();
+          if (!fieldsList.some((f) => f.key.toLowerCase() === normKey.toLowerCase())) {
+            fieldsList.push({ key: normKey, label: customLabel });
+          }
+        });
+      } catch (e) {}
+    }
+
+    // Also include any extra keys present in info that are not yet in fieldsList
+    Object.keys(info).forEach((k) => {
+      const normKey = ALIAS_MAP[k.trim().toLowerCase()] || k.trim();
+      if (info[normKey] && !fieldsList.some((f) => f.key.toLowerCase() === normKey.toLowerCase())) {
+        fieldsList.push({ key: normKey, label: k });
+      }
+    });
+
+    return { info, fieldsList };
   }, [selectedSession]);
 
   // Filters State
@@ -572,17 +607,13 @@ export default function RiwayatPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-surface-border">
-                        {[
-                          { key: 'manufacture', label: 'Manufacture' },
-                          { key: 'serialNumber', label: 'Serial Number' },
-                          { key: 'mfgYear', label: 'Year of Manufacturing' },
-                        ].map((field) => (
+                        {selectedSessionAssetInfo.fieldsList.map((field) => (
                           <tr key={field.key} className="hover:bg-surface-container-low/10 transition-colors">
                             <td className="px-4 py-2 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/35 w-[45%]">
                               {field.label}
                             </td>
                             <td className="px-4 py-2 w-[55%] font-semibold text-on-surface-variant">
-                              {selectedSessionAssetInfo[field.key as keyof typeof selectedSessionAssetInfo] || '—'}
+                              {selectedSessionAssetInfo.info[field.key] || '—'}
                             </td>
                           </tr>
                         ))}
