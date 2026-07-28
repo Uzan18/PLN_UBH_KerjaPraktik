@@ -184,8 +184,14 @@ function InputForm() {
       { key: 'lvRatedCurrent', label: 'LV Rated Current', placeholder: 'Contoh: 10680 A' },
     ];
 
+    const defaultFields = [
+      { key: 'manufacture', label: 'Manufacture', placeholder: 'Contoh: LUNENGCHENMING' },
+      { key: 'serialNumber', label: 'Serial Number', placeholder: 'Contoh: 200911126' },
+      { key: 'mfgYear', label: 'Year of Manufacturing', placeholder: 'Contoh: 2010', type: 'number' },
+    ];
+
     if (!selectedAsset?.jenisAsset?.infoFields) {
-      return fields;
+      return defaultFields;
     }
 
     const ALIAS_MAP: Record<string, string> = {

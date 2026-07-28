@@ -143,7 +143,7 @@ export default function AssetDetailPage() {
               { label: 'Manufacture', value: asset.manufacture || '—' },
               { label: 'Type', value: asset.type || '—' },
               { label: 'Serial Number', value: asset.serialNumber || '—' },
-              { label: 'Tahun Buat', value: asset.mfgYear ? String(asset.mfgYear) : '—' },
+              { label: 'Year of Manufacturing', value: asset.mfgYear ? String(asset.mfgYear) : '—' },
               { label: 'Vector Group', value: asset.vectorGroup || '—' },
               { label: 'Cooling Method', value: asset.coolingMethod || '—' },
               { label: 'Rated Power', value: asset.ratedPower || '—' },

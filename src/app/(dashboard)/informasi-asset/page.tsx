@@ -479,7 +479,7 @@ export default function InformasiAssetPage() {
                                 { key: 'manufacture', label: 'Manufacture', value: assetDetail.manufacture || '—' },
                                 { key: 'type', label: 'Type', value: assetDetail.type || '—' },
                                 { key: 'serialNumber', label: 'Serial Number', value: assetDetail.serialNumber || '—' },
-                                { key: 'mfgYear', label: 'Tahun Buat', value: assetDetail.mfgYear ? String(assetDetail.mfgYear) : '—' },
+                                { key: 'mfgYear', label: 'Year of Manufacturing', value: assetDetail.mfgYear ? String(assetDetail.mfgYear) : '—' },
                                 { key: 'vectorGroup', label: 'Vector Group', value: assetDetail.vectorGroup || '—' },
                                 { key: 'coolingMethod', label: 'Cooling Method', value: assetDetail.coolingMethod || '—' },
                                 { key: 'ratedPower', label: 'Rated Power', value: assetDetail.ratedPower || '—' },
