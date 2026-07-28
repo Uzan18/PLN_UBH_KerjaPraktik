@@ -73,11 +73,24 @@ export async function GET(request: Request) {
     const assetQb = assetRepo.createQueryBuilder('asset')
       .leftJoin('asset.unitPembangkit', 'up')
       .leftJoin('up.ubp', 'ubp')
-      .leftJoin('asset.jenisAsset', 'ja');
-    if (ubpId) assetQb.where('ubp.id = :ubpId', { ubpId });
+      .leftJoin('asset.jenisAsset', 'ja')
+      .where('1=1');
+
+    if (ubpId) assetQb.andWhere('ubp.id = :ubpId', { ubpId });
     if (unitId) assetQb.andWhere('up.id = :unitId', { unitId });
     if (assetId) assetQb.andWhere('asset.id = :assetId', { assetId });
     if (equipmentType) assetQb.andWhere('ja.name = :equipmentType', { equipmentType: equipmentType.trim() });
+    if (year) {
+      assetQb.andWhere((qb) => {
+        const subQuery = qb.subQuery()
+          .select('ts.asset_id')
+          .from(TestSession, 'ts')
+          .where('ts.status = :status', { status: 'VALIDATED' })
+          .andWhere('ts.test_year = :year', { year })
+          .getQuery();
+        return 'asset.id IN ' + subQuery;
+      });
+    }
     const totalAssets = await assetQb.getCount();
 
     // Get validated sessions with results and asset relationship loaded
