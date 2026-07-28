@@ -399,10 +399,11 @@ export default function ValidasiPage() {
                       </thead>
                       <tbody className="divide-y divide-surface-border">
                         {[
+                          { key: 'manufacture', label: 'Manufacture' },
                           { key: 'type', label: 'Type' },
                           { key: 'serialNumber', label: 'Serial Number' },
                           { key: 'mfgYear', label: 'Year of Manufacturing' },
-                          { key: 'vectorGroup', label: 'Manufacture' },
+                          { key: 'vectorGroup', label: 'Vector Group' },
                           { key: 'coolingMethod', label: 'Cooling Method' },
                           { key: 'ratedPower', label: 'Rated Power' },
                           { key: 'frequency', label: 'Frequency' },

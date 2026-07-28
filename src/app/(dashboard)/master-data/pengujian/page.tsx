@@ -70,6 +70,7 @@ const METADATA_FIELDS = [
   { key: 'serialNumber', label: 'SERIAL NUMBER' },
   { key: 'mfgYear', label: 'TAHUN BUAT' },
   { key: 'type', label: 'TYPE' },
+  { key: 'vectorGroup', label: 'VECTOR GROUP' },
   { key: 'coolingMethod', label: 'COOLING METHOD' },
   { key: 'ratedPower', label: 'RATED POWER' },
   { key: 'frequency', label: 'FREQUENCY' },
@@ -320,14 +321,39 @@ export default function CombinedManagePengujianPage() {
     setSelectedTestTypeIds(configuredIds);
     setRightPanelTab('informasi');
 
+    const normalizeKey = (k: string) => {
+      const lower = k.trim().toLowerCase();
+      if (['mfgyear', 'year of manufacturing', 'year of manufacture', 'tahun buat'].includes(lower)) return 'mfgYear';
+      if (['serialnumber', 'serial number', 'no seri'].includes(lower)) return 'serialNumber';
+      if (['vectorgroup', 'vector group', 'vector grup'].includes(lower)) return 'vectorGroup';
+      return k.trim();
+    };
+
     const dbJenis = jenisAssetList?.find((j: any) => j.name === group.name);
     if (dbJenis && dbJenis.infoFields) {
       try {
         const parsed = JSON.parse(dbJenis.infoFields);
         const generalKeys = ['manufacture', 'serialNumber', 'mfgYear'];
-        const existingKeys = parsed.map((i: any) => typeof i === 'string' ? i : i.key);
+        const existingKeys = parsed.map((i: any) => normalizeKey(typeof i === 'string' ? i : i.key || ''));
         const missingGeneral = generalKeys.filter((gk) => !existingKeys.includes(gk));
-        setSelectedInfoFields([...missingGeneral, ...parsed]);
+
+        const combined: any[] = [];
+        const seen = new Set<string>();
+
+        [...missingGeneral, ...parsed].forEach((item) => {
+          const rawKey = typeof item === 'string' ? item : item?.key || '';
+          const norm = normalizeKey(rawKey);
+          if (!seen.has(norm.toLowerCase())) {
+            seen.add(norm.toLowerCase());
+            if (typeof item === 'string') {
+              combined.push(norm);
+            } else {
+              combined.push({ ...item, key: norm });
+            }
+          }
+        });
+
+        setSelectedInfoFields(combined);
       } catch (e) {
         setSelectedInfoFields(['manufacture', 'serialNumber', 'mfgYear']);
       }
@@ -378,7 +404,16 @@ export default function CombinedManagePengujianPage() {
         const generalKeys = ['manufacture', 'serialNumber', 'mfgYear'];
         const existingKeys = parsed.map((i: any) => typeof i === 'string' ? i : i.key);
         const missingGeneral = generalKeys.filter((gk) => !existingKeys.includes(gk));
-        configuredInfoFields = [...missingGeneral, ...parsed];
+
+        const seen = new Set<string>();
+        [...missingGeneral, ...parsed].forEach((item) => {
+          const rawKey = typeof item === 'string' ? item : item?.key || '';
+          const norm = rawKey.trim().toLowerCase();
+          if (!seen.has(norm)) {
+            seen.add(norm);
+            configuredInfoFields.push(item);
+          }
+        });
       } catch (e) {
         configuredInfoFields = ['manufacture', 'serialNumber', 'mfgYear'];
       }

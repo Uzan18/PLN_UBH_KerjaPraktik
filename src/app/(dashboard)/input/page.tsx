@@ -174,7 +174,7 @@ function InputForm() {
       { key: 'type', label: 'Type', placeholder: 'Contoh: SFPZ10-370000/150 TH' },
       { key: 'serialNumber', label: 'Serial Number', placeholder: 'Contoh: 200911126' },
       { key: 'mfgYear', label: 'Year of Manufacturing', placeholder: 'Contoh: 2010', type: 'number' },
-      { key: 'vectorGroup', label: 'Vector Grup', placeholder: 'Contoh: YNd1' },
+      { key: 'vectorGroup', label: 'Vector Group', placeholder: 'Contoh: YNd1' },
       { key: 'coolingMethod', label: 'Cooling Method', placeholder: 'Contoh: OFAF' },
       { key: 'ratedPower', label: 'Rated Power', placeholder: 'Contoh: 370 MVA' },
       { key: 'frequency', label: 'Frequency', placeholder: 'Contoh: 50 Hz' },
@@ -188,42 +188,84 @@ function InputForm() {
       return fields;
     }
 
+    const ALIAS_MAP: Record<string, string> = {
+      mfgyear: 'mfgYear',
+      'year of manufacturing': 'mfgYear',
+      'year of manufacture': 'mfgYear',
+      'tahun buat': 'mfgYear',
+      serialnumber: 'serialNumber',
+      'serial number': 'serialNumber',
+      manufacture: 'manufacture',
+      type: 'type',
+      vectorgroup: 'vectorGroup',
+      'vector group': 'vectorGroup',
+      'vector grup': 'vectorGroup',
+      coolingmethod: 'coolingMethod',
+      'cooling method': 'coolingMethod',
+      ratedpower: 'ratedPower',
+      'rated power': 'ratedPower',
+      frequency: 'frequency',
+      hvside: 'hvSide',
+      'hv side': 'hvSide',
+      hvratedcurrent: 'hvRatedCurrent',
+      'hv rated current': 'hvRatedCurrent',
+      lvside: 'lvSide',
+      'lv side': 'lvSide',
+      lvratedcurrent: 'lvRatedCurrent',
+      'lv rated current': 'lvRatedCurrent',
+      'lc rated current': 'lvRatedCurrent',
+    };
+
     try {
       const parsedFields = JSON.parse(selectedAsset.jenisAsset.infoFields) as any[];
-      return parsedFields.map((item) => {
-        let key = '';
+      const result: any[] = [];
+      const seenKeys = new Set<string>();
+
+      parsedFields.forEach((item) => {
+        let rawKey = '';
         let placeholder = 'Masukkan nilai...';
-        
+
         if (typeof item === 'string') {
-          key = item;
+          rawKey = item;
         } else if (item && typeof item === 'object') {
-          key = item.key || '';
+          rawKey = item.key || '';
           if (item.placeholder) {
             placeholder = `Contoh: ${item.placeholder}`;
           }
         }
 
-        const standard = fields.find((f) => f.key.toLowerCase() === key.toLowerCase());
+        const normalizedKey = ALIAS_MAP[rawKey.trim().toLowerCase()] || rawKey.trim();
+        const keyLower = normalizedKey.toLowerCase();
+
+        if (seenKeys.has(keyLower)) {
+          return; // Skip duplicate
+        }
+        seenKeys.add(keyLower);
+
+        const standard = fields.find((f) => f.key.toLowerCase() === keyLower);
         if (standard) {
           if (placeholder !== 'Masukkan nilai...') {
-            return { ...standard, placeholder };
+            result.push({ ...standard, placeholder });
+          } else {
+            result.push(standard);
           }
-          return standard;
+        } else {
+          // Custom parameter added by admin
+          const cleanLabel = rawKey
+            .split(' ')
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+
+          result.push({
+            key: normalizedKey,
+            label: cleanLabel,
+            placeholder: placeholder,
+            type: 'text',
+          });
         }
-
-        // Custom parameter added by admin
-        const cleanLabel = key
-          .split(' ')
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(' ');
-
-        return {
-          key: key,
-          label: cleanLabel,
-          placeholder: placeholder,
-          type: 'text',
-        };
       });
+
+      return result.length > 0 ? result : fields;
     } catch (e) {
       return fields;
     }
@@ -235,7 +277,10 @@ function InputForm() {
       'coolingMethod', 'ratedPower', 'frequency', 'hvSide',
       'hvRatedCurrent', 'lvSide', 'lvRatedCurrent'
     ];
-    return Object.keys(additionalInfo).filter((k) => !standardKeys.includes(k));
+    return Object.keys(additionalInfo).filter((k) => {
+      const lower = k.toLowerCase();
+      return !standardKeys.some((sk) => sk.toLowerCase() === lower || ['year of manufacturing', 'year of manufacture', 'tahun buat'].includes(lower));
+    });
   }, [additionalInfo]);
 
   // Sync URL search params & sessionStorage with states on mount/load

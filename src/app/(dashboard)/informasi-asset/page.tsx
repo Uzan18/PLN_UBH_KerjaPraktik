@@ -460,7 +460,7 @@ export default function InformasiAssetPage() {
                               })();
 
                               const customKeys = activeKeys
-                                ? activeKeys.filter((k: string) => k && !['type', 'serialNumber', 'mfgYear', 'manufacture', 'coolingMethod', 'ratedPower', 'frequency', 'hvSide', 'hvRatedCurrent', 'lvSide', 'lvRatedCurrent'].includes(k.toLowerCase()))
+                                ? activeKeys.filter((k: string) => k && !['type', 'serialnumber', 'mfgyear', 'manufacture', 'vectorgroup', 'coolingmethod', 'ratedpower', 'frequency', 'hvside', 'hvratedcurrent', 'lvside', 'lvratedcurrent', 'year of manufacturing', 'year of manufacture', 'tahun buat'].includes(k.toLowerCase()))
                                 : Object.keys(customFieldsDict);
 
                               const customFields = customKeys.map((k: string) => {
@@ -476,10 +476,11 @@ export default function InformasiAssetPage() {
                               });
 
                               return [
+                                { key: 'manufacture', label: 'Manufacture', value: assetDetail.manufacture || '—' },
                                 { key: 'type', label: 'Type', value: assetDetail.type || '—' },
                                 { key: 'serialNumber', label: 'Serial Number', value: assetDetail.serialNumber || '—' },
                                 { key: 'mfgYear', label: 'Tahun Buat', value: assetDetail.mfgYear ? String(assetDetail.mfgYear) : '—' },
-                                { key: 'manufacture', label: 'Manufacture', value: assetDetail.vectorGroup || '—' },
+                                { key: 'vectorGroup', label: 'Vector Group', value: assetDetail.vectorGroup || '—' },
                                 { key: 'coolingMethod', label: 'Cooling Method', value: assetDetail.coolingMethod || '—' },
                                 { key: 'ratedPower', label: 'Rated Power', value: assetDetail.ratedPower || '—' },
                                 { key: 'frequency', label: 'Frequency', value: assetDetail.frequency || '—' },
@@ -488,7 +489,10 @@ export default function InformasiAssetPage() {
                                 { key: 'lvSide', label: 'LV Side', value: assetDetail.lvSide || '—' },
                                 { key: 'lvRatedCurrent', label: 'LV Rated Current', value: assetDetail.lvRatedCurrent || '—' },
                               ]
-                                .filter((item) => !activeFields || activeFields.includes(item.key))
+                                .filter((item) => !activeFields || activeFields.some((af: any) => {
+                                  const afKey = typeof af === 'string' ? af : af?.key || '';
+                                  return afKey.toLowerCase() === item.key.toLowerCase();
+                                }))
                                 .concat(customFields)
                                 .map((item) => (
                                   <div 

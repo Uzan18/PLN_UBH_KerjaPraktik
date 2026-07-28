@@ -47,7 +47,31 @@ export async function POST(request: Request) {
     // Save infoFields to JenisAsset
     if (infoFields !== undefined) {
       if (Array.isArray(infoFields)) {
-        jenis.infoFields = JSON.stringify(infoFields);
+        const normalizeKey = (k: string) => {
+          const lower = k.trim().toLowerCase();
+          if (['mfgyear', 'year of manufacturing', 'year of manufacture', 'tahun buat'].includes(lower)) return 'mfgYear';
+          if (['serialnumber', 'serial number', 'no seri'].includes(lower)) return 'serialNumber';
+          if (['vectorgroup', 'vector group', 'vector grup'].includes(lower)) return 'vectorGroup';
+          return k.trim();
+        };
+
+        const deduplicated: any[] = [];
+        const seen = new Set<string>();
+
+        infoFields.forEach((item) => {
+          const rawKey = typeof item === 'string' ? item : item?.key || '';
+          const norm = normalizeKey(rawKey);
+          if (norm && !seen.has(norm.toLowerCase())) {
+            seen.add(norm.toLowerCase());
+            if (typeof item === 'string') {
+              deduplicated.push(norm);
+            } else {
+              deduplicated.push({ ...item, key: norm });
+            }
+          }
+        });
+
+        jenis.infoFields = JSON.stringify(deduplicated);
       } else {
         jenis.infoFields = null;
       }
