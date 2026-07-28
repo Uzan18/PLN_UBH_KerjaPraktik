@@ -98,11 +98,12 @@ export async function GET(
     const assetRepo = db.getRepository(Asset);
     const testTypeRepo = db.getRepository(TestType);
 
-    // Get asset with all validated sessions
+    // Get asset with all validated sessions and mapped test types
     const asset = await assetRepo.createQueryBuilder('asset')
       .leftJoinAndSelect('asset.unitPembangkit', 'up')
       .leftJoinAndSelect('up.ubp', 'ubp')
       .leftJoinAndSelect('asset.jenisAsset', 'ja')
+      .leftJoinAndSelect('asset.testTypes', 'att')
       .leftJoinAndSelect('asset.testSessions', 'ts', 'ts.status = :status', { status: 'VALIDATED' })
       .leftJoinAndSelect('ts.testResults', 'tr')
       .leftJoinAndSelect('tr.parameter', 'param')
@@ -157,7 +158,7 @@ export async function GET(
     }
 
     // Get all test types
-    const testTypes = await testTypeRepo.find({
+    const allTestTypes = await testTypeRepo.find({
       relations: ['parameters'],
       order: {
         orderIndex: 'ASC',
@@ -165,6 +166,35 @@ export async function GET(
           orderIndex: 'ASC',
         },
       },
+    });
+
+    // Collect test type IDs that are mapped to this asset/jenisAsset or have results in selectedSession
+    const mappedTestTypeIds = new Set<string>();
+
+    if (asset.testTypes && asset.testTypes.length > 0) {
+      asset.testTypes.forEach((t) => mappedTestTypeIds.add(t.id));
+    }
+
+    if (asset.jenisAssetId) {
+      allTestTypes.forEach((tt) => {
+        if (tt.jenisAssetId === asset.jenisAssetId) {
+          mappedTestTypeIds.add(tt.id);
+        }
+      });
+    }
+
+    const sessionTestTypeIds = new Set<string>();
+    selectedSession?.testResults?.forEach((r) => {
+      if (r.parameter?.testTypeId) {
+        sessionTestTypeIds.add(r.parameter.testTypeId);
+      }
+    });
+
+    const testTypes = allTestTypes.filter((tt) => {
+      if (mappedTestTypeIds.size > 0) {
+        return mappedTestTypeIds.has(tt.id) || sessionTestTypeIds.has(tt.id);
+      }
+      return sessionTestTypeIds.has(tt.id);
     });
 
     // Build status per test type from selected validated session
