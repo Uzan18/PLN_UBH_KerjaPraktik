@@ -66,9 +66,9 @@ interface NewParamInput {
 }
 
 const METADATA_FIELDS = [
-  { key: 'manufacture', label: 'MANUFACTURE' },
-  { key: 'serialNumber', label: 'SERIAL NUMBER' },
-  { key: 'mfgYear', label: 'YEAR OF MANUFACTURING' },
+  { key: 'manufacture', label: 'Manufacture' },
+  { key: 'serialNumber', label: 'Serial Number' },
+  { key: 'mfgYear', label: 'Year of Manufacturing' },
 ];
 
 export default function CombinedManagePengujianPage() {
@@ -1373,8 +1373,8 @@ export default function CombinedManagePengujianPage() {
                           <tbody className="divide-y divide-surface-border">
                             {selectedInfoFields.map((item) => {
                               const { key, placeholder } = resolveField(item);
-                              const standardField = METADATA_FIELDS.find((f) => f.key === key);
-                              const label = standardField ? standardField.label : key.toUpperCase();
+                              const standardField = METADATA_FIELDS.find((f) => f.key.toLowerCase() === key.toLowerCase());
+                              const label = standardField ? standardField.label : (typeof item === 'object' && item?.label ? item.label : key);
                               const isGeneral = key === 'manufacture' || key === 'serialNumber' || key === 'mfgYear';
 
                               return (
