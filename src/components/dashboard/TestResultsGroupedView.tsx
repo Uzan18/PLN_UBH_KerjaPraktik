@@ -154,7 +154,7 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
 
   if (!details || details.length === 0) {
     return (
-      <div className="p-8 text-center bg-surface-container-low/30 rounded-xl border border-surface-border">
+      <div className={borderless ? "p-8 text-center bg-surface-container-low/20" : "p-8 text-center bg-surface-container-low/30 rounded-xl border border-surface-border"}>
         <span className="material-symbols-outlined text-outline text-3xl mb-1">inventory_2</span>
         <p className="text-xs font-semibold text-on-surface-variant">Tidak ada hasil parameter pengujian ditemukan.</p>
       </div>

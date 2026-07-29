@@ -342,8 +342,8 @@ export default function ValidasiPage() {
 
       {/* Review/Detail Modal */}
       {selectedReviewItem && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 animate-fade-in p-4">
-          <div className="bg-white border border-surface-border rounded-xl shadow-2xl max-w-4xl w-full max-h-[88vh] flex flex-col overflow-hidden animate-scale-up relative">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in p-4">
+          <div className="bg-white border border-surface-border rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scale-up">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-surface-container-low border-b border-surface-border flex items-center justify-between shrink-0">
               <div>
@@ -359,14 +359,16 @@ export default function ValidasiPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="overflow-y-auto flex-1 custom-scrollbar scroll-smooth overscroll-contain p-6">
+            <div className="overflow-y-auto flex-1 custom-scrollbar scroll-smooth overscroll-contain p-6 space-y-4">
+              {approveError && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-900 p-4 rounded-xl text-xs flex items-center gap-2 shadow-xs">
+                  <span className="material-symbols-outlined text-rose-600 shrink-0 text-sm">error</span>
+                  <span>{approveError}</span>
+                </div>
+              )}
+
+              {/* Unified Main Data Card */}
               <div className="bg-white border border-surface-border rounded-xl shadow-xs overflow-hidden divide-y divide-surface-border">
-                {approveError && (
-                  <div className="bg-status-bad/10 border-b border-status-bad text-status-bad text-xs p-3 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-sm">error</span>
-                    <span>{approveError}</span>
-                  </div>
-                )}
                 {/* Asset & Session Metadata Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-surface-container-low/40 p-4 text-xs">
                   <div>
