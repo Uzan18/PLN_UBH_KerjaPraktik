@@ -584,7 +584,7 @@ export default function RiwayatPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="overflow-y-auto flex-1 custom-scrollbar overscroll-contain p-6 space-y-4">
+            <div className="overflow-y-auto flex-1 custom-scrollbar">
               {/* Rejection Note Warning Card (Prominent Top Alert) */}
                 {selectedSession.status === 'REJECTED' && (
                   <div className="bg-rose-50 border border-rose-200 text-rose-900 p-4 rounded-xl space-y-1 animate-fade-in shadow-xs">
@@ -606,9 +606,9 @@ export default function RiwayatPage() {
                 )}
 
                 {/* Unified Main Data Card */}
-                <div className="bg-white border border-surface-border rounded-xl shadow-xs overflow-hidden divide-y divide-surface-border">
+                <div className="bg-white overflow-hidden divide-y divide-surface-border">
                   {/* Asset & Session Metadata Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-surface-container-low/40 p-4 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-100 p-4 text-xs border-b border-surface-border">
                     <div>
                       <p className="text-[10px] uppercase font-bold text-outline">Unit Pembangkit</p>
                       <p className="font-bold text-on-surface mt-0.5">{selectedSession.asset?.unitPembangkit?.name || ''} - {selectedSession.asset?.name || ''}</p>
@@ -635,7 +635,7 @@ export default function RiwayatPage() {
                     <div>
                       <button
                         onClick={() => setIsAssetInfoExpanded(!isAssetInfoExpanded)}
-                        className="w-full px-4 py-2.5 bg-surface-container-low/20 hover:bg-surface-container-low flex items-center justify-between text-xs font-bold text-on-surface transition-colors cursor-pointer"
+                        className="w-full px-4 py-2.5 bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-xs font-bold text-on-surface transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2">
                           <span className="material-symbols-outlined text-sm text-primary">info</span>
@@ -651,15 +651,15 @@ export default function RiwayatPage() {
                         <div className="p-3 border-t border-surface-border bg-white">
                           <table className="w-full text-left border-collapse text-xs">
                             <thead>
-                              <tr className="bg-surface-container-low border-b border-surface-border font-mono text-[9px] uppercase font-bold text-on-surface-variant">
+                              <tr className="bg-slate-100 border-b border-surface-border font-mono text-[9px] uppercase font-bold text-on-surface-variant">
                                 <th className="px-3 py-1.5 w-[45%] border-r border-surface-border">Parameter Alat</th>
                                 <th className="px-3 py-1.5 w-[55%]">Nilai Informasi</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-surface-border">
                               {selectedSessionAssetInfo.fieldsList.map((field) => (
-                                <tr key={field.key} className="hover:bg-surface-container-low/10 transition-colors">
-                                  <td className="px-3 py-1.5 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/35 w-[45%]">
+                                <tr key={field.key} className="bg-white">
+                                  <td className="px-3 py-1.5 font-semibold text-on-surface border-r border-surface-border bg-slate-50 w-[45%]">
                                     {field.label}
                                   </td>
                                   <td className="px-3 py-1.5 w-[55%] font-semibold text-on-surface-variant">
