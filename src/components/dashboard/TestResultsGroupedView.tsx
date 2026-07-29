@@ -163,8 +163,8 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
 
   return (
     <div className={borderless ? "bg-white overflow-hidden" : "bg-white border border-surface-border rounded-xl shadow-xs overflow-hidden"}>
-      {/* Integrated Header: Title + KPI Metrics + Search Input (Sticky Top Solid Shield) */}
-      <div className="p-4 bg-white border-b border-surface-border space-y-3 sticky top-0 z-20 shadow-sm">
+      {/* Integrated Header: Title + KPI Metrics + Search Input */}
+      <div className="p-4 bg-slate-100 border-b border-surface-border space-y-3">
         {/* Title & KPI Badges */}
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex items-center gap-2">
@@ -235,9 +235,9 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <tbody className="divide-y divide-surface-border">
+        <div className="w-full">
+          <table className="w-full text-left text-xs">
+            <tbody>
               {filteredGroups.map((group) => {
                 const isCollapsed = !!collapsedGroups[group.testTypeName];
 
@@ -246,7 +246,7 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
                     {/* Group Header Row */}
                     <tr
                       onClick={() => toggleGroup(group.testTypeName)}
-                      className="bg-surface-container-low/40 hover:bg-surface-container-low/70 cursor-pointer select-none border-t border-b border-surface-border"
+                      className="bg-slate-100 cursor-pointer select-none border-t border-b border-surface-border"
                     >
                       <td colSpan={3} className="px-4 py-2.5">
                         <div className="flex items-center justify-between">
@@ -266,7 +266,7 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
                             </div>
 
                             <span
-                              className={`material-symbols-outlined text-outline transition-transform duration-200 text-lg select-none ${
+                              className={`material-symbols-outlined text-outline text-lg select-none ${
                                 isCollapsed ? '-rotate-90' : ''
                               }`}
                             >
@@ -280,13 +280,13 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
                     {/* Table Sub-Header + Parameter Data Rows (Only when not collapsed) */}
                     {!isCollapsed && (
                       <>
-                        <tr className="bg-surface-container-low/20 font-mono text-[9px] uppercase font-bold text-outline border-b border-surface-border">
+                        <tr className="bg-slate-50 font-mono text-[9px] uppercase font-bold text-outline border-b border-surface-border">
                           <th className="px-4 py-1.5 w-[45%] font-bold">Parameter</th>
                           <th className="px-4 py-1.5 w-[35%] font-bold">Nilai Pengukuran</th>
                           <th className="px-4 py-1.5 text-center w-[20%] font-bold">Status</th>
                         </tr>
                         {group.filteredItems.map((r: any) => (
-                          <tr key={r.id} className="bg-white hover:bg-surface-container-low/10">
+                          <tr key={r.id} className="bg-white border-b border-surface-border/40">
                             <td className="px-4 py-2.5 font-semibold text-on-surface">
                               {r.parameter?.name || '—'}
                             </td>
