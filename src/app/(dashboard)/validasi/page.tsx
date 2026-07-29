@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import { TestResultsGroupedView } from '@/components/dashboard/TestResultsGroupedView';
@@ -52,6 +52,18 @@ export default function ValidasiPage() {
     queryFn: () => fetchSessionDetail(selectedReviewItem!.sessionId),
     enabled: !!selectedReviewItem,
   });
+
+  // Lock body scroll when review modal is open to prevent background page scroll desync
+  useEffect(() => {
+    if (selectedReviewItem) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [selectedReviewItem]);
 
   const selectedReviewAssetInfo = useMemo(() => {
     if (!selectedReviewItem) return null;
@@ -342,7 +354,7 @@ export default function ValidasiPage() {
 
       {/* Review/Detail Modal */}
       {selectedReviewItem && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 animate-fade-in p-4">
           <div className="bg-white border border-surface-border rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scale-up">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-surface-container-low border-b border-surface-border flex items-center justify-between shrink-0">
@@ -359,7 +371,7 @@ export default function ValidasiPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="overflow-y-auto flex-1 custom-scrollbar scroll-smooth overscroll-contain p-6 space-y-4">
+            <div className="overflow-y-auto flex-1 custom-scrollbar overscroll-contain p-6 space-y-4">
               {approveError && (
                 <div className="bg-rose-50 border border-rose-200 text-rose-900 p-4 rounded-xl text-xs flex items-center gap-2 shadow-xs">
                   <span className="material-symbols-outlined text-rose-600 shrink-0 text-sm">error</span>
