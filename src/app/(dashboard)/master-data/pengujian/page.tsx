@@ -1184,7 +1184,7 @@ export default function CombinedManagePengujianPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-2 border-b border-surface-border gap-4">
         <div>
           <h2 className="text-xl font-bold text-on-surface mb-1">Kriteria Standard</h2>
-          <p className="text-xs text-on-surface-variant">Konfigurasikan pengujian yang berlaku bagi jenis aset, sesuaikan standardisasi kriteria ambang batas parameter, dan import berkas Excel.</p>
+          <p className="text-xs text-on-surface-variant">Konfigurasikan pengujian yang berlaku bagi jenis aset dan sesuaikan standardisasi kriteria ambang batas parameter.</p>
         </div>
       </div>
 
