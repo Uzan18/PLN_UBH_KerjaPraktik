@@ -38,11 +38,16 @@ export async function POST(request: Request) {
     const testTypeRepo = db.getRepository(TestType);
     const auditRepo = db.getRepository(AuditLog);
 
-    // Verify Jenis Asset exists
-    const jenis = await jenisRepo.findOne({ where: { id: jenisAssetId } });
+    // Verify Jenis Asset exists (try by id or by name)
+    let jenis = await jenisRepo.findOne({ where: { id: jenisAssetId } });
     if (!jenis) {
-      return NextResponse.json({ success: false, error: 'Jenis Asset not found' }, { status: 404 });
+      jenis = await jenisRepo.findOne({ where: { name: jenisAssetId } });
     }
+    if (!jenis) {
+      return NextResponse.json({ success: false, error: `Jenis Asset "${jenisAssetId}" tidak ditemukan` }, { status: 404 });
+    }
+
+    const targetJenisId = jenis.id;
 
     // Save infoFields to JenisAsset
     if (infoFields !== undefined) {
@@ -79,27 +84,37 @@ export async function POST(request: Request) {
       await jenisRepo.save(jenis);
     }
 
-    // Find all assets of this jenisAssetId
-    const assets = await assetRepo.find({
-      where: { jenisAssetId },
-      relations: ['testTypes'],
+    // 1. Unlink test types previously assigned to targetJenisId that are no longer in testTypeIds
+    const previouslyLinked = await testTypeRepo.find({
+      where: { jenisAssetId: targetJenisId },
     });
+    for (const tt of previouslyLinked) {
+      if (!testTypeIds.includes(tt.id)) {
+        tt.jenisAssetId = null;
+        await testTypeRepo.save(tt);
+      }
+    }
 
-    // Find requested test types and link jenisAssetId
+    // 2. Find requested test types and link targetJenisId
     let selectedTestTypes: TestType[] = [];
     if (testTypeIds.length > 0) {
       selectedTestTypes = await testTypeRepo.find({
         where: { id: In(testTypeIds) },
       });
       for (const tt of selectedTestTypes) {
-        if (tt.jenisAssetId !== jenisAssetId) {
-          tt.jenisAssetId = jenisAssetId;
+        if (tt.jenisAssetId !== targetJenisId) {
+          tt.jenisAssetId = targetJenisId;
           await testTypeRepo.save(tt);
         }
       }
     }
 
-    // Update relationship for all assets of this jenisAssetId
+    // 3. Find all assets of this jenisAssetId and update relationship
+    const assets = await assetRepo.find({
+      where: { jenisAssetId: targetJenisId },
+      relations: ['testTypes'],
+    });
+
     for (const asset of assets) {
       asset.testTypes = selectedTestTypes;
       await assetRepo.save(asset);
@@ -112,7 +127,7 @@ export async function POST(request: Request) {
       userId: session.user.id,
       action: 'UPDATE',
       entity: 'JenisAssetTestType',
-      entityId: jenisAssetId,
+      entityId: targetJenisId,
       beforeData: JSON.stringify({ jenisAsset: jenis.name, assetCount: assets.length }),
       afterData: JSON.stringify({ jenisAsset: jenis.name, testTypes: testTypeNames }),
     });

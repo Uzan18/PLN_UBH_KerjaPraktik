@@ -28,3 +28,10 @@ next-env.d.ts
 # agents & gemini workspace state
 .agents/
 .gemini/
+
+# diagram files
+diagrams/
+*.drawio
+
+# uploads
+public/uploads/

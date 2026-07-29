@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
+import { TestResultsGroupedView } from '@/components/dashboard/TestResultsGroupedView';
 import { useToast } from '@/context/ToastContext';
 
 // Fetch helper
@@ -20,34 +21,6 @@ async function fetchSessionDetail(sessionId: string) {
   return json.data || [];
 }
 
-const TEST_TYPE_ORDER = [
-  'INSULATION RESISTANCE',
-  'POLARITY INDEX',
-  'TURN TO TURN RATIO',
-  'WINDING RESISTANCE HV',
-  'WINDING RESISTANCE LV',
-  'SFRA HV OPEN',
-  'SFRA HV SHORTED',
-  'SFRA LV OPEN',
-  'SFRA LV SHORTED',
-  'EXC CURRENT',
-  'TAN DELTA WINDING',
-  'TAN DELTA BUSHING',
-  'WATT LOSS BUSHING BUSHING',
-  'GROUNDING RESISTANCE',
-  'DIRANA MOISTURE',
-  'DIRANA OIL CONDUCT',
-  'ARRESTER GROUND',
-  'ARRESTER IR',
-  'ARRESTER WATT LOSS',
-  'VISUAL INSPECTION',
-  'OTI ',
-  'WTI',
-  'DGA',
-  'OIL ANALYSIS',
-  'RLA'
-];
-
 export default function ValidasiPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -58,6 +31,7 @@ export default function ValidasiPage() {
   const [approveError, setApproveError] = useState<string | null>(null);
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [approveSuccess, setApproveSuccess] = useState(false);
+  const [isAssetInfoExpanded, setIsAssetInfoExpanded] = useState(false);
 
   const handleCloseReview = () => {
     setSelectedReviewItem(null);
@@ -164,25 +138,22 @@ export default function ValidasiPage() {
     return { info, fieldsList };
   }, [selectedReviewItem]);
 
-  // Sort parameter results
+  // Sort parameter results dynamically from DB orderIndex & names
   const sortedDetails = useMemo(() => {
     if (!details) return [];
     return [...details].sort((a: any, b: any) => {
-      const typeA = (a.parameter?.testType?.name || '').trim().toUpperCase();
-      const typeB = (b.parameter?.testType?.name || '').trim().toUpperCase();
-      
-      if (typeA !== typeB) {
-        const idxA = TEST_TYPE_ORDER.indexOf(typeA);
-        const idxB = TEST_TYPE_ORDER.indexOf(typeB);
-        const posA = idxA !== -1 ? idxA : 999;
-        const posB = idxB !== -1 ? idxB : 999;
-        return posA - posB;
-      }
-      
+      const orderTypeA = a.parameter?.testType?.orderIndex ?? 999;
+      const orderTypeB = b.parameter?.testType?.orderIndex ?? 999;
+      if (orderTypeA !== orderTypeB) return orderTypeA - orderTypeB;
+
+      const typeA = (a.parameter?.testType?.name || '').trim();
+      const typeB = (b.parameter?.testType?.name || '').trim();
+      if (typeA !== typeB) return typeA.localeCompare(typeB);
+
       const orderA = a.parameter?.orderIndex ?? 999;
       const orderB = b.parameter?.orderIndex ?? 999;
       if (orderA !== orderB) return orderA - orderB;
-      
+
       return (a.parameter?.name || '').localeCompare(b.parameter?.name || '');
     });
   }, [details]);
@@ -372,9 +343,9 @@ export default function ValidasiPage() {
       {/* Review/Detail Modal */}
       {selectedReviewItem && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 animate-fade-in p-4">
-          <div className="bg-white border border-surface-border rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-scale-up relative">
+          <div className="bg-white border border-surface-border rounded-xl shadow-2xl max-w-4xl w-full max-h-[88vh] flex flex-col overflow-hidden animate-scale-up relative">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-surface-container-low border-b border-surface-border flex items-center justify-between">
+            <div className="px-6 py-4 bg-surface-container-low border-b border-surface-border flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-base font-bold text-primary font-sans">Detail Validasi Pengujian</h3>
                 <p className="text-[11px] text-on-surface-variant mt-0.5 font-mono">Sesi ID: {selectedReviewItem.sessionId}</p>
@@ -388,112 +359,93 @@ export default function ValidasiPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
-              {approveError && (
-                <div className="bg-status-bad/10 border border-status-bad text-status-bad text-xs p-3 rounded-lg flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">error</span>
-                  <span>{approveError}</span>
-                </div>
-              )}
-              {/* Asset & Session Metadata Grid */}
-              <div className="grid grid-cols-2 gap-4 bg-surface-container-low/40 p-4 rounded-lg border border-surface-border text-xs">
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-outline">Unit Pembangkit</p>
-                  <p className="font-bold text-on-surface mt-0.5">
-                    {selectedReviewItem.unitName ? `${selectedReviewItem.unitName} - ${selectedReviewItem.assetName}` : selectedReviewItem.assetName}
-                  </p>
-                  <p className="text-[10px] font-mono text-on-surface-variant uppercase mt-0.5">{selectedReviewItem.ubpName}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-outline">Jenis Asset</p>
-                  <p className="font-bold text-on-surface mt-0.5">{selectedReviewItem.equipmentType || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-outline">Tahun Uji / Input Oleh</p>
-                  <p className="font-mono font-bold text-primary text-sm mt-0.5">{selectedReviewItem.testYear}</p>
-                  <p className="text-[11px] font-medium text-on-surface-variant">{selectedReviewItem.createdByName}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-outline">Status Validasi</p>
-                  <div className="mt-1">
-                    <StatusBadge status={selectedReviewItem.status} size="sm" />
+            <div className="overflow-y-auto flex-1 custom-scrollbar scroll-smooth overscroll-contain p-6">
+              <div className="bg-white border border-surface-border rounded-xl shadow-xs overflow-hidden divide-y divide-surface-border">
+                {approveError && (
+                  <div className="bg-status-bad/10 border-b border-status-bad text-status-bad text-xs p-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-sm">error</span>
+                    <span>{approveError}</span>
                   </div>
-                </div>
-              </div>
-
-              {/* Informasi Tambahan Alat */}
-              {selectedReviewAssetInfo && (
-                <div className="space-y-2">
-                  <h4 className="font-bold text-on-surface text-sm">Informasi Tambahan Alat</h4>
-                  <div className="border border-surface-border rounded-lg overflow-hidden bg-white max-w-2xl shadow-sm">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-surface-container-low border-b border-surface-border font-mono text-[9px] uppercase font-bold text-on-surface-variant">
-                          <th className="px-4 py-2 w-[45%] border-r border-surface-border">Parameter Alat</th>
-                          <th className="px-4 py-2 w-[55%]">Nilai Informasi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-surface-border">
-                        {selectedReviewAssetInfo.fieldsList.map((field) => (
-                          <tr key={field.key} className="hover:bg-surface-container-low/10 transition-colors">
-                            <td className="px-4 py-2 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/35 w-[45%]">
-                              {field.label}
-                            </td>
-                            <td className="px-4 py-2 w-[55%] font-semibold text-on-surface-variant">
-                              {selectedReviewAssetInfo.info[field.key] || '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                )}
+                {/* Asset & Session Metadata Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-surface-container-low/40 p-4 text-xs">
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-outline">Unit Pembangkit</p>
+                    <p className="font-bold text-on-surface mt-0.5">
+                      {selectedReviewItem.unitName ? `${selectedReviewItem.unitName} - ${selectedReviewItem.assetName}` : selectedReviewItem.assetName}
+                    </p>
+                    <p className="text-[10px] font-mono text-on-surface-variant uppercase mt-0.5">{selectedReviewItem.ubpName}</p>
                   </div>
-                </div>
-              )}
-
-              {/* Parameter Results Table */}
-              <div>
-                <h4 className="font-bold text-on-surface text-sm mb-3">Hasil Pengukuran Parameter</h4>
-                <div className="border border-surface-border rounded-lg overflow-hidden">
-                  {isDetailLoading ? (
-                    <div className="flex items-center justify-center py-10">
-                      <div className="w-6 h-6 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-outline">Jenis Asset</p>
+                    <p className="font-bold text-on-surface mt-0.5">{selectedReviewItem.equipmentType || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-outline">Tahun Uji / Input Oleh</p>
+                    <p className="font-mono font-bold text-primary text-sm mt-0.5">{selectedReviewItem.testYear}</p>
+                    <p className="text-[11px] font-medium text-on-surface-variant">{selectedReviewItem.createdByName}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-outline">Status Validasi</p>
+                    <div className="mt-1">
+                      <StatusBadge status={selectedReviewItem.status} size="sm" />
                     </div>
-                  ) : !sortedDetails || sortedDetails.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-on-surface-variant">Tidak ada hasil parameter pengujian ditemukan.</div>
-                  ) : (
-                    <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead className="sticky top-0 bg-surface-container-low border-b border-surface-border z-10">
-                          <tr>
-                            <th className="px-4 py-2 font-mono text-[9px] uppercase font-bold text-on-surface-variant w-[35%]">Jenis Pengujian</th>
-                            <th className="px-4 py-2 font-mono text-[9px] uppercase font-bold text-on-surface-variant w-[30%]">Parameter</th>
-                            <th className="px-4 py-2 font-mono text-[9px] uppercase font-bold text-on-surface-variant w-[20%]">Nilai</th>
-                            <th className="px-4 py-2 font-mono text-[9px] uppercase font-bold text-on-surface-variant text-center w-[15%]">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-surface-border/40">
-                          {sortedDetails.map((r: any) => (
-                            <tr key={r.id} className="hover:bg-surface-container-low/20 transition-colors">
-                              <td className="px-4 py-2 font-semibold text-on-surface">{r.parameter?.testType?.name}</td>
-                              <td className="px-4 py-2 text-on-surface-variant font-medium">{r.parameter?.name}</td>
-                              <td className="px-4 py-2 font-mono text-on-surface">
-                                {r.displayValue || (r.isNotApplicable ? <span className="text-outline/40">N/A</span> : r.value)}
-                              </td>
-                              <td className="px-4 py-2 text-center">
-                                <StatusBadge judgement={r.judgement} size="sm" showIcon={false} />
-                              </td>
+                  </div>
+                </div>
+
+                {/* Informasi Tambahan Alat (Collapsible) */}
+                {selectedReviewAssetInfo && (
+                  <div>
+                    <button
+                      onClick={() => setIsAssetInfoExpanded(!isAssetInfoExpanded)}
+                      className="w-full px-4 py-2.5 bg-surface-container-low/20 hover:bg-surface-container-low flex items-center justify-between text-xs font-bold text-on-surface transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm text-primary">info</span>
+                        <span>Informasi Tambahan Alat / Spesifikasi Trafo</span>
+                        <span className="text-[10px] font-normal text-on-surface-variant">({selectedReviewAssetInfo.fieldsList.length} Parameter)</span>
+                      </div>
+                      <span className="material-symbols-outlined text-sm text-outline">
+                        {isAssetInfoExpanded ? 'expand_less' : 'expand_more'}
+                      </span>
+                    </button>
+
+                    {isAssetInfoExpanded && (
+                      <div className="p-3 border-t border-surface-border bg-white">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-surface-container-low border-b border-surface-border font-mono text-[9px] uppercase font-bold text-on-surface-variant">
+                              <th className="px-3 py-1.5 w-[45%] border-r border-surface-border">Parameter Alat</th>
+                              <th className="px-3 py-1.5 w-[55%]">Nilai Informasi</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                          </thead>
+                          <tbody className="divide-y divide-surface-border">
+                            {selectedReviewAssetInfo.fieldsList.map((field) => (
+                              <tr key={field.key} className="hover:bg-surface-container-low/10 transition-colors">
+                                <td className="px-3 py-1.5 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/35 w-[45%]">
+                                  {field.label}
+                                </td>
+                                <td className="px-3 py-1.5 w-[55%] font-semibold text-on-surface-variant">
+                                  {selectedReviewAssetInfo.info[field.key] || '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Grouped Parameter Results View */}
+                <div>
+                  <TestResultsGroupedView details={details} isLoading={isDetailLoading} borderless={true} />
                 </div>
               </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-surface-container-low border-t border-surface-border flex justify-between gap-3 items-center">
+            <div className="px-6 py-4 bg-surface-container-low border-t border-surface-border flex justify-between gap-3 items-center shrink-0">
               <button 
                 onClick={handleCloseReview}
                 className="px-4 py-2 border border-outline-variant hover:bg-surface-container-low rounded-lg text-xs font-bold transition-colors cursor-pointer"

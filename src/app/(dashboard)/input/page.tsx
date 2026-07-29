@@ -55,6 +55,62 @@ function getQualitativeChoices(criteria: any): string[] | null {
   return choices.length > 0 ? choices : rawValues;
 }
 
+function formatLoadedInputValue(val: any, criteria: any, paramId?: string, testTypes?: any[]): string {
+  if (val === null || val === undefined || val === '') return '';
+  const valStr = String(val).trim();
+
+  // Try finding criteria from paramId in testTypes if criteria is not directly passed
+  let activeCriteria = criteria;
+  if ((!activeCriteria || (Array.isArray(activeCriteria) && activeCriteria.length === 0)) && paramId && testTypes) {
+    for (const tt of testTypes) {
+      const p = tt.parameters?.find((param: any) => param.id === paramId);
+      if (p && p.criteria) {
+        activeCriteria = p.criteria;
+        break;
+      }
+    }
+  }
+
+  const choices = getQualitativeChoices(activeCriteria);
+
+  if (choices && choices.length > 0) {
+    // 1. If valStr is already one of the choices (exact match or case-insensitive)
+    const exactMatch = choices.find((c) => c.toLowerCase() === valStr.toLowerCase());
+    if (exactMatch) return exactMatch;
+
+    // 2. If val is a numeric code (e.g. 0, 1, 2, 3, 4, 5)
+    const numVal = Number(valStr);
+    if (!isNaN(numVal)) {
+      // Try matching choices by mapQualitativeValueToNumber
+      const matchedChoice = choices.find((choice) => {
+        const mapped = mapQualitativeValueToNumber(choice);
+        return mapped !== null && mapped === numVal;
+      });
+      if (matchedChoice) return matchedChoice;
+
+      // Try matching by criteria level bounds/texts
+      const cList = Array.isArray(activeCriteria) ? activeCriteria : [activeCriteria];
+      const c = cList[0];
+      if (c) {
+        if ((numVal === 0 || numVal === 5) && c.goodValue && choices.some(ch => ch.toLowerCase() === c.goodValue.trim().toLowerCase())) {
+          return choices.find(ch => ch.toLowerCase() === c.goodValue.trim().toLowerCase()) || c.goodValue.trim();
+        }
+        if ((numVal === 1 || numVal === 4) && c.fairValue && choices.some(ch => ch.toLowerCase() === c.fairValue.trim().toLowerCase())) {
+          return choices.find(ch => ch.toLowerCase() === c.fairValue.trim().toLowerCase()) || c.fairValue.trim();
+        }
+        if (numVal === 2 && c.poorValue && choices.some(ch => ch.toLowerCase() === c.poorValue.trim().toLowerCase())) {
+          return choices.find(ch => ch.toLowerCase() === c.poorValue.trim().toLowerCase()) || c.poorValue.trim();
+        }
+        if ((numVal === 3 || numVal === 1) && c.badValue && choices.some(ch => ch.toLowerCase() === c.badValue.trim().toLowerCase())) {
+          return choices.find(ch => ch.toLowerCase() === c.badValue.trim().toLowerCase()) || c.badValue.trim();
+        }
+      }
+    }
+  }
+
+  return valStr;
+}
+
 // Fetch helpers
 async function fetchUbpAssets() {
   const res = await fetch('/api/master/ubp-asset');
@@ -69,34 +125,6 @@ async function fetchTestTypes() {
   const json = await res.json();
   return json.data;
 }
-
-const TEST_TYPE_ORDER = [
-  'INSULATION RESISTANCE',
-  'POLARITY INDEX',
-  'TURN TO TURN RATIO',
-  'WINDING RESISTANCE HV',
-  'WINDING RESISTANCE LV',
-  'SFRA HV OPEN',
-  'SFRA HV SHORTED',
-  'SFRA LV OPEN',
-  'SFRA LV SHORTED',
-  'EXC CURRENT',
-  'TAN DELTA WINDING',
-  'TAN DELTA BUSHING',
-  'WATT LOSS BUSHING BUSHING',
-  'GROUNDING RESISTANCE',
-  'DIRANA MOISTURE',
-  'DIRANA OIL CONDUCT',
-  'ARRESTER GROUND',
-  'ARRESTER IR',
-  'ARRESTER WATT LOSS',
-  'VISUAL INSPECTION',
-  'OTI ',
-  'WTI',
-  'DGA',
-  'OIL ANALYSIS',
-  'RLA'
-];
 
 function InputForm() {
   const router = useRouter();
@@ -129,6 +157,7 @@ function InputForm() {
 
   // Active Session ID (if created/found)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [testTypeSearchQuery, setTestTypeSearchQuery] = useState('');
 
   // Additional asset info input state
   const [additionalInfo, setAdditionalInfo] = useState<Record<string, string>>({
@@ -391,7 +420,7 @@ function InputForm() {
             if (r.parameter?.testType?.id) {
               activeTypeIds.add(r.parameter.testType.id);
             }
-            vals[r.parameterId] = r.isNotApplicable ? '' : String(r.value !== null ? r.value : '');
+            vals[r.parameterId] = r.isNotApplicable ? '' : formatLoadedInputValue(r.value, r.parameter?.criteria, r.parameterId, testTypes);
             if (r.score !== null && r.score !== undefined) {
               stats[r.parameterId] = {
                 score: r.score,
@@ -509,17 +538,19 @@ function InputForm() {
         filtered = [];
       }
     }
-    // Sort according to TEST_TYPE_ORDER
     return [...filtered].sort((a: any, b: any) => {
-      const nameA = (a.name || '').trim().toUpperCase();
-      const nameB = (b.name || '').trim().toUpperCase();
-      const idxA = TEST_TYPE_ORDER.indexOf(nameA);
-      const idxB = TEST_TYPE_ORDER.indexOf(nameB);
-      const posA = idxA !== -1 ? idxA : 999;
-      const posB = idxB !== -1 ? idxB : 999;
-      return posA - posB;
+      const orderA = a.orderIndex ?? 999;
+      const orderB = b.orderIndex ?? 999;
+      if (orderA !== orderB) return orderA - orderB;
+      return (a.name || '').localeCompare(b.name || '');
     });
   }, [testTypes, selectedAsset]);
+
+  const displayedTestTypes = useMemo(() => {
+    const q = testTypeSearchQuery.toLowerCase().trim();
+    if (!q) return availableTestTypes;
+    return availableTestTypes.filter((t: any) => (t.name || '').toLowerCase().includes(q));
+  }, [availableTestTypes, testTypeSearchQuery]);
 
   // Set default selected test type when availableTestTypes changes
   useEffect(() => {
@@ -1127,28 +1158,41 @@ function InputForm() {
       </section>
 
       <div className="space-y-6">
-          {/* Test Type Selection */}
-          <section className="mb-2 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-semibold text-primary">Pilih Jenis Pengujian</h3>
+          {/* Test Type Selection (Option A: Structured Grid Card + Search) */}
+          <section className="bg-white border border-surface-border rounded-xl p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-surface-border/60">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-bold text-primary">Pilih Jenis Pengujian</h3>
+                  {availableTestTypes.length > 0 && (
+                    <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                      {selectedTestTypeIds.length} dari {availableTestTypes.length} Dipilih
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">
+                  Centang jenis pengujian yang hendak dimasukkan nilai parameternya.
+                </p>
+              </div>
+
               {availableTestTypes.length > 0 && (
-                <div className="flex gap-3 text-xs font-semibold">
+                <div className="flex items-center gap-2 text-xs font-semibold shrink-0">
                   <button
                     onClick={() => setSelectedTestTypeIds(availableTestTypes.map((t: any) => t.id))}
-                    className="text-primary hover:underline cursor-pointer"
+                    className="px-3 py-1 bg-surface-container-low hover:bg-surface-container-high border border-surface-border text-primary text-xs font-bold rounded-lg transition-colors cursor-pointer"
                   >
                     Pilih Semua
                   </button>
-                  <span className="text-outline/40">|</span>
                   <button
                     onClick={() => setSelectedTestTypeIds([])}
-                    className="text-primary hover:underline cursor-pointer"
+                    className="px-3 py-1 bg-white hover:bg-surface-container-low border border-surface-border text-on-surface-variant text-xs font-bold rounded-lg transition-colors cursor-pointer"
                   >
                     Batal Pilih Semua
                   </button>
                 </div>
               )}
             </div>
+
             {!selectedAssetId ? (
               <div className="w-full bg-surface-container-low/50 border border-surface-border border-dashed rounded-xl p-8 text-center animate-fade-in my-2">
                 <span className="material-symbols-outlined text-[36px] text-primary/60 mb-2 block select-none">
@@ -1160,53 +1204,103 @@ function InputForm() {
                 </p>
               </div>
             ) : (
-              <div className="flex flex-wrap gap-2 overflow-x-auto pb-2">
-                {availableTestTypes.map((test: any) => {
-                  const isActive = selectedTestTypeIds.includes(test.id);
-                  return (
+              <div className="space-y-3 pt-1">
+                {/* Live Filter Search Input (Always Present) */}
+                <div className="relative max-w-md">
+                  <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-sm">
+                    search
+                  </span>
+                  <input
+                    type="text"
+                    value={testTypeSearchQuery}
+                    onChange={(e) => setTestTypeSearchQuery(e.target.value)}
+                    placeholder="Cari jenis pengujian..."
+                    className="w-full bg-white border border-surface-border rounded-lg text-xs py-1.5 pl-8 pr-7 focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-outline/70"
+                  />
+                  {testTypeSearchQuery && (
                     <button
-                      key={test.id}
-                      onClick={() => {
-                        setSelectedTestTypeIds((prev) =>
-                          prev.includes(test.id) ? prev.filter((id) => id !== test.id) : [...prev, test.id]
-                        );
-                      }}
-                      className={`px-4 py-2 rounded-full font-mono text-[11px] font-bold tracking-tight flex items-center gap-2 shadow-sm whitespace-nowrap transition-all cursor-pointer border ${
-                        isActive
-                          ? 'bg-primary border-primary text-white'
-                          : 'bg-white border-surface-border text-on-surface-variant hover:bg-surface-container-low'
-                      }`}
+                      onClick={() => setTestTypeSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface"
                     >
-                      <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors border ${
-                        isActive
-                          ? 'bg-white border-white text-primary'
-                          : 'border-outline-variant bg-transparent text-transparent'
-                      }`}>
-                        <span className="material-symbols-outlined text-[10px] font-extrabold" style={{ fontVariationSettings: "'wght' 800" }}>
-                          check
-                        </span>
-                      </div>
-                      <span>{test.name}</span>
+                      <span className="material-symbols-outlined text-sm">cancel</span>
                     </button>
-                  );
-                })}
+                  )}
+                </div>
+
+                {/* Structured Checkbox Cards Grid (Strict Constant Height) */}
+                <div className="h-[280px] overflow-y-auto pr-1 custom-scrollbar">
+                  {displayedTestTypes.length === 0 ? (
+                    <div className="h-full flex items-center justify-center p-6 text-center text-xs text-on-surface-variant bg-surface-container-low/30 rounded-lg border border-surface-border/50">
+                      <span>Tidak ada jenis pengujian yang cocok dengan kata kunci &quot;{testTypeSearchQuery}&quot;.</span>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                      {displayedTestTypes.map((test: any) => {
+                        const isActive = selectedTestTypeIds.includes(test.id);
+                        const paramCount = test.parameters?.length || 0;
+
+                        return (
+                          <div
+                            key={test.id}
+                            onClick={() => {
+                              setSelectedTestTypeIds((prev) =>
+                                prev.includes(test.id) ? prev.filter((id) => id !== test.id) : [...prev, test.id]
+                              );
+                            }}
+                            className={`p-2.5 rounded-lg border flex items-center justify-between gap-2 text-xs font-semibold cursor-pointer transition-all duration-150 select-none ${
+                              isActive
+                                ? 'bg-primary/5 border-primary text-primary shadow-2xs ring-1 ring-primary/30 font-bold'
+                                : 'bg-white border-surface-border text-on-surface hover:bg-surface-container-low/70 hover:border-outline-variant'
+                            }`}
+                            title={test.name}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div
+                                className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors border ${
+                                  isActive
+                                    ? 'bg-primary border-primary text-white'
+                                    : 'border-outline-variant bg-white text-transparent'
+                                }`}
+                              >
+                                <span
+                                  className="material-symbols-outlined text-[11px] font-bold"
+                                  style={{ fontVariationSettings: "'wght' 900" }}
+                                >
+                                  check
+                                </span>
+                              </div>
+                              <span className="truncate">{test.name}</span>
+                            </div>
+
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-surface-container text-on-surface-variant shrink-0">
+                              {paramCount}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </section>
  
           {/* Form Inputs */}
-          <section className="space-y-6">
+          <section className="space-y-5">
             {selectedTestTypeIds.length > 0 ? (
-              <div className={selectedTestTypeIds.length > 1 ? "grid grid-cols-1 lg:grid-cols-2 gap-4 items-start" : "space-y-6"}>
+              <div className="space-y-5 w-full">
                 {availableTestTypes
                   .filter((tt: any) => selectedTestTypeIds.includes(tt.id))
                   .map((activeTestType: any) => {
                     return (
-                      <div key={activeTestType.id} className="bg-white border border-surface-border rounded-xl overflow-hidden shadow-sm h-fit">
+                      <div key={activeTestType.id} className="bg-white border border-surface-border rounded-xl overflow-hidden shadow-xs w-full">
                         {/* Header */}
-                        <div className="px-4 py-2.5 bg-surface-container-low flex items-center justify-between border-b border-surface-border">
-                          <div className="flex items-center gap-2">
+                        <div className="px-5 py-3 bg-surface-container-low flex items-center justify-between border-b border-surface-border">
+                          <div className="flex items-center gap-2.5">
                             <h4 className="text-sm font-bold text-primary">{activeTestType.name}</h4>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-mono">
+                              {activeTestType.parameters?.length || 0} Parameter
+                            </span>
                           </div>
                         </div>
                         {/* Compact Table */}

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { FilterSelect } from '@/components/dashboard/FilterSelect';
+import { TestResultsGroupedView } from '@/components/dashboard/TestResultsGroupedView';
 
 async function fetchTestSessions() {
   const res = await fetch('/api/test-sessions');
@@ -61,6 +62,7 @@ export default function RiwayatPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const [selectedSession, setSelectedSession] = useState<any | null>(null);
+  const [isAssetInfoExpanded, setIsAssetInfoExpanded] = useState(false);
 
   const userRole = (session?.user as { role?: string })?.role || 'VIEWER';
 
@@ -553,10 +555,10 @@ export default function RiwayatPage() {
 
       {/* Detail Modal */}
       {selectedSession && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 animate-fade-in p-4">
-          <div className="bg-white border border-surface-border rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-scale-up">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in p-4">
+          <div className="bg-white border border-surface-border rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scale-up">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-surface-container-low border-b border-surface-border flex items-center justify-between">
+            <div className="px-6 py-4 bg-surface-container-low border-b border-surface-border flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-base font-bold text-primary">Detail Sesi Pengujian</h3>
                 <p className="text-[11px] text-on-surface-variant mt-0.5 font-mono">ID: {selectedSession.id}</p>
@@ -570,131 +572,105 @@ export default function RiwayatPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
-              {/* Asset & Session Metadata Grid */}
-              <div className="grid grid-cols-2 gap-4 bg-surface-container-low/40 p-4 rounded-lg border border-surface-border text-xs">
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-outline">Unit Pembangkit</p>
-                  <p className="font-bold text-on-surface mt-0.5">{selectedSession.asset?.unitPembangkit?.name || ''} - {selectedSession.asset?.name || ''}</p>
-                  <p className="text-[10px] font-mono text-on-surface-variant uppercase mt-0.5">{selectedSession.asset?.unitPembangkit?.ubp?.name || ''}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-outline">Jenis Asset</p>
-                  <p className="font-bold text-on-surface mt-0.5">{selectedSession.asset?.jenisAsset?.name || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-outline">Tahun Uji</p>
-                  <p className="font-mono font-bold text-primary text-sm mt-0.5">{selectedSession.testYear}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-outline">Status Validasi</p>
-                  <div className="mt-1">
-                    <StatusBadge status={selectedSession.status} size="sm" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Informasi Tambahan Alat */}
-              {selectedSessionAssetInfo && (
-                <div className="space-y-2">
-                  <h4 className="font-bold text-on-surface text-sm">Informasi Tambahan Alat</h4>
-                  <div className="border border-surface-border rounded-lg overflow-hidden bg-white max-w-2xl shadow-sm">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-surface-container-low border-b border-surface-border font-mono text-[9px] uppercase font-bold text-on-surface-variant">
-                          <th className="px-4 py-2 w-[45%] border-r border-surface-border">Parameter Alat</th>
-                          <th className="px-4 py-2 w-[55%]">Nilai Informasi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-surface-border">
-                        {selectedSessionAssetInfo.fieldsList.map((field) => (
-                          <tr key={field.key} className="hover:bg-surface-container-low/10 transition-colors">
-                            <td className="px-4 py-2 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/35 w-[45%]">
-                              {field.label}
-                            </td>
-                            <td className="px-4 py-2 w-[55%] font-semibold text-on-surface-variant">
-                              {selectedSessionAssetInfo.info[field.key] || '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Rejection Note Warning Card */}
+            <div className="overflow-y-auto flex-1 custom-scrollbar scroll-smooth overscroll-contain p-6 space-y-4">
+              {/* Rejection Note Warning Card (Prominent Top Alert) */}
               {selectedSession.status === 'REJECTED' && (
-                <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg flex gap-3 items-start animate-fade-in">
-                  <span className="material-symbols-outlined text-red-600 shrink-0 text-lg">error_outline</span>
-                  <div className="space-y-1 text-xs">
-                    <p className="font-bold">Data Pengujian Ditolak</p>
-                    <p className="text-red-700 font-medium">Alasan: {selectedSession.rejectReason || 'Tidak ada catatan tambahan.'}</p>
-                  </div>
+                <div className="bg-rose-50 border border-rose-200 text-rose-900 p-4 rounded-xl space-y-1 animate-fade-in shadow-xs">
+                  <p className="font-bold text-rose-900 text-sm">Data Pengujian Ditolak</p>
+                  <p className="text-rose-700 font-medium text-xs">
+                    <span className="font-bold">Alasan Penolakan:</span> {selectedSession.rejectReason || 'Tidak ada catatan tambahan.'}
+                  </p>
                 </div>
               )}
 
-              {/* Draft Info Card */}
+              {/* Draft Info Card (Prominent Top Alert) */}
               {selectedSession.status === 'DRAFT' && userRole === 'INPUT' && (
-                <div className="bg-slate-50 border border-slate-200 text-slate-800 p-4 rounded-lg flex gap-3 items-start animate-fade-in">
-                  <span className="material-symbols-outlined text-slate-600 shrink-0 text-lg">edit_document</span>
-                  <div className="space-y-1 text-xs">
-                    <p className="font-bold">Draft Pengujian</p>
-                    <p className="text-slate-600 font-medium">Data pengujian ini masih berstatus draft dan belum dikirim untuk validasi.</p>
-                  </div>
+                <div className="bg-blue-50 border border-blue-200 text-blue-900 p-4 rounded-xl space-y-1 animate-fade-in shadow-xs">
+                  <p className="font-bold text-blue-900 text-sm">Draft Pengujian</p>
+                  <p className="text-blue-700 font-medium text-xs">
+                    Data pengujian ini masih berstatus draft dan belum dikirim untuk validasi.
+                  </p>
                 </div>
               )}
 
-              {/* Parameter Results Table */}
-              <div>
-                <h4 className="font-bold text-on-surface text-sm mb-3">Hasil Pengukuran Parameter</h4>
-                <div className="border border-surface-border rounded-lg overflow-hidden">
-                  {isDetailLoading ? (
-                    <div className="flex items-center justify-center py-10">
-                      <div className="w-6 h-6 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
+              {/* Unified Main Data Card */}
+              <div className="bg-white border border-surface-border rounded-xl shadow-xs overflow-hidden divide-y divide-surface-border">
+                {/* Asset & Session Metadata Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-surface-container-low/40 p-4 text-xs">
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-outline">Unit Pembangkit</p>
+                    <p className="font-bold text-on-surface mt-0.5">{selectedSession.asset?.unitPembangkit?.name || ''} - {selectedSession.asset?.name || ''}</p>
+                    <p className="text-[10px] font-mono text-on-surface-variant uppercase mt-0.5">{selectedSession.asset?.unitPembangkit?.ubp?.name || ''}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-outline">Jenis Asset</p>
+                    <p className="font-bold text-on-surface mt-0.5">{selectedSession.asset?.jenisAsset?.name || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-outline">Tahun Uji</p>
+                    <p className="font-mono font-bold text-primary text-sm mt-0.5">{selectedSession.testYear}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-outline">Status Validasi</p>
+                    <div className="mt-1">
+                      <StatusBadge status={selectedSession.status} size="sm" />
                     </div>
-                  ) : !sortedDetails || sortedDetails.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-on-surface-variant">Tidak ada hasil parameter pengujian ditemukan.</div>
-                  ) : (
-                    <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead className="sticky top-0 bg-surface-container-low border-b border-surface-border z-10">
-                          <tr>
-                            <th className="px-4 py-2 font-mono text-[9px] uppercase font-bold text-on-surface-variant w-[35%]">Jenis Pengujian</th>
-                            <th className="px-4 py-2 font-mono text-[9px] uppercase font-bold text-on-surface-variant w-[30%]">Parameter</th>
-                            <th className="px-4 py-2 font-mono text-[9px] uppercase font-bold text-on-surface-variant w-[20%]">Nilai</th>
-                            <th className="px-4 py-2 font-mono text-[9px] uppercase font-bold text-on-surface-variant text-center w-[15%]">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-surface-border/40">
-                          {sortedDetails.map((r: any) => (
-                            <tr key={r.id} className="hover:bg-surface-container-low/20 transition-colors">
-                              <td className="px-4 py-2 font-semibold text-on-surface">{r.parameter?.testType?.name}</td>
-                              <td className="px-4 py-2 text-on-surface-variant font-medium">{r.parameter?.name}</td>
-                              <td className="px-4 py-2 font-mono text-on-surface">
-                                {r.displayValue ? (
-                                  <span>{r.displayValue} <span className="text-[9px] text-outline font-sans font-bold">{r.parameter?.unit}</span></span>
-                                ) : r.isNotApplicable ? (
-                                  <span className="text-outline/60 italic text-[11px]">N/A</span>
-                                ) : (
-                                  <span>{r.value} <span className="text-[9px] text-outline font-sans font-bold">{r.parameter?.unit}</span></span>
-                                )}
-                              </td>
-                              <td className="px-4 py-2 text-center">
-                                <StatusBadge judgement={r.judgement} size="sm" showIcon={false} />
-                              </td>
+                  </div>
+                </div>
+
+                {/* Informasi Tambahan Alat (Collapsible) */}
+                {selectedSessionAssetInfo && (
+                  <div>
+                    <button
+                      onClick={() => setIsAssetInfoExpanded(!isAssetInfoExpanded)}
+                      className="w-full px-4 py-2.5 bg-surface-container-low/20 hover:bg-surface-container-low flex items-center justify-between text-xs font-bold text-on-surface transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm text-primary">info</span>
+                        <span>Informasi Tambahan Alat / Spesifikasi Trafo</span>
+                        <span className="text-[10px] font-normal text-on-surface-variant">({selectedSessionAssetInfo.fieldsList.length} Parameter)</span>
+                      </div>
+                      <span className="material-symbols-outlined text-sm text-outline">
+                        {isAssetInfoExpanded ? 'expand_less' : 'expand_more'}
+                      </span>
+                    </button>
+
+                    {isAssetInfoExpanded && (
+                      <div className="p-3 border-t border-surface-border bg-white">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-surface-container-low border-b border-surface-border font-mono text-[9px] uppercase font-bold text-on-surface-variant">
+                              <th className="px-3 py-1.5 w-[45%] border-r border-surface-border">Parameter Alat</th>
+                              <th className="px-3 py-1.5 w-[55%]">Nilai Informasi</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                          </thead>
+                          <tbody className="divide-y divide-surface-border">
+                            {selectedSessionAssetInfo.fieldsList.map((field) => (
+                              <tr key={field.key} className="hover:bg-surface-container-low/10 transition-colors">
+                                <td className="px-3 py-1.5 font-semibold text-on-surface border-r border-surface-border bg-surface-container-low/35 w-[45%]">
+                                  {field.label}
+                                </td>
+                                <td className="px-3 py-1.5 w-[55%] font-semibold text-on-surface-variant">
+                                  {selectedSessionAssetInfo.info[field.key] || '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Grouped Parameter Results View */}
+                <div>
+                  <TestResultsGroupedView details={sessionDetails} isLoading={isDetailLoading} borderless={true} />
                 </div>
               </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-surface-container-low border-t border-surface-border flex justify-end gap-3 items-center">
+            <div className="px-6 py-4 bg-surface-container-low border-t border-surface-border flex justify-end gap-3 items-center shrink-0">
               <Link
                 href={`/unit/${selectedSession.assetId}?sessionId=${selectedSession.id}`}
                 className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/30 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer mr-auto"

@@ -82,6 +82,8 @@ export default function CombinedManagePengujianPage() {
   const [selectedTestTypeIds, setSelectedTestTypeIds] = useState<string[]>([]);
   const [selectedInfoFields, setSelectedInfoFields] = useState<any[]>([]);
   const [searchTestQuery, setSearchTestQuery] = useState('');
+  const [isSavingPemetaan, setIsSavingPemetaan] = useState(false);
+  const [isSavingDmPemetaan, setIsSavingDmPemetaan] = useState(false);
   const [isAddEquipmentTypeOpen, setIsAddEquipmentTypeOpen] = useState(false);
   const [newEquipmentTypeName, setNewEquipmentTypeName] = useState('');
   const [isEditEquipmentTypeOpen, setIsEditEquipmentTypeOpen] = useState(false);
@@ -285,12 +287,12 @@ export default function CombinedManagePengujianPage() {
               if (jenisId && !existing.id) {
                 existing.id = jenisId;
               }
-              // If this group was pre-populated from defaultTypes/localMappings, but now we find it has assets in the database,
-              // we should prioritize the actual database asset.testTypes over the localStorage template.
-              if (existing.assetIds.length === 1) {
-                existing.testTypes = asset.testTypes || [];
-              } else if (existing.testTypes.length === 0 && asset.testTypes && asset.testTypes.length > 0) {
-                existing.testTypes = asset.testTypes;
+              // Merge all test types across assets of this equipment type
+              if (asset.testTypes && asset.testTypes.length > 0) {
+                const combinedMap = new Map<string, TestType>();
+                existing.testTypes.forEach((t) => combinedMap.set(t.id, t));
+                asset.testTypes.forEach((t) => combinedMap.set(t.id, t));
+                existing.testTypes = Array.from(combinedMap.values());
               }
             }
           }
@@ -306,11 +308,16 @@ export default function CombinedManagePengujianPage() {
   }, [equipmentGroups]);
 
   // Sync selected group test type checkboxes when a group is selected (Pemetaan Tab)
-  const handleSelectGroup = (group: EquipmentTypeGroup) => {
+  const handleSelectGroup = (group: EquipmentTypeGroup | null, resetTab: boolean = true) => {
+    if (!group) return;
     setSelectedGroup(group);
+
+    // Strictly load saved test types for this group without presets
     const configuredIds = group.testTypes?.map((t) => t.id) || [];
     setSelectedTestTypeIds(configuredIds);
-    setRightPanelTab('informasi');
+    if (resetTab) {
+      setRightPanelTab('informasi');
+    }
 
     const DEFAULT_INFO_KEYS = ['manufacture', 'serialNumber', 'mfgYear'];
 
@@ -322,27 +329,19 @@ export default function CombinedManagePengujianPage() {
       return k.trim();
     };
 
-    const dbJenis = jenisAssetList?.find((j: any) => j.name === group.name);
+    const dbJenis = jenisAssetList?.find((j: any) => 
+      (group.id && j.id === group.id) || 
+      (j.name && group.name && j.name.trim().toLowerCase() === group.name.trim().toLowerCase())
+    );
+
     if (dbJenis && dbJenis.infoFields) {
       try {
         const parsed = JSON.parse(dbJenis.infoFields);
-        const combined: any[] = [];
-        const seen = new Set<string>();
-
-        parsed.forEach((item: any) => {
-          const rawKey = typeof item === 'string' ? item : item?.key || '';
-          const norm = normalizeKey(rawKey);
-          if (!seen.has(norm.toLowerCase())) {
-            seen.add(norm.toLowerCase());
-            if (typeof item === 'string') {
-              combined.push(norm);
-            } else {
-              combined.push({ ...item, key: norm });
-            }
-          }
-        });
-
-        setSelectedInfoFields(combined.length > 0 ? combined : DEFAULT_INFO_KEYS);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSelectedInfoFields(parsed);
+        } else {
+          setSelectedInfoFields(DEFAULT_INFO_KEYS);
+        }
       } catch (e) {
         setSelectedInfoFields(DEFAULT_INFO_KEYS);
       }
@@ -355,22 +354,34 @@ export default function CombinedManagePengujianPage() {
   useEffect(() => {
     if (equipmentGroups.length > 0) {
       if (!selectedGroup) {
-        handleSelectGroup(equipmentGroups[0]);
+        handleSelectGroup(equipmentGroups[0], true);
       } else {
         const current = equipmentGroups.find((g) => g.name === selectedGroup.name);
         if (current) {
-          if (JSON.stringify(current) !== JSON.stringify(selectedGroup)) {
-            setSelectedGroup(current);
-          }
+          setSelectedGroup((prev) => {
+            if (!prev) return current;
+            const isPrevSynced =
+              prev.testTypes &&
+              prev.testTypes.length === selectedTestTypeIds.length &&
+              selectedTestTypeIds.every((id) => prev.testTypes.some((t) => t.id === id));
+
+            if (isPrevSynced) {
+              return {
+                ...current,
+                testTypes: prev.testTypes,
+              };
+            }
+            return current;
+          });
         } else {
           // Currently selected group was deleted, pick the topmost one
-          handleSelectGroup(equipmentGroups[0]);
+          handleSelectGroup(equipmentGroups[0], true);
         }
       }
     } else {
       setSelectedGroup(null);
     }
-  }, [equipmentGroups, selectedGroup]);
+  }, [equipmentGroups, selectedTestTypeIds]);
 
 
 
@@ -380,7 +391,7 @@ export default function CombinedManagePengujianPage() {
     const configuredIds = selectedGroup.testTypes?.map((t) => t.id) || [];
     if (configuredIds.length !== selectedTestTypeIds.length) return true;
     const setConfig = new Set(configuredIds);
-    return selectedTestTypeIds.some(id => !setConfig.has(id));
+    return selectedTestTypeIds.some((id) => !setConfig.has(id));
   }, [selectedGroup, selectedTestTypeIds]);
 
   const hasInfoFieldsChanged = useMemo(() => {
@@ -389,34 +400,30 @@ export default function CombinedManagePengujianPage() {
     const DEFAULT_INFO_KEYS = ['manufacture', 'serialNumber', 'mfgYear'];
 
     const normalizeKey = (k: string) => {
-      const lower = k.trim().toLowerCase();
+      const lower = (k || '').trim().toLowerCase();
       if (['mfgyear', 'year of manufacturing', 'year of manufacture', 'tahun buat'].includes(lower)) return 'mfgYear';
       if (['serialnumber', 'serial number', 'no seri'].includes(lower)) return 'serialNumber';
       if (['vectorgroup', 'vector group', 'vector grup'].includes(lower)) return 'vectorGroup';
-      return k.trim();
+      return (k || '').trim();
     };
 
-    let configuredInfoFields: any[] = [];
+    let configuredKeys: string[] = [];
     if (dbJenis && dbJenis.infoFields) {
       try {
         const parsed = JSON.parse(dbJenis.infoFields);
-        const seen = new Set<string>();
-        parsed.forEach((item: any) => {
-          const rawKey = typeof item === 'string' ? item : item?.key || '';
-          const norm = normalizeKey(rawKey);
-          if (!seen.has(norm.toLowerCase())) {
-            seen.add(norm.toLowerCase());
-            configuredInfoFields.push(typeof item === 'string' ? norm : { ...item, key: norm });
-          }
-        });
-        if (configuredInfoFields.length === 0) configuredInfoFields = DEFAULT_INFO_KEYS;
+        configuredKeys = parsed.map((item: any) => normalizeKey(typeof item === 'string' ? item : item?.key || ''));
       } catch (e) {
-        configuredInfoFields = DEFAULT_INFO_KEYS;
+        configuredKeys = DEFAULT_INFO_KEYS;
       }
     } else {
-      configuredInfoFields = DEFAULT_INFO_KEYS;
+      configuredKeys = DEFAULT_INFO_KEYS;
     }
-    return JSON.stringify(configuredInfoFields) !== JSON.stringify(selectedInfoFields);
+
+    const currentKeys = selectedInfoFields.map((item: any) => normalizeKey(typeof item === 'string' ? item : item?.key || ''));
+
+    if (configuredKeys.length !== currentKeys.length) return true;
+    const configSet = new Set(configuredKeys.map((k) => k.toLowerCase()));
+    return currentKeys.some((k) => !configSet.has(k.toLowerCase()));
   }, [selectedGroup, jenisAssetList, selectedInfoFields]);
 
   const hasPemetaanChanged = hasTestTypesChanged || hasInfoFieldsChanged;
@@ -667,37 +674,44 @@ export default function CombinedManagePengujianPage() {
     );
   };
 
-  const handleSaveDmPemetaan = () => {
-    if (!selectedMechanism || !selectedDmGroup || !dmData?.testTypes) return;
+  const handleSaveDmPemetaan = async () => {
+    if (!selectedMechanism || !selectedDmGroup || !dmData?.testTypes || isSavingDmPemetaan || saveDmMutation.isPending) return;
+    setIsSavingDmPemetaan(true);
 
-    const finalParamIds: string[] = [];
+    try {
+      const finalParamIds: string[] = [];
 
-    for (const tt of dmData.testTypes) {
-      // If this test type is NOT mapped to the selected Equipment Type, keep its parameters' current mappings
-      if (!activeGroupTestTypeIds.includes(tt.id)) {
-        for (const p of tt.parameters || []) {
-          const currentMechs = p.damageMechanisms
-            ? p.damageMechanisms.split(',').map((m: string) => m.trim())
-            : [];
-          if (currentMechs.includes(selectedMechanism)) {
-            finalParamIds.push(p.id);
-          }
-        }
-      } else {
-        // If this test type IS mapped to the selected Equipment Type, include all its parameters if it is checked
-        const isChecked = selectedDmTestTypeIds.includes(tt.id);
-        if (isChecked) {
+      for (const tt of dmData.testTypes) {
+        // If this test type is NOT mapped to the selected Equipment Type, keep its parameters' current mappings
+        if (!activeGroupTestTypeIds.includes(tt.id)) {
           for (const p of tt.parameters || []) {
-            finalParamIds.push(p.id);
+            const currentMechs = p.damageMechanisms
+              ? p.damageMechanisms.split(',').map((m: string) => m.trim())
+              : [];
+            if (currentMechs.includes(selectedMechanism)) {
+              finalParamIds.push(p.id);
+            }
+          }
+        } else {
+          // If this test type IS mapped to the selected Equipment Type, include all its parameters if it is checked
+          const isChecked = selectedDmTestTypeIds.includes(tt.id);
+          if (isChecked) {
+            for (const p of tt.parameters || []) {
+              finalParamIds.push(p.id);
+            }
           }
         }
       }
-    }
 
-    saveDmMutation.mutate({
-      mechanism: selectedMechanism,
-      parameterIds: finalParamIds,
-    });
+      await saveDmMutation.mutateAsync({
+        mechanism: selectedMechanism,
+        parameterIds: finalParamIds,
+      });
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setIsSavingDmPemetaan(false);
+    }
   };
 
   // ==========================================
@@ -710,24 +724,39 @@ export default function CombinedManagePengujianPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Gagal menyimpan konfigurasi');
+
+      let jsonResponse: any = null;
+      try {
+        jsonResponse = await res.json();
+      } catch (e) {
+        throw new Error(`Terjadi kesalahan server (${res.status} ${res.statusText || 'Server Error'})`);
       }
-      return res.json();
+
+      if (!res.ok || jsonResponse?.success === false) {
+        throw new Error(jsonResponse?.error || 'Gagal menyimpan konfigurasi');
+      }
+      return jsonResponse;
     },
     onSuccess: (data, variables) => {
-      const gName = equipmentGroups.find((g) => g.id === variables.jenisAssetId)?.name || 'Jenis Aset';
-      alert(`Konfigurasi pengujian untuk jenis aset "${gName}" berhasil disimpan!`);
+      const gName = equipmentGroups.find((g) => g.id === variables.jenisAssetId || g.name === variables.jenisAssetId)?.name || selectedGroup?.name || 'Jenis Aset';
 
+      // Keep checked IDs and infoFields strictly in sync with saved data
+      setSelectedTestTypeIds(variables.testTypeIds);
+      if (variables.infoFields) {
+        setSelectedInfoFields(variables.infoFields);
+      }
+
+      // Construct exact matching TestTypes for selectedGroup
+      const matchingTestTypes = (testTypes || []).filter((t) => variables.testTypeIds.includes(t.id));
       setSelectedGroup((prev) => {
         if (!prev) return null;
-        const matchingTestTypes = (testTypes || []).filter((t) => variables.testTypeIds.includes(t.id));
         return {
           ...prev,
           testTypes: matchingTestTypes,
         };
       });
+
+      alert(`Konfigurasi pengujian untuk jenis aset "${gName}" berhasil disimpan!`);
 
       queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
       queryClient.invalidateQueries({ queryKey: ['ubp-assets-manage'] });
@@ -890,42 +919,21 @@ export default function CombinedManagePengujianPage() {
   };
 
 
-  const handleSavePemetaan = () => {
-    if (!selectedGroup) return;
+  const handleSavePemetaan = async () => {
+    if (!selectedGroup || isSavingPemetaan || saveMutation.isPending) return;
+    setIsSavingPemetaan(true);
 
-    if (selectedGroup.id) {
-      saveMutation.mutate({
-        jenisAssetId: selectedGroup.id,
+    try {
+      const targetId = selectedGroup.id || selectedGroup.name;
+      await saveMutation.mutateAsync({
+        jenisAssetId: targetId,
         testTypeIds: selectedTestTypeIds,
         infoFields: selectedInfoFields,
       });
-    } else {
-      if (typeof window !== 'undefined') {
-        const mappingsStr = localStorage.getItem('app_custom_equipment_type_mappings') || '{}';
-        try {
-          const mappings = JSON.parse(mappingsStr);
-          mappings[selectedGroup.name] = selectedTestTypeIds;
-          localStorage.setItem('app_custom_equipment_type_mappings', JSON.stringify(mappings));
-          
-          alert(`Konfigurasi pengujian untuk jenis aset "${selectedGroup.name}" berhasil disimpan sebagai template! Konfigurasi ini akan otomatis diterapkan saat Anda menambahkan unit pembangkit baru dengan jenis tersebut di menu Master UBP & Aset.`);
-
-          setSelectedGroup((prev) => {
-            if (!prev) return null;
-            const matchingTestTypes = (testTypes || []).filter((t) => selectedTestTypeIds.includes(t.id));
-            return {
-              ...prev,
-              testTypes: matchingTestTypes,
-            };
-          });
-
-          queryClient.invalidateQueries({ queryKey: ['ubp-assets'] });
-          queryClient.invalidateQueries({ queryKey: ['ubp-assets-manage'] });
-          queryClient.invalidateQueries({ queryKey: ['ubp-assets-info-branched'] });
-        } catch (e) {
-          console.error(e);
-          alert('Gagal menyimpan konfigurasi lokal.');
-        }
-      }
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setIsSavingPemetaan(false);
     }
   };
 
@@ -1137,19 +1145,17 @@ export default function CombinedManagePengujianPage() {
 
   const filteredTestTypes = useMemo(() => {
     if (!selectedGroup || !testTypes) return [];
-    return testTypes.filter((t: any) => {
-      const matchesSearch = t.name.toLowerCase().includes(searchTestQuery.toLowerCase());
-      if (!matchesSearch) return false;
 
-      if (t.jenisAssetId) {
-        return t.jenisAssetId === selectedGroup.id;
-      }
-
-      const inDraft = selectedTestTypeIds.includes(t.id);
-      const inSaved = selectedGroup.testTypes?.some((gt) => gt.id === t.id);
-      return inDraft || inSaved;
+    const available = testTypes.filter((t: any) => {
+      if (!t.jenisAssetId) return true;
+      if (t.jenisAssetId === selectedGroup.id) return true;
+      return selectedGroup.testTypes?.some((gt) => gt.id === t.id);
     });
-  }, [selectedGroup, testTypes, searchTestQuery, selectedTestTypeIds]);
+
+    if (!searchTestQuery.trim()) return available;
+    const query = searchTestQuery.toLowerCase().trim();
+    return available.filter((t: any) => t.name.toLowerCase().includes(query));
+  }, [selectedGroup, testTypes, searchTestQuery]);
 
   const isLoading = isUbpsLoading || isTestTypesLoading;
 
@@ -1559,23 +1565,23 @@ export default function CombinedManagePengujianPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={() => handleSelectGroup(selectedGroup)}
-                      disabled={saveMutation.isPending}
+                      onClick={() => handleSelectGroup(selectedGroup, false)}
+                      disabled={isSavingPemetaan || saveMutation.isPending}
                       className="px-4 py-2 border border-surface-border hover:bg-surface-container-low rounded-lg font-bold text-xs text-on-surface-variant transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       Reset Pilihan
                     </button>
                     <button
                       onClick={handleSavePemetaan}
-                      disabled={saveMutation.isPending || !hasPemetaanChanged}
+                      disabled={isSavingPemetaan || saveMutation.isPending || !hasPemetaanChanged}
                       className={`px-5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all ${
-                        saveMutation.isPending || !hasPemetaanChanged
+                        isSavingPemetaan || saveMutation.isPending || !hasPemetaanChanged
                           ? 'bg-surface-container border border-surface-border text-on-surface-variant/40 cursor-not-allowed'
                           : 'bg-primary text-white hover:brightness-110 shadow active:scale-95 cursor-pointer'
                       }`}
                     >
-                      {saveMutation.isPending ? 'Menyimpan...' : 'Simpan Konfigurasi'}
-                      {!saveMutation.isPending && (
+                      {isSavingPemetaan || saveMutation.isPending ? 'Menyimpan...' : 'Simpan Konfigurasi'}
+                      {!(isSavingPemetaan || saveMutation.isPending) && (
                         <span className="material-symbols-outlined text-sm select-none">save</span>
                       )}
                     </button>
@@ -1829,22 +1835,22 @@ export default function CombinedManagePengujianPage() {
                         alert('Pilihan di-reset.');
                       }
                     }}
-                    disabled={saveDmMutation.isPending}
+                    disabled={isSavingDmPemetaan || saveDmMutation.isPending}
                     className="px-4 py-2 border border-surface-border hover:bg-surface-container-low rounded-lg font-bold text-xs text-on-surface-variant transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     Reset Pilihan
                   </button>
                   <button
                     onClick={handleSaveDmPemetaan}
-                    disabled={saveDmMutation.isPending || !hasDmPemetaanChanged}
+                    disabled={isSavingDmPemetaan || saveDmMutation.isPending || !hasDmPemetaanChanged}
                     className={`px-5 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all ${
-                      saveDmMutation.isPending || !hasDmPemetaanChanged
+                      isSavingDmPemetaan || saveDmMutation.isPending || !hasDmPemetaanChanged
                         ? 'bg-surface-container border border-surface-border text-on-surface-variant/40 cursor-not-allowed'
                         : 'bg-primary text-white hover:brightness-110 shadow active:scale-95 cursor-pointer'
                     }`}
                   >
-                    {saveDmMutation.isPending ? 'Menyimpan...' : 'Simpan Konfigurasi'}
-                    {!saveDmMutation.isPending && (
+                    {isSavingDmPemetaan || saveDmMutation.isPending ? 'Menyimpan...' : 'Simpan Konfigurasi'}
+                    {!(isSavingDmPemetaan || saveDmMutation.isPending) && (
                       <span className="material-symbols-outlined text-sm select-none">save</span>
                     )}
                   </button>

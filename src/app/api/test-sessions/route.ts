@@ -92,6 +92,7 @@ export async function GET(request: Request) {
       const qb = sessionRepo.createQueryBuilder('ts')
         .leftJoinAndSelect('ts.testResults', 'tr')
         .leftJoinAndSelect('tr.parameter', 'p')
+        .leftJoinAndSelect('p.criteria', 'c')
         .leftJoinAndSelect('p.testType', 'tt')
         .leftJoinAndSelect('ts.asset', 'asset')
         .leftJoinAndSelect('asset.unitPembangkit', 'up')
