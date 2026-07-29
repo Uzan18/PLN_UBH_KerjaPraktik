@@ -371,7 +371,7 @@ export default function ValidasiPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="overflow-y-auto flex-1 custom-scrollbar p-6 space-y-4">
+            <div className="overflow-y-auto flex-1 custom-scrollbar p-6 space-y-4 bg-white">
               {approveError && (
                 <div className="bg-rose-50 border border-rose-200 text-rose-900 p-4 rounded-xl text-xs flex items-center gap-2 shadow-xs">
                   <span className="material-symbols-outlined text-rose-600 shrink-0 text-sm">error</span>

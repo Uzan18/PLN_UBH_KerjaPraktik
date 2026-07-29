@@ -584,7 +584,7 @@ export default function RiwayatPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="overflow-y-auto flex-1 custom-scrollbar p-6 space-y-4">
+            <div className="overflow-y-auto flex-1 custom-scrollbar p-6 space-y-4 bg-white">
               {/* Rejection Note Warning Card (Prominent Top Alert) */}
                 {selectedSession.status === 'REJECTED' && (
                   <div className="bg-rose-50 border border-rose-200 text-rose-900 p-4 rounded-xl space-y-1 animate-fade-in shadow-xs">
