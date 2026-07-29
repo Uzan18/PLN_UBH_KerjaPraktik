@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import { JUDGEMENT_SEVERITY, JudgementLabel } from '@/types';
 
@@ -163,8 +163,8 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
 
   return (
     <div className={borderless ? "bg-white overflow-hidden" : "bg-white border border-surface-border rounded-xl shadow-xs overflow-hidden"}>
-      {/* Integrated Header: Title + KPI Metrics + Search Input (Sticky Top) */}
-      <div className="p-4 bg-slate-50 border-b border-surface-border space-y-3 sticky top-0 z-10 shadow-xs">
+      {/* Integrated Header: Title + KPI Metrics + Search Input */}
+      <div className="p-4 bg-surface-container-low border-b border-surface-border space-y-3">
         {/* Title & KPI Badges */}
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex items-center gap-2">
@@ -225,7 +225,7 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
         </div>
       </div>
 
-      {/* Unified Accordion Groups List (Glued Directly Under Header) */}
+      {/* Unified Accordion Groups List (1 Single High-Performance Table for 60fps Locked Scroll Sync) */}
       {filteredGroups.length === 0 ? (
         <div className="p-8 text-center bg-white space-y-1">
           <span className="material-symbols-outlined text-outline text-2xl select-none">search_off</span>
@@ -235,57 +235,58 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
           </p>
         </div>
       ) : (
-        <div className="divide-y divide-surface-border">
-          {filteredGroups.map((group) => {
-            const isCollapsed = !!collapsedGroups[group.testTypeName];
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <tbody className="divide-y divide-surface-border">
+              {filteredGroups.map((group) => {
+                const isCollapsed = !!collapsedGroups[group.testTypeName];
 
-            return (
-              <div key={group.testTypeName} className="bg-white">
-                {/* Group Header */}
-                <div
-                  onClick={() => toggleGroup(group.testTypeName)}
-                  className="px-4 py-3 bg-surface-container-low/20 hover:bg-surface-container-low flex items-center justify-between cursor-pointer select-none transition-colors"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <h5 className="font-bold text-xs text-on-surface font-sans">
-                      {group.testTypeName}
-                    </h5>
-                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-surface-container text-on-surface-variant font-mono shrink-0">
-                      {group.filteredItems.length} Parameter
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
-                    {/* Status Badge per Test Group */}
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-outline font-medium hidden sm:inline">Status:</span>
-                      <StatusBadge judgement={group.worstJudgement} size="sm" showIcon={true} />
-                    </div>
-
-                    <span
-                      className={`material-symbols-outlined text-outline transition-transform duration-200 text-lg select-none ${
-                        isCollapsed ? '-rotate-90' : ''
-                      }`}
+                return (
+                  <React.Fragment key={group.testTypeName}>
+                    {/* Group Header Row */}
+                    <tr
+                      onClick={() => toggleGroup(group.testTypeName)}
+                      className="bg-surface-container-low/40 hover:bg-surface-container-low/70 cursor-pointer select-none border-t border-b border-surface-border"
                     >
-                      expand_more
-                    </span>
-                  </div>
-                </div>
+                      <td colSpan={3} className="px-4 py-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <h5 className="font-bold text-xs text-on-surface font-sans">
+                              {group.testTypeName}
+                            </h5>
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-white border border-surface-border text-on-surface-variant font-mono shrink-0">
+                              {group.filteredItems.length} Parameter
+                            </span>
+                          </div>
 
-                {/* Group Body Table */}
-                {!isCollapsed && (
-                  <div className="overflow-x-auto border-t border-surface-border/50">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-surface-container-low/40 border-b border-surface-border font-mono text-[9px] uppercase font-bold text-outline">
-                          <th className="px-4 py-2 w-[45%]">Parameter</th>
-                          <th className="px-4 py-2 w-[35%]">Nilai Pengukuran</th>
-                          <th className="px-4 py-2 text-center w-[20%]">Status</th>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-outline font-medium hidden sm:inline">Status:</span>
+                              <StatusBadge judgement={group.worstJudgement} size="sm" showIcon={true} />
+                            </div>
+
+                            <span
+                              className={`material-symbols-outlined text-outline transition-transform duration-200 text-lg select-none ${
+                                isCollapsed ? '-rotate-90' : ''
+                              }`}
+                            >
+                              expand_more
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Table Sub-Header + Parameter Data Rows (Only when not collapsed) */}
+                    {!isCollapsed && (
+                      <>
+                        <tr className="bg-surface-container-low/20 font-mono text-[9px] uppercase font-bold text-outline border-b border-surface-border">
+                          <th className="px-4 py-1.5 w-[45%] font-bold">Parameter</th>
+                          <th className="px-4 py-1.5 w-[35%] font-bold">Nilai Pengukuran</th>
+                          <th className="px-4 py-1.5 text-center w-[20%] font-bold">Status</th>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-surface-border/40">
                         {group.filteredItems.map((r: any) => (
-                          <tr key={r.id} className="hover:bg-surface-container-low/30 transition-colors">
+                          <tr key={r.id} className="bg-white hover:bg-surface-container-low/10">
                             <td className="px-4 py-2.5 font-semibold text-on-surface">
                               {r.parameter?.name || '—'}
                             </td>
@@ -305,13 +306,13 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
                             </td>
                           </tr>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                      </>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
