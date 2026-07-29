@@ -139,19 +139,66 @@ export default function AssetDetailPage() {
             </h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 border-t border-surface-border/50">
-            {[
-              { label: 'Manufacture', value: asset.manufacture || '—' },
-              { label: 'Serial Number', value: asset.serialNumber || '—' },
-              { label: 'Year of Manufacturing', value: asset.mfgYear ? String(asset.mfgYear) : '—' },
-            ].map((item) => (
-              <div 
-                key={item.label} 
-                className="flex flex-col px-3 py-1.5 rounded-lg border text-xs bg-surface-container-low border-surface-border"
-              >
-                <span className="text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider mb-0.5">{item.label}</span>
-                <span className="font-semibold text-on-surface truncate" title={String(item.value)}>{item.value}</span>
-              </div>
-            ))}
+            {(() => {
+              const ALIAS_MAP: Record<string, string> = {
+                mfgyear: 'mfgYear',
+                'year of manufacturing': 'mfgYear',
+                'year of manufacture': 'mfgYear',
+                'tahun buat': 'mfgYear',
+                'tahun pembuatan': 'mfgYear',
+                serialnumber: 'serialNumber',
+                'serial number': 'serialNumber',
+                'nomor seri': 'serialNumber',
+                'no seri': 'serialNumber',
+                manufacture: 'manufacture',
+                pabrikan: 'manufacture',
+              };
+
+              // Parse infoFields from jenisAsset to know which fields to show and in what order
+              let activeFields: { key: string; label: string }[] = [];
+              if (asset.infoFields) {
+                try {
+                  const parsed = JSON.parse(asset.infoFields);
+                  parsed.forEach((item: any) => {
+                    const rawKey = typeof item === 'string' ? item : item?.key || '';
+                    const customLabel = typeof item === 'object' && item?.label ? item.label : rawKey
+                      .split(' ')
+                      .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                      .join(' ');
+                    const normKey = ALIAS_MAP[rawKey.trim().toLowerCase()] || rawKey.trim();
+                    if (!activeFields.some((f) => f.key.toLowerCase() === normKey.toLowerCase())) {
+                      activeFields.push({ key: normKey, label: customLabel });
+                    }
+                  });
+                } catch (e) {}
+              }
+
+              // Fallback: if no infoFields defined, show only the 3 defaults
+              if (activeFields.length === 0) {
+                activeFields = [
+                  { key: 'manufacture', label: 'Manufacture' },
+                  { key: 'serialNumber', label: 'Serial Number' },
+                  { key: 'mfgYear', label: 'Year of Manufacturing' },
+                ];
+              }
+
+              return activeFields.map((field) => {
+                let value: string = '—';
+                const raw = (asset as any)[field.key];
+                if (raw !== undefined && raw !== null && raw !== '') {
+                  value = String(raw);
+                }
+                return (
+                  <div
+                    key={field.key}
+                    className="flex flex-col px-3 py-1.5 rounded-lg border text-xs bg-surface-container-low border-surface-border"
+                  >
+                    <span className="text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider mb-0.5">{field.label}</span>
+                    <span className="font-semibold text-on-surface truncate" title={value}>{value}</span>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
 
