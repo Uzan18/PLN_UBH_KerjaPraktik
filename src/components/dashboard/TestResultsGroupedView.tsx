@@ -163,8 +163,8 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
 
   return (
     <div className={borderless ? "bg-white overflow-hidden" : "bg-white border border-surface-border rounded-xl shadow-xs overflow-hidden"}>
-      {/* Integrated Header: Title + KPI Metrics + Search Input */}
-      <div className="p-4 bg-surface-container-low border-b border-surface-border space-y-3">
+      {/* Integrated Header: Title + KPI Metrics + Search Input (Sticky Top Solid Shield) */}
+      <div className="p-4 bg-white border-b border-surface-border space-y-3 sticky top-0 z-20 shadow-sm">
         {/* Title & KPI Badges */}
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex items-center gap-2">
