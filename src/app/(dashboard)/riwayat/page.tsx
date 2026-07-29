@@ -584,7 +584,7 @@ export default function RiwayatPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="overflow-y-auto flex-1 custom-scrollbar">
+            <div className="overflow-y-auto flex-1 custom-scrollbar p-6 space-y-4">
               {/* Rejection Note Warning Card (Prominent Top Alert) */}
                 {selectedSession.status === 'REJECTED' && (
                   <div className="bg-rose-50 border border-rose-200 text-rose-900 p-4 rounded-xl space-y-1 animate-fade-in shadow-xs">
@@ -606,9 +606,9 @@ export default function RiwayatPage() {
                 )}
 
                 {/* Unified Main Data Card */}
-                <div className="bg-white overflow-hidden divide-y divide-surface-border">
+                <div className="bg-white border border-surface-border rounded-xl overflow-hidden divide-y divide-surface-border">
                   {/* Asset & Session Metadata Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-100 p-4 text-xs border-b border-surface-border">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-100 p-4 text-xs">
                     <div>
                       <p className="text-[10px] uppercase font-bold text-outline">Unit Pembangkit</p>
                       <p className="font-bold text-on-surface mt-0.5">{selectedSession.asset?.unitPembangkit?.name || ''} - {selectedSession.asset?.name || ''}</p>

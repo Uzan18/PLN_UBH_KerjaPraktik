@@ -371,7 +371,7 @@ export default function ValidasiPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="overflow-y-auto flex-1 custom-scrollbar">
+            <div className="overflow-y-auto flex-1 custom-scrollbar p-6 space-y-4">
               {approveError && (
                 <div className="bg-rose-50 border border-rose-200 text-rose-900 p-4 rounded-xl text-xs flex items-center gap-2 shadow-xs">
                   <span className="material-symbols-outlined text-rose-600 shrink-0 text-sm">error</span>
@@ -380,9 +380,9 @@ export default function ValidasiPage() {
               )}
 
               {/* Unified Main Data Card */}
-              <div className="bg-white overflow-hidden divide-y divide-surface-border">
+              <div className="bg-white border border-surface-border rounded-xl overflow-hidden divide-y divide-surface-border">
                 {/* Asset & Session Metadata Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-100 p-4 text-xs border-b border-surface-border">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-100 p-4 text-xs">
                   <div>
                     <p className="text-[10px] uppercase font-bold text-outline">Unit Pembangkit</p>
                     <p className="font-bold text-on-surface mt-0.5">
