@@ -162,3 +162,10 @@ body {
 .animate-slide-in-right {
   animation: slideInRight 0.3s ease-out;
 }
+
+/* Hide Next.js Dev Indicator Overlay Logo */
+nextjs-portal,
+div[data-nextjs-toast],
+div[data-nextjs-toast-wrapper] {
+  display: none !important;
+}

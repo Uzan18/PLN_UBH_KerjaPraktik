@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['reflect-metadata', 'oracledb', 'typeorm'],
   allowedDevOrigins: ['trinity-paramedic-reviver.ngrok-free.dev'],
 
+  // Disable Next.js Dev Indicator overlay badge (circular Next logo button)
+  devIndicators: false,
+
   // Enable large file upload payload sizes (up to 500MB) for official server deployment
   experimental: {
     serverActions: {
