@@ -244,13 +244,13 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
                 {/* Group Header */}
                 <div
                   onClick={() => toggleGroup(group.testTypeName)}
-                  className="px-4 py-3 bg-surface-container-low/20 hover:bg-surface-container-low flex items-center justify-between cursor-pointer select-none transition-colors"
+                  className="px-4 py-2.5 bg-slate-100/90 hover:bg-slate-100 flex items-center justify-between cursor-pointer select-none transition-colors border-b border-surface-border/60"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <h5 className="font-bold text-xs text-on-surface font-sans">
                       {group.testTypeName}
                     </h5>
-                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-surface-container text-on-surface-variant font-mono shrink-0">
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-white border border-surface-border text-on-surface-variant font-mono shrink-0">
                       {group.filteredItems.length} Parameter
                     </span>
                   </div>
@@ -274,10 +274,10 @@ export function TestResultsGroupedView({ details, isLoading = false, borderless 
 
                 {/* Group Body Table */}
                 {!isCollapsed && (
-                  <div className="overflow-x-auto border-t border-surface-border/50">
+                  <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="bg-surface-container-low/40 border-b border-surface-border font-mono text-[9px] uppercase font-bold text-outline">
+                        <tr className="bg-slate-50 border-b border-surface-border font-mono text-[9px] uppercase font-bold text-outline">
                           <th className="px-4 py-2 w-[45%]">Parameter</th>
                           <th className="px-4 py-2 w-[35%]">Nilai Pengukuran</th>
                           <th className="px-4 py-2 text-center w-[20%]">Status</th>
