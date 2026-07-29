@@ -567,8 +567,8 @@ export default function RiwayatPage() {
 
       {/* Detail Modal */}
       {selectedSession && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 animate-fade-in p-4">
-          <div className="bg-white border border-surface-border rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scale-up">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-surface-border rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-surface-container-low border-b border-surface-border flex items-center justify-between shrink-0">
               <div>
