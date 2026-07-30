@@ -84,13 +84,6 @@ export function hasPermission(role: UserRole, permission: Permission): boolean {
 }
 
 /**
- * Check if a role has any of the specified permissions.
- */
-export function hasAnyPermission(role: UserRole, permissions: Permission[]): boolean {
-  return permissions.some((p) => hasPermission(role, p));
-}
-
-/**
  * Guard function for API routes. Throws if the user doesn't have the required permission.
  * Use this in every route handler.
  */

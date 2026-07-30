@@ -8,6 +8,7 @@ import { aggregateAssetStatus } from '@/lib/scoring/aggregateAssetStatus';
 import type { JudgementLabel } from '@/types';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
+import { handleApiError } from '@/lib/api-error';
 
 const TEST_TYPE_ORDER = [
   'INSULATION RESISTANCE',
@@ -327,11 +328,7 @@ export async function GET(req: Request) {
       },
     });
 
-  } catch (error: any) {
-    console.error('Error exporting Excel:', error);
-    return NextResponse.json(
-      { success: false, message: 'Gagal mengunduh data excel', error: error.message },
-      { status: 500 }
-    );
+  } catch (error) {
+    return handleApiError(error, 'GET /api/export/excel');
   }
 }

@@ -7,6 +7,7 @@ import { TestSession } from '@/entities/TestSession';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
 import { hash } from 'bcryptjs';
+import { handleApiError } from '@/lib/api-error';
 
 /**
  * GET /api/master/users
@@ -30,8 +31,7 @@ export async function GET() {
 
     return NextResponse.json({ success: true, data: users });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'GET /api/master/users');
   }
 }
 
@@ -89,8 +89,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data: { id: user.id, name: user.name, email: user.email } }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'POST /api/master/users');
   }
 }
 
@@ -158,8 +157,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true, data: { id: user.id, name: user.name, email: user.email } });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'PUT /api/master/users');
   }
 }
 
@@ -225,7 +223,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true, data: { id } });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'DELETE /api/master/users');
   }
 }

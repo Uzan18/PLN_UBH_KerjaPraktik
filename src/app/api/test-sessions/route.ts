@@ -6,6 +6,7 @@ import { TestSession } from '@/entities/TestSession';
 import { AuditLog } from '@/entities/AuditLog';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
+import { handleApiError } from '@/lib/api-error';
 
 /**
  * POST /api/test-sessions
@@ -62,9 +63,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data: testSession }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    const status = message === 'Unauthorized' ? 401 : message.startsWith('Forbidden') ? 403 : 500;
-    return NextResponse.json({ success: false, error: message }, { status });
+    return handleApiError(error, 'POST /api/test-sessions');
   }
 }
 
@@ -148,7 +147,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'GET /api/test-sessions');
   }
 }

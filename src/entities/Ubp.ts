@@ -10,6 +10,9 @@ import type { UnitPembangkit } from './UnitPembangkit';
 
 @Entity('ubp')
 export class Ubp {
+  // @ts-expect-error - Override Function.name for TypeORM metadata resolution in Next.js SWC bundler
+  static get name() { return 'Ubp'; }
+
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

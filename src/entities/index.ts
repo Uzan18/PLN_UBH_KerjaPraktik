@@ -5,6 +5,7 @@ export { JenisAsset } from './JenisAsset';
 export { Asset } from './Asset';
 export { TestType } from './TestType';
 export { Parameter } from './Parameter';
+export { DamageMechanism } from './DamageMechanism';
 export { Criteria } from './Criteria';
 export { TestSession } from './TestSession';
 export { TestResult } from './TestResult';

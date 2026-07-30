@@ -192,11 +192,6 @@ export function matchesQualitativeText(inputVal: any, targetThreshold: string | 
   return false;
 }
 
-export function evaluateQualitative(numValue: number, criteriaStr: string | null): boolean {
-  if (!criteriaStr) return false;
-  return matchesQualitativeText(numValue, criteriaStr);
-}
-
 function getThresholdSpecificity(t: ParsedThreshold): number {
   if (isCompoundThreshold(t)) {
     const specificities = t.bounds.map((b) => getThresholdSpecificity(b));

@@ -11,6 +11,9 @@ import type { UserRole } from '@/types';
 
 @Entity('app_user')
 export class User {
+  // @ts-expect-error - Override Function.name for TypeORM metadata resolution in Next.js SWC bundler
+  static get name() { return 'User'; }
+
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

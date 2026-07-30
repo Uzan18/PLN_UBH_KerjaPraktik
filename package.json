@@ -9,15 +9,13 @@
     "lint": "eslint",
     "seed": "npx tsx src/scripts/seed-clean.ts",
     "seed:clean": "npx tsx src/scripts/seed-clean.ts",
-    "seed:testing": "npx tsx src/scripts/seed-testing.ts",
     "sync-db": "npx tsx src/scripts/sync-db.ts",
-    "test-db": "npx tsx src/scripts/test-db-connection.ts",
     "typeorm": "npx typeorm-ts-node-commonjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.2",
     "bcryptjs": "^3.0.3",
-    "next": "16.2.10",
+    "next": "^15.5.22",
     "next-auth": "^4.24.14",
     "oracledb": "^6.7.1",
     "react": "19.2.4",
@@ -34,7 +32,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "^15.5.22",
     "tailwindcss": "^4",
     "tsx": "^4.23.0",
     "typescript": "^5"

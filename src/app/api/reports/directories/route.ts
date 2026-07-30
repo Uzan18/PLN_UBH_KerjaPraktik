@@ -9,6 +9,8 @@ import { UnitPembangkit } from '@/entities/UnitPembangkit';
 import { Asset } from '@/entities/Asset';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
+import { handleApiError } from '@/lib/api-error';
+import { validateFilePath } from '@/lib/file-security';
 import { IsNull } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -185,8 +187,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'GET /api/reports/directories');
   }
 }
 
@@ -233,8 +234,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data: newDir });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'POST /api/reports/directories');
   }
 }
 
@@ -270,39 +270,55 @@ export async function DELETE(request: Request) {
     }
 
     const dirName = dir.name;
+    const deletedFileNames: string[] = [];
 
-    await deleteDirectoryRecursive(id, dirRepo, fileRepo);
+    await deleteDirectoryRecursive(id, dirRepo, fileRepo, deletedFileNames);
 
-    // Audit log
+    // [SEC-09] Audit log includes all deleted files for full forensic traceability
     const auditLog = auditRepo.create({
       userId: session.user.id,
       action: 'DELETE',
       entity: 'ReportDirectory',
       entityId: id,
-      beforeData: JSON.stringify({ name: dirName }),
+      beforeData: JSON.stringify({
+        name: dirName,
+        deletedFiles: deletedFileNames,
+        deletedFilesCount: deletedFileNames.length,
+      }),
       afterData: null,
     });
     await auditRepo.save(auditLog);
 
     return NextResponse.json({ success: true, message: 'Folder berhasil dihapus' });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'DELETE /api/reports/directories');
   }
 }
 
 /**
  * Helper to recursively find and delete files/folders from disk and DB.
+ * [SEC-04] Validates each file path before deletion to prevent path traversal.
+ * [SEC-09] Collects names of all deleted files for audit logging.
  */
 async function deleteDirectoryRecursive(
   dirId: string,
   dirRepo: import('typeorm').Repository<ReportDirectory>,
-  fileRepo: import('typeorm').Repository<ReportFile>
+  fileRepo: import('typeorm').Repository<ReportFile>,
+  deletedFileNames?: string[]
 ) {
   // Find all files in this directory and delete them from disk
   const files = await fileRepo.find({ where: { directoryId: dirId } });
   for (const file of files) {
     const absolutePath = path.join(process.cwd(), 'public', file.filePath);
+
+    // [SEC-04] Validate path is within uploads directory before deleting
+    try {
+      validateFilePath(absolutePath);
+    } catch {
+      console.error(`[SEC] Skipping deletion of suspicious path: ${absolutePath}`);
+      continue;
+    }
+
     if (fs.existsSync(absolutePath)) {
       try {
         fs.unlinkSync(absolutePath);
@@ -310,13 +326,19 @@ async function deleteDirectoryRecursive(
         console.error(`Failed to delete file from disk: ${absolutePath}`, e);
       }
     }
+
+    // [SEC-09] Track deleted file names for audit log
+    if (deletedFileNames) {
+      deletedFileNames.push(file.name);
+    }
+
     await fileRepo.delete(file.id);
   }
 
   // Find subdirectories and delete them recursively
   const subDirs = await dirRepo.find({ where: { parentId: dirId } });
   for (const sub of subDirs) {
-    await deleteDirectoryRecursive(sub.id, dirRepo, fileRepo);
+    await deleteDirectoryRecursive(sub.id, dirRepo, fileRepo, deletedFileNames);
   }
 
   // Delete this directory record
@@ -383,7 +405,6 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true, data: dir });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'PUT /api/reports/directories');
   }
 }

@@ -15,6 +15,9 @@ import type { JenisAsset } from './JenisAsset';
 
 @Entity('test_type')
 export class TestType {
+  // @ts-expect-error - Override Function.name for TypeORM metadata resolution in Next.js SWC bundler
+  static get name() { return 'TestType'; }
+
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
@@ -24,7 +27,7 @@ export class TestType {
   @Column({ name: 'jenis_asset_id', type: 'varchar', length: 255, nullable: true })
   jenisAssetId!: string | null;
 
-  @ManyToOne('JenisAsset', { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne('JenisAsset', 'testTypes', { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'jenis_asset_id' })
   jenisAsset?: JenisAsset | null;
 

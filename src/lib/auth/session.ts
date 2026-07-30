@@ -1,5 +1,6 @@
 import { getServerSession as nextAuthGetServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth/auth-options';
+
 import type { UserRole } from '@/types';
 import { getDb } from '@/lib/db';
 import { User } from '@/entities/User';
@@ -44,20 +45,12 @@ export async function getServerSession(): Promise<AppSession | null> {
     (session.user as any).name = user.name;
     (session.user as any).role = user.role;
   } catch (err) {
-    console.error('[Session] Failed to verify user existence in database:', err);
+    // [SEC-07] Fail-secure: if DB is unreachable, deny access rather than
+    // returning a potentially stale/invalid session. This prevents deactivated
+    // users from retaining access if the DB verification cannot be completed.
+    console.error('[Session] Failed to verify user existence in database — denying access:', err);
+    return null;
   }
 
   return session as unknown as AppSession;
-}
-
-/**
- * Get the current session or throw 401 if not authenticated.
- * Convenience helper for API route handlers.
- */
-export async function requireSession(): Promise<AppSession> {
-  const session = await getServerSession();
-  if (!session) {
-    throw new Error('Unauthorized');
-  }
-  return session;
 }

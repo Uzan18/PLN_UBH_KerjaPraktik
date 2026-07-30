@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
+import { FilterSelect } from '@/components/dashboard/FilterSelect';
 
 // Fetch helper functions
 async function fetchUbpAssets() {
@@ -462,9 +463,7 @@ export default function CombinedManagePengujianPage() {
       const fullTt = dmData.testTypes.find((t) => t.id === tt.id);
       if (fullTt && fullTt.parameters && fullTt.parameters.length > 0) {
         const hasMech = fullTt.parameters.some((p: any) => {
-          const currentMechs = p.damageMechanisms
-            ? p.damageMechanisms.split(',').map((m: string) => m.trim())
-            : [];
+          const currentMechs = (p.damageMechanisms ?? []).map((dm: { name: string }) => dm.name);
           return currentMechs.includes(selectedMechanism);
         });
         if (hasMech) {
@@ -508,9 +507,7 @@ export default function CombinedManagePengujianPage() {
         const fullTt = dmData.testTypes.find((t) => t.id === tt.id);
         if (fullTt && fullTt.parameters && fullTt.parameters.length > 0) {
           const hasMech = fullTt.parameters.some((p: any) => {
-            const currentMechs = p.damageMechanisms
-              ? p.damageMechanisms.split(',').map((m: string) => m.trim())
-              : [];
+            const currentMechs = (p.damageMechanisms ?? []).map((dm: { name: string }) => dm.name);
             return currentMechs.includes(selectedMechanism);
           });
           if (hasMech) {
@@ -632,9 +629,7 @@ export default function CombinedManagePengujianPage() {
     
     for (const tt of dmData.testTypes) {
       for (const p of tt.parameters || []) {
-        const currentMechs = p.damageMechanisms
-          ? p.damageMechanisms.split(',').map((mech: string) => mech.trim())
-          : [];
+        const currentMechs = (p.damageMechanisms ?? []).map((dm: { name: string }) => dm.name);
         for (const m of currentMechs) {
           if (m in counts) {
             counts[m]++;
@@ -685,9 +680,7 @@ export default function CombinedManagePengujianPage() {
         // If this test type is NOT mapped to the selected Equipment Type, keep its parameters' current mappings
         if (!activeGroupTestTypeIds.includes(tt.id)) {
           for (const p of tt.parameters || []) {
-            const currentMechs = p.damageMechanisms
-              ? p.damageMechanisms.split(',').map((m: string) => m.trim())
-              : [];
+            const currentMechs = (p.damageMechanisms ?? []).map((dm: { name: string }) => dm.name);
             if (currentMechs.includes(selectedMechanism)) {
               finalParamIds.push(p.id);
             }
@@ -1696,17 +1689,19 @@ export default function CombinedManagePengujianPage() {
                         <span className="text-xs text-on-surface-variant">Tidak ada damage mechanism.</span>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <select
-                            value={selectedMechanism || ''}
-                            onChange={(e) => setSelectedMechanism(e.target.value)}
-                            className="bg-white border border-surface-border rounded-lg text-xs py-1.5 px-3 focus:outline-none focus:border-primary font-semibold text-on-surface cursor-pointer flex-1 sm:max-w-xs"
-                          >
-                            {dmData.mechanisms.map((mech) => (
-                              <option key={mech} value={mech}>
-                                {mech}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="w-full sm:w-72">
+                            <FilterSelect
+                              value={selectedMechanism || ''}
+                              onChange={(val) => setSelectedMechanism(val)}
+                              options={(dmData.mechanisms || []).map((mech) => ({
+                                value: mech,
+                                label: mech,
+                              }))}
+                              placeholder="Pilih Damage Mechanism..."
+                              showPlaceholderOption={false}
+                              buttonClassName="w-full justify-between font-semibold py-1.5 px-3 text-xs"
+                            />
+                          </div>
 
                           {selectedMechanism && (
                             <div className="flex items-center gap-1 shrink-0">
@@ -1821,9 +1816,7 @@ export default function CombinedManagePengujianPage() {
                           const fullTt = dmData.testTypes.find((t) => t.id === tt.id);
                           if (fullTt && fullTt.parameters && fullTt.parameters.length > 0) {
                             const hasMech = fullTt.parameters.some((p: any) => {
-                              const currentMechs = p.damageMechanisms
-                                ? p.damageMechanisms.split(',').map((m: string) => m.trim())
-                                : [];
+                              const currentMechs = (p.damageMechanisms ?? []).map((dm: { name: string }) => dm.name);
                               return currentMechs.includes(selectedMechanism);
                             });
                             if (hasMech) {

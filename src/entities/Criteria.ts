@@ -11,6 +11,9 @@ import type { Parameter } from './Parameter';
 
 @Entity('criteria')
 export class Criteria {
+  // @ts-expect-error - Override Function.name for TypeORM metadata resolution in Next.js SWC bundler
+  static get name() { return 'Criteria'; }
+
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

@@ -37,6 +37,7 @@ import { JenisAsset } from '@/entities/JenisAsset';
 import { Asset } from '@/entities/Asset';
 import { TestType } from '@/entities/TestType';
 import { Parameter } from '@/entities/Parameter';
+import { DamageMechanism } from '@/entities/DamageMechanism';
 import { Criteria } from '@/entities/Criteria';
 import { TestSession } from '@/entities/TestSession';
 import { TestResult } from '@/entities/TestResult';
@@ -61,13 +62,24 @@ const globalForDataSource = globalThis as unknown as {
   appDataSource: DataSource | null;
 };
 
+// [SEC-02] Validate required env vars at startup — no hardcoded fallback credentials
+const oracleUser = process.env.ORACLE_USER;
+const oraclePassword = process.env.ORACLE_PASSWORD;
+
+if (!oracleUser || !oraclePassword) {
+  throw new Error(
+    '[data-source] ORACLE_USER dan ORACLE_PASSWORD harus di-set di environment variables. ' +
+    'Salin .env.example ke .env dan isi dengan nilai yang sesuai.'
+  );
+}
+
 export const AppDataSource = globalForDataSource.appDataSource || new DataSource({
   type: 'oracle',
   host: process.env.ORACLE_HOST || 'localhost',
   port: parseInt(process.env.ORACLE_PORT || '1521'),
   serviceName: process.env.ORACLE_SERVICE_NAME || process.env.ORACLE_SID || 'XEPDB1',
-  username: process.env.ORACLE_USER || 'db_admin',
-  password: process.env.ORACLE_PASSWORD || 'db_secret_2024',
+  username: oracleUser,
+  password: oraclePassword,
   entities: [
     Ubp,
     UnitPembangkit,
@@ -75,6 +87,7 @@ export const AppDataSource = globalForDataSource.appDataSource || new DataSource
     Asset,
     TestType,
     Parameter,
+    DamageMechanism,
     Criteria,
     TestSession,
     TestResult,
@@ -83,7 +96,7 @@ export const AppDataSource = globalForDataSource.appDataSource || new DataSource
     ReportDirectory,
     ReportFile,
   ],
-  synchronize: false, // Disabled to speed up dev load (seed.ts synchronizes explicitly)
+  synchronize: false, // Disabled in production (schema is managed via sync-db.ts script)
   logging: process.env.NODE_ENV === 'development' ? ['query', 'error'] : ['error'],
   // Oracle-specific options
   extra: {
@@ -94,6 +107,5 @@ export const AppDataSource = globalForDataSource.appDataSource || new DataSource
   },
 });
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForDataSource.appDataSource = AppDataSource;
-}
+globalForDataSource.appDataSource = AppDataSource;
+

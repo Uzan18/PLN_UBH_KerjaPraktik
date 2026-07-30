@@ -16,6 +16,9 @@ import type { DataStatus } from '@/types';
 
 @Entity('test_session')
 export class TestSession {
+  // @ts-expect-error - Override Function.name for TypeORM metadata resolution in Next.js SWC bundler
+  static get name() { return 'TestSession'; }
+
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

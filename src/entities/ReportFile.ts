@@ -13,6 +13,9 @@ import type { User } from './User';
 
 @Entity('report_file')
 export class ReportFile {
+  // @ts-expect-error - Override Function.name for TypeORM metadata resolution in Next.js SWC bundler
+  static get name() { return 'ReportFile'; }
+
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

@@ -5,6 +5,7 @@ import { AuditLog } from '@/entities/AuditLog';
 import { User } from '@/entities/User';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
+import { handleApiError } from '@/lib/api-error';
 
 /**
  * GET /api/audit-logs?page=1&limit=20&action=&entity=&search=
@@ -108,7 +109,6 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'GET /api/audit-logs');
   }
 }

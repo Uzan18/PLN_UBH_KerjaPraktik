@@ -14,6 +14,9 @@ import type { Asset } from './Asset';
 
 @Entity('unit_pembangkit')
 export class UnitPembangkit {
+  // @ts-expect-error - Override Function.name for TypeORM metadata resolution in Next.js SWC bundler
+  static get name() { return 'UnitPembangkit'; }
+
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

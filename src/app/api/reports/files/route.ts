@@ -6,6 +6,8 @@ import { ReportFile } from '@/entities/ReportFile';
 import { AuditLog } from '@/entities/AuditLog';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
+import { handleApiError } from '@/lib/api-error';
+import { validateFileType, validateFileSize, validateFilePath, getUploadsBaseDir } from '@/lib/file-security';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -31,17 +33,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'File dan ID folder diperlukan' }, { status: 400 });
     }
 
+    // [SEC-08] Validate file type via extension whitelist + MIME type check
+    const typeValidation = validateFileType(file.name, file.type);
+    if (!typeValidation.valid) {
+      return NextResponse.json({ success: false, error: typeValidation.error }, { status: 400 });
+    }
+
+    // [SEC-04] Validate file size
+    const sizeValidation = validateFileSize(file.size);
+    if (!sizeValidation.valid) {
+      return NextResponse.json({ success: false, error: sizeValidation.error }, { status: 400 });
+    }
+
     // Ensure uploads directory exists
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'reports');
+    const uploadsDir = getUploadsBaseDir();
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
 
     // Generate unique file path
     const fileId = crypto.randomUUID();
-    const fileExt = path.extname(file.name);
+    const fileExt = path.extname(file.name).toLowerCase();
     const relativePath = `/uploads/reports/${fileId}${fileExt}`;
     const absolutePath = path.join(process.cwd(), 'public', relativePath);
+
+    // [SEC-04] Validate the generated path is within uploads directory before writing
+    validateFilePath(absolutePath);
 
     // Write file to disk
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -75,8 +92,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data: reportFile });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'POST /api/reports/files');
   }
 }
 
@@ -111,6 +127,15 @@ export async function DELETE(request: Request) {
 
     // Delete file from disk
     const absolutePath = path.join(process.cwd(), 'public', file.filePath);
+
+    // [SEC-04] Validate path before deletion to prevent path traversal
+    try {
+      validateFilePath(absolutePath);
+    } catch {
+      console.error(`[SEC] Rejected deletion of suspicious path: ${absolutePath}`);
+      return NextResponse.json({ success: false, error: 'Path file tidak valid.' }, { status: 400 });
+    }
+
     if (fs.existsSync(absolutePath)) {
       try {
         fs.unlinkSync(absolutePath);
@@ -135,7 +160,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true, message: 'File berhasil dihapus' });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'DELETE /api/reports/files');
   }
 }

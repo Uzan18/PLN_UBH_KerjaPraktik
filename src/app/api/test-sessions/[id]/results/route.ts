@@ -9,6 +9,7 @@ import { getServerSession } from '@/lib/auth/session';
 import { canModifySession } from '@/lib/auth/rbac';
 import { calculateScore, mapQualitativeValueToNumber } from '@/lib/scoring/calculateScore';
 import { determineJudgement } from '@/lib/scoring/determineJudgement';
+import { handleApiError } from '@/lib/api-error';
 import type { JudgementLabel } from '@/types';
 import { LessThanOrEqual, IsNull, MoreThanOrEqual } from 'typeorm';
 
@@ -146,9 +147,7 @@ export async function PUT(
 
     return NextResponse.json({ success: true, data: savedResults });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    const status = message === 'Unauthorized' ? 401 : message.startsWith('Forbidden') ? 403 : 500;
-    return NextResponse.json({ success: false, error: message }, { status });
+    return handleApiError(error, 'PUT /api/test-sessions/[id]/results');
   }
 }
 
@@ -253,8 +252,7 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: mappedResults });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return handleApiError(error, 'GET /api/test-sessions/[id]/results');
   }
 }
 

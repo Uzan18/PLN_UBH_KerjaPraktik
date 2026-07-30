@@ -6,6 +6,7 @@ import { AuditLog } from '@/entities/AuditLog';
 import { Asset } from '@/entities/Asset';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
+import { handleApiError } from '@/lib/api-error';
 
 /**
  * POST /api/validation/[id]/approve
@@ -18,8 +19,6 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession();
-    console.log('--- APPROVE API CALL ---');
-    console.log('Session user:', session?.user);
     if (!session) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
@@ -27,7 +26,6 @@ export async function POST(
 
     const { id } = await params;
     const db = await getDb();
-    console.log('DB Connection obtained. Target ID:', id);
     const sessionRepo = db.getRepository<TestSession>('TestSession');
     const auditRepo = db.getRepository<AuditLog>('AuditLog');
     const assetRepo = db.getRepository<Asset>('Asset');

@@ -23,6 +23,7 @@ export const SCORE_TO_JUDGEMENT: Record<number, JudgementLabel> = {
 };
 
 // ---- Status Colors (from Stitch design) ----
+// Used by StatusBadge component
 
 export const STATUS_COLORS: Record<JudgementLabel, string> = {
   GOOD: '#22C55E',
@@ -41,14 +42,6 @@ export const DATA_STATUS_COLORS: Record<DataStatus, string> = {
 
 // ---- UI Types ----
 
-export interface KpiData {
-  totalAssets: number;
-  totalRecords: number;
-  goodCount: number;
-  fairCount: number;
-  poorCount: number;
-  badCount: number;
-}
 
 export interface MatrixCell {
   testTypeName: string;
@@ -107,28 +100,6 @@ export interface TestTypeStatus {
   testTypeName: string;
   judgement: JudgementLabel;
   parameters: ParameterResult[];
-}
-
-export interface ValidationQueueItem {
-  sessionId: string;
-  assetName: string;
-  assetCode: string;
-  testTypeName: string;
-  status: DataStatus;
-  createdByName: string;
-  createdByInitials: string;
-  submittedAt: string;
-}
-
-export interface CriteriaRow {
-  parameterId: string;
-  parameterName: string;
-  unit: string | null;
-  goodValue: string | null;
-  fairValue: string | null;
-  poorValue: string | null;
-  badValue: string | null;
-  criteriaId: string;
 }
 
 // ---- API Response Types ----

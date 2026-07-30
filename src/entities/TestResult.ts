@@ -14,6 +14,9 @@ import type { JudgementLabel } from '@/types';
 
 @Entity('test_result')
 export class TestResult {
+  // @ts-expect-error - Override Function.name for TypeORM metadata resolution in Next.js SWC bundler
+  static get name() { return 'TestResult'; }
+
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

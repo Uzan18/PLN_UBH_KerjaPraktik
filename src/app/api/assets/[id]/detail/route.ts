@@ -46,7 +46,7 @@ interface TestResultWithParam {
   score: number | null;
   parameter?: {
     name?: string;
-    damageMechanisms?: string | null;
+    damageMechanisms?: Array<{ name: string }> | null;
     testType?: {
       name?: string;
     };
@@ -60,9 +60,8 @@ function getMechanismScoreForSession(session: TestSession, mechanism: string): n
   for (const r of results) {
     if (r.isNotApplicable || r.score === null || r.score === undefined) continue;
 
-    const damageMechs = r.parameter?.damageMechanisms
-      ? r.parameter.damageMechanisms.split(',').map((m) => m.trim().toUpperCase())
-      : [];
+    const damageMechs = (r.parameter?.damageMechanisms ?? [])
+      .map((dm: { name: string }) => dm.name.toUpperCase());
 
     if (damageMechs.includes(mechanism.toUpperCase())) {
       scores.push(Number(r.score));
@@ -290,21 +289,7 @@ export async function GET(
       const mechanismsRes = await db.query(`SELECT name FROM damage_mechanism ORDER BY name ASC`);
       mechanisms = mechanismsRes.map((r: any) => r.NAME || r.name);
     } catch (e) {
-      mechanisms = [
-        'Deformation',
-        'Dielectric Problem',
-        'OTI/WTI Problem',
-        'Leakage',
-        'LA Problem',
-        'Core defect',
-        'Bushing-Electrical defect',
-        'Oil Problem',
-        'Grounding Problem',
-        'Bushing-Mechanical defect',
-        'Winding & Connection',
-        'Thermal Problem',
-        'Breating system',
-      ];
+      mechanisms = [];
     }
 
     const damageMechanisms = selectedSession

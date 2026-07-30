@@ -13,6 +13,9 @@ import type { ReportFile } from './ReportFile';
 
 @Entity('report_directory')
 export class ReportDirectory {
+  // @ts-expect-error - Override Function.name for TypeORM metadata resolution in Next.js SWC bundler
+  static get name() { return 'ReportDirectory'; }
+
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
