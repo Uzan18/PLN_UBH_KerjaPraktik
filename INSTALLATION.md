@@ -1,6 +1,6 @@
-# Panduan Instalasi SIAT — Windows Server
+# Panduan Instalasi — Windows Server
 
-Dokumen ini memuat prosedur instalasi aplikasi SIAT pada Windows Server.
+Dokumen ini memuat prosedur instalasi aplikasi pada Windows Server.
 
 ---
 
