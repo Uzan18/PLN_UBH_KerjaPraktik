@@ -129,23 +129,46 @@ export default function InformasiAssetPage() {
     return Array.from(names).sort();
   }, [ubps, exportUbpId, exportSelectedUbp]);
 
+  const { data: jenisAssetMasterList } = useQuery({
+    queryKey: ['jenis-asset-export-list'],
+    queryFn: async () => {
+      const res = await fetch('/api/master/jenis-asset');
+      if (!res.ok) return [];
+      const json = await res.json();
+      return json.data || [];
+    },
+  });
+
   const exportJenisAssetChoices = useMemo(() => {
-    if (!ubps) return [];
-    const map = new Map<string, { id: string, name: string }>();
-    ubps.forEach((ubp: any) => {
-      ubp.unitPembangkit?.forEach((unit: any) => {
-        unit.assets?.forEach((asset: any) => {
-          if (asset.jenisAsset) {
-            map.set(asset.jenisAsset.id, {
-              id: asset.jenisAsset.id,
-              name: asset.jenisAsset.name
-            });
-          }
+    const map = new Map<string, { id: string; name: string }>();
+
+    // 1. Add all master JenisAsset registered in the system
+    if (Array.isArray(jenisAssetMasterList)) {
+      jenisAssetMasterList.forEach((ja: any) => {
+        if (ja.id && ja.name) {
+          map.set(ja.id, { id: ja.id, name: ja.name });
+        }
+      });
+    }
+
+    // 2. Incorporate any from UBP assets tree
+    if (ubps) {
+      ubps.forEach((ubp: any) => {
+        ubp.unitPembangkit?.forEach((unit: any) => {
+          unit.assets?.forEach((asset: any) => {
+            if (asset.jenisAsset?.id && asset.jenisAsset?.name) {
+              map.set(asset.jenisAsset.id, {
+                id: asset.jenisAsset.id,
+                name: asset.jenisAsset.name,
+              });
+            }
+          });
         });
       });
-    });
+    }
+
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [ubps]);
+  }, [jenisAssetMasterList, ubps]);
 
   const exportYearChoices = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -852,13 +875,12 @@ export default function InformasiAssetPage() {
                   Kategori Jenis Peralatan <span className="text-status-bad">*</span>
                 </label>
                 <FilterSelect
-                  value={
-                    exportJenisId === 'ALL' || !exportJenisId
-                      ? exportJenisAssetChoices[0]?.id || ''
-                      : exportJenisId
-                  }
-                  onChange={(val) => setExportJenisId(val)}
-                  options={exportJenisAssetChoices.map((ja: any) => ({ value: ja.id, label: ja.name }))}
+                  value={exportJenisId}
+                  onChange={(val) => setExportJenisId(val || 'ALL')}
+                  options={[
+                    { value: 'ALL', label: 'SEMUA JENIS PERALATAN (ALL)' },
+                    ...exportJenisAssetChoices.map((ja: any) => ({ value: ja.id, label: ja.name })),
+                  ]}
                   placeholder="PILIH JENIS PERALATAN"
                   showPlaceholderOption={false}
                 />
@@ -879,23 +901,28 @@ export default function InformasiAssetPage() {
               </div>
             </div>
 
-            <div className="p-4 border-t border-surface-border bg-surface-background flex justify-end gap-3 rounded-b-xl">
-              <button
-                onClick={() => setIsExportModalOpen(false)}
-                className="px-4 py-2 border border-surface-border hover:bg-surface-container rounded-lg font-bold text-xs text-on-surface-variant transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-              <a
-                href={`/api/master/export?ubpId=${exportUbpId}&unitName=${exportUnitName}&jenisAssetId=${exportJenisId}&testYear=${exportTestYear}`}
-                download
-                onClick={() => setIsExportModalOpen(false)}
-                className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-sm select-none font-bold">download</span>
-                <span>Ekspor Berkas Excel</span>
-              </a>
-            </div>
+            {(() => {
+              const effectiveExportJenisId = exportJenisId || 'ALL';
+              return (
+                <div className="p-4 border-t border-surface-border bg-surface-background flex justify-end gap-3 rounded-b-xl">
+                  <button
+                    onClick={() => setIsExportModalOpen(false)}
+                    className="px-4 py-2 border border-surface-border hover:bg-surface-container rounded-lg font-bold text-xs text-on-surface-variant transition-colors cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <a
+                    href={`/api/master/export?ubpId=${exportUbpId}&unitName=${exportUnitName}&jenisAssetId=${effectiveExportJenisId}&testYear=${exportTestYear}`}
+                    download
+                    onClick={() => setIsExportModalOpen(false)}
+                    className="px-5 py-2 bg-primary text-white hover:brightness-110 rounded-lg font-bold text-xs shadow transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm select-none font-bold">download</span>
+                    <span>Ekspor Berkas Excel</span>
+                  </a>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

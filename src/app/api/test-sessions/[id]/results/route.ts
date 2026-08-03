@@ -30,10 +30,10 @@ export async function PUT(
 
     const { id } = await params;
     const db = await getDb();
-    const sessionRepo = db.getRepository<TestSession>('TestSession');
-    const resultRepo = db.getRepository<TestResult>('TestResult');
-    const criteriaRepo = db.getRepository<Criteria>('Criteria');
-    const auditRepo = db.getRepository<AuditLog>('AuditLog');
+    const sessionRepo = db.getRepository(TestSession);
+    const resultRepo = db.getRepository(TestResult);
+    const criteriaRepo = db.getRepository(Criteria);
+    const auditRepo = db.getRepository(AuditLog);
 
     // Get the test session
     const testSession = await sessionRepo.findOne({ where: { id } });
@@ -167,8 +167,8 @@ export async function GET(
 
     const { id } = await params;
     const db = await getDb();
-    const sessionRepo = db.getRepository<TestSession>('TestSession');
-    const resultRepo = db.getRepository<TestResult>('TestResult');
+    const sessionRepo = db.getRepository(TestSession);
+    const resultRepo = db.getRepository(TestResult);
 
     // Get the test session
     const testSession = await sessionRepo.findOne({ where: { id } });

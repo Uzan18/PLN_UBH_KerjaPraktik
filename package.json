@@ -23,7 +23,8 @@
     "recharts": "^3.9.2",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.21",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

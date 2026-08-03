@@ -26,9 +26,9 @@ export async function POST(
 
     const { id } = await params;
     const db = await getDb();
-    const sessionRepo = db.getRepository<TestSession>('TestSession');
-    const auditRepo = db.getRepository<AuditLog>('AuditLog');
-    const assetRepo = db.getRepository<Asset>('Asset');
+    const sessionRepo = db.getRepository(TestSession);
+    const auditRepo = db.getRepository(AuditLog);
+    const assetRepo = db.getRepository(Asset);
 
     const testSession = await sessionRepo.findOne({ 
       where: { id },

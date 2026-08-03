@@ -63,7 +63,7 @@ export async function GET() {
 
     // Fetch all test types → parameters → damageMechanisms (via junction table)
     const testTypes = await db
-      .getRepository<TestType>('TestType')
+      .getRepository(TestType)
       .createQueryBuilder('tt')
       .leftJoinAndSelect('tt.parameters', 'p')
       .leftJoinAndSelect('p.damageMechanisms', 'dm')
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     const db = await getDb();
     await ensureTables(db);
 
-    const auditRepo = db.getRepository<AuditLog>('AuditLog');
+    const auditRepo = db.getRepository(AuditLog);
 
     // ── ACTION: create ────────────────────────────────────────────────────────
     if (action === 'create') {
@@ -234,7 +234,7 @@ export async function POST(request: Request) {
     }
 
     // Resolve parameter names for audit log
-    const paramRepo = db.getRepository<Parameter>('Parameter');
+    const paramRepo = db.getRepository(Parameter);
     const allParams = toAdd.length > 0 || toRemove.length > 0
       ? await paramRepo.find({ relations: ['testType'] })
       : [];

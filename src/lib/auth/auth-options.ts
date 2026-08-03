@@ -43,7 +43,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Layanan sementara tidak tersedia. Coba lagi nanti.');
         }
 
-        const userRepo = db.getRepository<User>('User');
+        const userRepo = db.getRepository(User);
         const user = await userRepo.findOne({
           where: { email: credentials.email },
         });

@@ -31,9 +31,9 @@ export async function POST(request: Request) {
     }
 
     const db = await getDb();
-    const assetRepo = db.getRepository<Asset>('Asset');
-    const sessionRepo = db.getRepository<TestSession>('TestSession');
-    const auditRepo = db.getRepository<AuditLog>('AuditLog');
+    const assetRepo = db.getRepository(Asset);
+    const sessionRepo = db.getRepository(TestSession);
+    const auditRepo = db.getRepository(AuditLog);
 
     // Verify asset exists
     const asset = await assetRepo.findOne({ where: { id: assetId } });
@@ -84,7 +84,7 @@ export async function GET(request: Request) {
     const testYear = url.searchParams.get('testYear') ? parseInt(url.searchParams.get('testYear')!) : undefined;
 
     const db = await getDb();
-    const sessionRepo = db.getRepository<TestSession>('TestSession');
+    const sessionRepo = db.getRepository(TestSession);
 
     // If querying a specific asset and year, return matching session(s)
     if (assetId && testYear) {

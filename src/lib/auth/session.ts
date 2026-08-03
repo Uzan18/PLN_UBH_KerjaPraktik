@@ -31,7 +31,7 @@ export async function getServerSession(): Promise<AppSession | null> {
   // Double check user exists and is active in DB to prevent stale session issues
   try {
     const db = await getDb();
-    const userRepo = db.getRepository<User>('User');
+    const userRepo = db.getRepository(User);
     const user = await userRepo.findOne({
       where: { email: session.user.email || '' }
     });
