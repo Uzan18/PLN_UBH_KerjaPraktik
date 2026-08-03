@@ -59,7 +59,7 @@ function makeFallbackGetMetadata(
 }
 
 function patchObj(obj: any, getMetadatas: () => any[]): void {
-  if (!obj || obj.__metadataPatchApplied) return;
+  if (!obj || obj.__metadataPatchApplied || typeof obj.getMetadata !== 'function') return;
   obj.__metadataPatchApplied = true;
   const original = obj.getMetadata.bind(obj);
   obj.getMetadata = makeFallbackGetMetadata(original, getMetadatas);
