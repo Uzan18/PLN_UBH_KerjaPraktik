@@ -85,6 +85,7 @@ export async function GET(request: Request) {
     const sessQb = sessionRepo.createQueryBuilder('ts')
       .leftJoinAndSelect('ts.testResults', 'tr')
       .leftJoinAndSelect('tr.parameter', 'p')
+      .leftJoinAndSelect('p.damageMechanisms', 'dm')
       .leftJoinAndSelect('p.testType', 'tt')
       .leftJoinAndSelect('ts.asset', 'asset')
       .leftJoinAndSelect('asset.unitPembangkit', 'up')
@@ -107,6 +108,37 @@ export async function GET(request: Request) {
     }
 
     const validatedSessions = await sessQb.getMany();
+
+    // Ensure damageMechanisms on parameters are populated even if TypeORM join is empty
+    try {
+      const pdmMappings = await db.query(
+        `SELECT parameter_id, damage_mechanism_name FROM parameter_damage_mechanism`
+      );
+      const pdmMap: Record<string, Array<{ name: string }>> = {};
+      for (const r of pdmMappings) {
+        const pid: string = r.PARAMETER_ID ?? r.parameter_id;
+        const mname: string = r.DAMAGE_MECHANISM_NAME ?? r.damage_mechanism_name;
+        if (pid && mname) {
+          if (!pdmMap[pid]) pdmMap[pid] = [];
+          pdmMap[pid].push({ name: mname });
+        }
+      }
+
+      for (const s of validatedSessions) {
+        for (const tr of s.testResults || []) {
+          if (tr.parameter) {
+            if (pdmMap[tr.parameter.id] && pdmMap[tr.parameter.id].length > 0) {
+              tr.parameter.damageMechanisms = pdmMap[tr.parameter.id] as any;
+            } else if (!tr.parameter.damageMechanisms) {
+              tr.parameter.damageMechanisms = [];
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load raw parameter_damage_mechanism mappings in summary:', e);
+    }
+
     const totalRecords = validatedSessions.length;
 
     // Count judgements across all validated sessions (each session counts as 1 overall condition)

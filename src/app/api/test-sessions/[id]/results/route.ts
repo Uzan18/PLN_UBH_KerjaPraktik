@@ -7,7 +7,7 @@ import { Criteria } from '@/entities/Criteria';
 import { AuditLog } from '@/entities/AuditLog';
 import { getServerSession } from '@/lib/auth/session';
 import { canModifySession } from '@/lib/auth/rbac';
-import { calculateScore, mapQualitativeValueToNumber } from '@/lib/scoring/calculateScore';
+import { calculateScore, mapQualitativeValueToNumber, isQuantitativeThreshold } from '@/lib/scoring/calculateScore';
 import { determineJudgement } from '@/lib/scoring/determineJudgement';
 import { handleApiError } from '@/lib/api-error';
 import type { JudgementLabel } from '@/types';
@@ -216,22 +216,23 @@ export async function GET(
         displayValue = 'N/A';
       } else if (valNum !== null && criteria) {
         let matchedOpt = null;
-        
-        if (criteria.goodValue && (mapQualitativeValueToNumber(criteria.goodValue) === valNum || (mapQualitativeValueToNumber(criteria.goodValue) === null && valNum === 0))) {
+        const isQualText = (opt: string | null) => opt && !isQuantitativeThreshold(opt);
+
+        if (criteria.goodValue && (mapQualitativeValueToNumber(criteria.goodValue) === valNum || (isQualText(criteria.goodValue) && mapQualitativeValueToNumber(criteria.goodValue) === null && valNum === 0))) {
           matchedOpt = criteria.goodValue;
-        } else if (criteria.fairValue && (mapQualitativeValueToNumber(criteria.fairValue) === valNum || (mapQualitativeValueToNumber(criteria.fairValue) === null && valNum === 1))) {
+        } else if (criteria.fairValue && (mapQualitativeValueToNumber(criteria.fairValue) === valNum || (isQualText(criteria.fairValue) && mapQualitativeValueToNumber(criteria.fairValue) === null && valNum === 1))) {
           matchedOpt = criteria.fairValue;
-        } else if (criteria.poorValue && (mapQualitativeValueToNumber(criteria.poorValue) === valNum || (mapQualitativeValueToNumber(criteria.poorValue) === null && valNum === 2))) {
+        } else if (criteria.poorValue && (mapQualitativeValueToNumber(criteria.poorValue) === valNum || (isQualText(criteria.poorValue) && mapQualitativeValueToNumber(criteria.poorValue) === null && valNum === 2))) {
           matchedOpt = criteria.poorValue;
-        } else if (criteria.badValue && (mapQualitativeValueToNumber(criteria.badValue) === valNum || (mapQualitativeValueToNumber(criteria.badValue) === null && valNum === 3))) {
+        } else if (criteria.badValue && (mapQualitativeValueToNumber(criteria.badValue) === valNum || (isQualText(criteria.badValue) && mapQualitativeValueToNumber(criteria.badValue) === null && valNum === 3))) {
           matchedOpt = criteria.badValue;
         }
-        
+
         if (matchedOpt !== null) {
           displayValue = matchedOpt;
         } else {
           const labelOptions = [criteria.goodValue, criteria.fairValue, criteria.poorValue, criteria.badValue]
-            .filter(Boolean)
+            .filter((v): v is string => Boolean(v && isQualText(v)))
             .map((v) => String(v).trim());
             
           for (const opt of labelOptions) {

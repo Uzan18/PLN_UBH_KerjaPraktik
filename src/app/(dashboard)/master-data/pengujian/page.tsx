@@ -433,7 +433,8 @@ export default function CombinedManagePengujianPage() {
   // STATE: 4. Damage Mechanism Tab
   const [selectedDmGroup, setSelectedDmGroup] = useState<EquipmentTypeGroup | null>(null);
   const [selectedMechanism, setSelectedMechanism] = useState<string | null>(null);
-  const [selectedDmTestTypeIds, setSelectedDmTestTypeIds] = useState<string[]>([]);
+  const [selectedDmParamIds, setSelectedDmParamIds] = useState<string[]>([]);
+  const [expandedDmTestTypeIds, setExpandedDmTestTypeIds] = useState<Record<string, boolean>>({});
   const [searchDmTestQuery, setSearchDmTestQuery] = useState('');
 
   // Modals for CRUD
@@ -455,30 +456,29 @@ export default function CombinedManagePengujianPage() {
     enabled: activeTab === 'damage-mechanism',
   });
 
-  const configuredDmTestTypeIds = useMemo(() => {
+  const configuredDmParamIds = useMemo(() => {
     if (!selectedMechanism || !dmData?.testTypes || !selectedDmGroup) return [];
-    const activeGroupTestTypes = selectedDmGroup.testTypes || [];
-    const checkedIds: string[] = [];
-    for (const tt of activeGroupTestTypes) {
-      const fullTt = dmData.testTypes.find((t) => t.id === tt.id);
-      if (fullTt && fullTt.parameters && fullTt.parameters.length > 0) {
-        const hasMech = fullTt.parameters.some((p: any) => {
+    const activeGroupTestTypeIds = (selectedDmGroup.testTypes || []).map((t) => t.id);
+    const checkedParamIds: string[] = [];
+
+    for (const tt of dmData.testTypes) {
+      if (activeGroupTestTypeIds.includes(tt.id)) {
+        for (const p of tt.parameters || []) {
           const currentMechs = (p.damageMechanisms ?? []).map((dm: { name: string }) => dm.name);
-          return currentMechs.includes(selectedMechanism);
-        });
-        if (hasMech) {
-          checkedIds.push(tt.id);
+          if (currentMechs.includes(selectedMechanism)) {
+            checkedParamIds.push(p.id);
+          }
         }
       }
     }
-    return checkedIds;
+    return checkedParamIds;
   }, [selectedMechanism, dmData, selectedDmGroup]);
 
   const hasDmPemetaanChanged = useMemo(() => {
-    if (configuredDmTestTypeIds.length !== selectedDmTestTypeIds.length) return true;
-    const configSet = new Set(configuredDmTestTypeIds);
-    return selectedDmTestTypeIds.some(id => !configSet.has(id));
-  }, [configuredDmTestTypeIds, selectedDmTestTypeIds]);
+    if (configuredDmParamIds.length !== selectedDmParamIds.length) return true;
+    const configSet = new Set(configuredDmParamIds);
+    return selectedDmParamIds.some((id) => !configSet.has(id));
+  }, [configuredDmParamIds, selectedDmParamIds]);
 
   // Auto-select first group
   useEffect(() => {
@@ -497,29 +497,10 @@ export default function CombinedManagePengujianPage() {
     }
   }, [dmData, selectedMechanism]);
 
-  // Sync test type checkbox states when mechanism or selected group changes
+  // Sync parameter checkbox states when mechanism or selected group changes
   useEffect(() => {
-    if (selectedMechanism && dmData?.testTypes && selectedDmGroup) {
-      const activeGroupTestTypes = selectedDmGroup.testTypes || [];
-      
-      const checkedIds: string[] = [];
-      for (const tt of activeGroupTestTypes) {
-        const fullTt = dmData.testTypes.find((t) => t.id === tt.id);
-        if (fullTt && fullTt.parameters && fullTt.parameters.length > 0) {
-          const hasMech = fullTt.parameters.some((p: any) => {
-            const currentMechs = (p.damageMechanisms ?? []).map((dm: { name: string }) => dm.name);
-            return currentMechs.includes(selectedMechanism);
-          });
-          if (hasMech) {
-            checkedIds.push(tt.id);
-          }
-        }
-      }
-      setSelectedDmTestTypeIds(checkedIds);
-    } else {
-      setSelectedDmTestTypeIds([]);
-    }
-  }, [selectedMechanism, selectedDmGroup, dmData]);
+    setSelectedDmParamIds(configuredDmParamIds);
+  }, [configuredDmParamIds]);
 
   // CRUD Mutations
   const createDmMutation = useMutation({
@@ -611,6 +592,8 @@ export default function CombinedManagePengujianPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['damage-mechanisms'] });
+      queryClient.invalidateQueries({ queryKey: ['test-types'] });
+      queryClient.invalidateQueries({ queryKey: ['summary'] });
       alert('Konfigurasi Damage Mechanism berhasil disimpan!');
     },
     onError: (error: any) => {
@@ -648,25 +631,59 @@ export default function CombinedManagePengujianPage() {
     return activeGroupTestTypes.map((t) => t.id);
   }, [activeGroupTestTypes]);
 
-  const isAllDmTestTypesSelected = useMemo(() => {
-    return (
-      activeGroupTestTypeIds.length > 0 &&
-      activeGroupTestTypeIds.every((id) => selectedDmTestTypeIds.includes(id))
-    );
-  }, [activeGroupTestTypeIds, selectedDmTestTypeIds]);
+  const allActiveGroupParamIds = useMemo(() => {
+    if (!dmData?.testTypes || !selectedDmGroup) return [];
+    const activeGroupTestTypeIds = (selectedDmGroup.testTypes || []).map((t) => t.id);
+    const paramIds: string[] = [];
+    for (const tt of dmData.testTypes) {
+      if (activeGroupTestTypeIds.includes(tt.id)) {
+        for (const p of tt.parameters || []) {
+          paramIds.push(p.id);
+        }
+      }
+    }
+    return paramIds;
+  }, [dmData, selectedDmGroup]);
 
-  const handleToggleAllDmTestTypes = () => {
-    if (isAllDmTestTypesSelected) {
-      setSelectedDmTestTypeIds((prev) => prev.filter((id) => !activeGroupTestTypeIds.includes(id)));
+  const isAllDmParamsSelected = useMemo(() => {
+    return (
+      allActiveGroupParamIds.length > 0 &&
+      allActiveGroupParamIds.every((id) => selectedDmParamIds.includes(id))
+    );
+  }, [allActiveGroupParamIds, selectedDmParamIds]);
+
+  const handleToggleAllDmParams = () => {
+    if (isAllDmParamsSelected) {
+      setSelectedDmParamIds((prev) => prev.filter((id) => !allActiveGroupParamIds.includes(id)));
     } else {
-      setSelectedDmTestTypeIds((prev) => Array.from(new Set([...prev, ...activeGroupTestTypeIds])));
+      setSelectedDmParamIds((prev) => Array.from(new Set([...prev, ...allActiveGroupParamIds])));
     }
   };
 
-  const handleToggleDmTestType = (id: string) => {
-    setSelectedDmTestTypeIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+  const handleToggleDmTestTypeParams = (ttId: string) => {
+    const fullTt = dmData?.testTypes?.find((t) => t.id === ttId);
+    const ttParamIds = (fullTt?.parameters || []).map((p: any) => p.id);
+    if (ttParamIds.length === 0) return;
+
+    const isAllChecked = ttParamIds.every((id: string) => selectedDmParamIds.includes(id));
+    if (isAllChecked) {
+      setSelectedDmParamIds((prev) => prev.filter((id) => !ttParamIds.includes(id)));
+    } else {
+      setSelectedDmParamIds((prev) => Array.from(new Set([...prev, ...ttParamIds])));
+    }
+  };
+
+  const handleToggleSingleDmParam = (paramId: string) => {
+    setSelectedDmParamIds((prev) =>
+      prev.includes(paramId) ? prev.filter((id) => id !== paramId) : [...prev, paramId]
     );
+  };
+
+  const handleToggleExpandTestType = (ttId: string) => {
+    setExpandedDmTestTypeIds((prev) => ({
+      ...prev,
+      [ttId]: !prev[ttId],
+    }));
   };
 
   const handleSaveDmPemetaan = async () => {
@@ -674,11 +691,12 @@ export default function CombinedManagePengujianPage() {
     setIsSavingDmPemetaan(true);
 
     try {
+      const activeGroupTestTypeIds = (selectedDmGroup.testTypes || []).map((t) => t.id);
       const finalParamIds: string[] = [];
 
       for (const tt of dmData.testTypes) {
-        // If this test type is NOT mapped to the selected Equipment Type, keep its parameters' current mappings
         if (!activeGroupTestTypeIds.includes(tt.id)) {
+          // If this test type is NOT mapped to the selected Equipment Type, keep its parameters' current mappings
           for (const p of tt.parameters || []) {
             const currentMechs = (p.damageMechanisms ?? []).map((dm: { name: string }) => dm.name);
             if (currentMechs.includes(selectedMechanism)) {
@@ -686,10 +704,9 @@ export default function CombinedManagePengujianPage() {
             }
           }
         } else {
-          // If this test type IS mapped to the selected Equipment Type, include all its parameters if it is checked
-          const isChecked = selectedDmTestTypeIds.includes(tt.id);
-          if (isChecked) {
-            for (const p of tt.parameters || []) {
+          // For test types under active equipment type, include parameters selected in UI
+          for (const p of tt.parameters || []) {
+            if (selectedDmParamIds.includes(p.id)) {
               finalParamIds.push(p.id);
             }
           }
@@ -1739,19 +1756,19 @@ export default function CombinedManagePengujianPage() {
                 <div className="space-y-3 flex-1 flex flex-col min-h-0">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1.5 border-b border-surface-border shrink-0">
                     <h3 className="text-xs font-bold text-on-surface uppercase tracking-wide">
-                      Pilih Jenis Pengujian yang Sesuai
+                      Pilih Parameter Pengujian yang Sesuai
                     </h3>
                     <div className="flex items-center gap-2.5">
                       <button
-                        onClick={handleToggleAllDmTestTypes}
+                        onClick={handleToggleAllDmParams}
                         className="text-xs font-semibold text-primary hover:underline focus:outline-none cursor-pointer"
                       >
-                        {isAllDmTestTypesSelected ? 'Batal Semua' : 'Pilih Semua'}
+                        {isAllDmParamsSelected ? 'Batal Semua' : 'Pilih Semua'}
                       </button>
-                      <div className="relative w-44">
+                      <div className="relative w-48">
                         <input
                           type="text"
-                          placeholder="Cari pengujian..."
+                          placeholder="Cari pengujian / parameter..."
                           value={searchDmTestQuery}
                           onChange={(e) => setSearchDmTestQuery(e.target.value)}
                           className="w-full bg-surface-container-low border border-surface-border rounded-lg text-xs py-1 px-8 pr-3 focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
@@ -1763,7 +1780,7 @@ export default function CombinedManagePengujianPage() {
                     </div>
                   </div>
 
-                  {/* List of Mapped Test Types */}
+                  {/* List of Mapped Test Types with Expandable Parameters */}
                   {isDmLoading ? (
                     <div className="flex items-center justify-center py-20 flex-1">
                       <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
@@ -1773,30 +1790,144 @@ export default function CombinedManagePengujianPage() {
                       Tidak ada jenis pengujian yang dipetakan ke jenis aset "{selectedDmGroup.name}".
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 content-start overflow-y-auto custom-scrollbar pr-1 pb-4 flex-1 min-h-0">
+                    <div className="space-y-2.5 content-start overflow-y-auto custom-scrollbar pr-1 pb-4 flex-1 min-h-0">
                       {activeGroupTestTypes
-                        .filter((tt) => tt.name.toLowerCase().includes(searchDmTestQuery.toLowerCase()))
+                        .filter((tt) => {
+                          const q = searchDmTestQuery.toLowerCase().trim();
+                          if (!q) return true;
+                          const ttMatch = tt.name.toLowerCase().includes(q);
+                          const fullTt = dmData?.testTypes?.find((t) => t.id === tt.id);
+                          const paramMatch = (fullTt?.parameters || []).some((p: any) =>
+                            (p.name || '').toLowerCase().includes(q)
+                          );
+                          return ttMatch || paramMatch;
+                        })
                         .map((tt) => {
-                          const isChecked = selectedDmTestTypeIds.includes(tt.id);
+                          const fullTt = dmData?.testTypes?.find((t) => t.id === tt.id);
+                          const parameters: any[] = fullTt?.parameters || [];
+                          const totalParams = parameters.length;
+
+                          const selectedParamsCount = parameters.filter((p) =>
+                            selectedDmParamIds.includes(p.id)
+                          ).length;
+
+                          const isAllChecked = totalParams > 0 && selectedParamsCount === totalParams;
+                          const isSomeChecked = selectedParamsCount > 0 && selectedParamsCount < totalParams;
+                          const isExpanded = !!expandedDmTestTypeIds[tt.id] || Boolean(searchDmTestQuery.trim());
+
                           return (
                             <div
                               key={tt.id}
-                              onClick={() => handleToggleDmTestType(tt.id)}
-                              className={`p-2.5 rounded-lg border flex items-center justify-between cursor-pointer select-none transition-all group/checkbox-row ${
-                                isChecked
-                                  ? 'border-primary bg-primary-container/5 text-primary-text font-semibold'
-                                  : 'border-surface-border bg-white text-on-surface hover:bg-surface-container-low'
+                              className={`rounded-xl border transition-all overflow-hidden bg-white ${
+                                selectedParamsCount > 0
+                                  ? 'border-primary/40 shadow-xs'
+                                  : 'border-surface-border'
                               }`}
                             >
-                              <div className="flex items-center gap-2 overflow-hidden mr-2">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  readOnly
-                                  className="h-4 w-4 text-primary border-surface-border rounded focus:ring-primary cursor-pointer shrink-0"
-                                />
-                                <span className="text-xs font-semibold truncate leading-none">{tt.name}</span>
+                              {/* Test Type Header Bar */}
+                              <div
+                                className={`p-3 flex items-center justify-between cursor-pointer select-none transition-colors ${
+                                  selectedParamsCount > 0
+                                    ? 'bg-primary-container/10'
+                                    : 'bg-slate-50 hover:bg-slate-100/80'
+                                }`}
+                                onClick={() => handleToggleExpandTestType(tt.id)}
+                              >
+                                <div className="flex items-center gap-2.5 overflow-hidden">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleToggleExpandTestType(tt.id);
+                                    }}
+                                    className="p-0.5 text-outline hover:text-on-surface transition-transform"
+                                  >
+                                    <span
+                                      className={`material-symbols-outlined text-lg select-none transition-transform ${
+                                        isExpanded ? 'rotate-180' : ''
+                                      }`}
+                                    >
+                                      expand_more
+                                    </span>
+                                  </button>
+
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleToggleDmTestTypeParams(tt.id);
+                                    }}
+                                    className="flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isAllChecked}
+                                      ref={(el) => {
+                                        if (el) el.indeterminate = isSomeChecked;
+                                      }}
+                                      readOnly
+                                      className="h-4 w-4 text-primary border-surface-border rounded focus:ring-primary cursor-pointer shrink-0"
+                                    />
+                                    <span className="text-xs font-bold text-on-surface truncate">
+                                      {tt.name}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span
+                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono transition-colors ${
+                                      selectedParamsCount > 0
+                                        ? 'bg-primary/10 text-primary border border-primary/20'
+                                        : 'bg-surface-container text-on-surface-variant'
+                                    }`}
+                                  >
+                                    {selectedParamsCount}/{totalParams} Parameter
+                                  </span>
+                                </div>
                               </div>
+
+                              {/* Expandable Parameter List */}
+                              {isExpanded && (
+                                <div className="p-3 bg-white border-t border-surface-border/60 space-y-1.5">
+                                  {parameters.length === 0 ? (
+                                    <p className="text-[11px] text-outline italic px-2 py-1">
+                                      Tidak ada parameter terdaftar untuk jenis pengujian ini.
+                                    </p>
+                                  ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {parameters.map((p) => {
+                                        const isParamChecked = selectedDmParamIds.includes(p.id);
+                                        return (
+                                          <div
+                                            key={p.id}
+                                            onClick={() => handleToggleSingleDmParam(p.id)}
+                                            className={`px-3 py-2 rounded-lg border flex items-center justify-between cursor-pointer select-none transition-all ${
+                                              isParamChecked
+                                                ? 'border-primary bg-primary-container/15 text-primary-text font-semibold shadow-2xs'
+                                                : 'border-surface-border/80 bg-slate-50/50 hover:bg-slate-100/60 text-on-surface'
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-2 overflow-hidden">
+                                              <input
+                                                type="checkbox"
+                                                checked={isParamChecked}
+                                                readOnly
+                                                className="h-3.5 w-3.5 text-primary border-surface-border rounded focus:ring-primary cursor-pointer shrink-0"
+                                              />
+                                              <span className="text-xs truncate">{p.name}</span>
+                                            </div>
+                                            {p.unit && (
+                                              <span className="text-[10px] font-mono text-outline shrink-0 ml-1">
+                                                {p.unit}
+                                              </span>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -1808,25 +1939,8 @@ export default function CombinedManagePengujianPage() {
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-surface-border shrink-0">
                   <button
                     onClick={() => {
-                      if (selectedMechanism && dmData?.testTypes && selectedDmGroup) {
-                        const activeGroupTestTypes = selectedDmGroup.testTypes || [];
-                        
-                        const checkedIds: string[] = [];
-                        for (const tt of activeGroupTestTypes) {
-                          const fullTt = dmData.testTypes.find((t) => t.id === tt.id);
-                          if (fullTt && fullTt.parameters && fullTt.parameters.length > 0) {
-                            const hasMech = fullTt.parameters.some((p: any) => {
-                              const currentMechs = (p.damageMechanisms ?? []).map((dm: { name: string }) => dm.name);
-                              return currentMechs.includes(selectedMechanism);
-                            });
-                            if (hasMech) {
-                              checkedIds.push(tt.id);
-                            }
-                          }
-                        }
-                        setSelectedDmTestTypeIds(checkedIds);
-                        alert('Pilihan di-reset.');
-                      }
+                      setSelectedDmParamIds(configuredDmParamIds);
+                      alert('Pilihan di-reset.');
                     }}
                     disabled={isSavingDmPemetaan || saveDmMutation.isPending}
                     className="px-4 py-2 border border-surface-border hover:bg-surface-container-low rounded-lg font-bold text-xs text-on-surface-variant transition-colors disabled:opacity-50 cursor-pointer"

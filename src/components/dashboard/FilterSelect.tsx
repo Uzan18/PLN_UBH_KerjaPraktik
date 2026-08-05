@@ -128,20 +128,32 @@ export function FilterSelect({
 
       {/* Dropdown List */}
       {isOpen && (
-        <div className={`absolute z-50 bg-white border border-surface-border rounded-lg shadow-xl ${placement === 'top' ? 'bottom-full mb-1' : 'mt-1'} max-h-60 overflow-y-auto text-xs py-1 flex flex-col ${variant === 'inline' ? 'left-0 w-52' : 'left-0 right-0 w-full'}`}>
-          {/* Query Indicator (if user typed something) */}
-          {searchQuery && (
-            <div className="px-3 py-1.5 bg-surface-container-low border-b border-surface-border flex items-center justify-between text-[10px] text-on-surface-variant font-mono font-medium shrink-0">
-              <span className="truncate">Menyaring: "{searchQuery}"</span>
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="text-primary hover:underline font-bold cursor-pointer ml-1"
-              >
-                Clear
-              </button>
+        <div className={`absolute z-50 bg-white border border-surface-border rounded-lg shadow-xl ${placement === 'top' ? 'bottom-full mb-1' : 'mt-1'} max-h-60 text-xs py-1 flex flex-col ${variant === 'inline' ? 'left-0 w-56' : 'left-0 right-0 w-full min-w-[200px]'}`}>
+          {/* Search input field */}
+          <div className="p-1.5 border-b border-surface-border sticky top-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Cari..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-surface-container-low border border-surface-border rounded-md text-xs py-1 px-7 pr-6 focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none"
+                autoFocus
+              />
+              <span className="material-symbols-outlined text-outline absolute left-2 top-1/2 -translate-y-1/2 text-xs select-none">
+                search
+              </span>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-xs select-none">close</span>
+                </button>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Options container */}
           <div className="overflow-y-auto max-h-48 custom-scrollbar">

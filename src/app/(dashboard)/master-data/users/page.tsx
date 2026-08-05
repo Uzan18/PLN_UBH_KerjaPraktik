@@ -418,22 +418,15 @@ export default function UserManagementPage() {
             <table className="w-full text-left text-xs border-collapse table-fixed">
               <thead>
                 <tr className="bg-surface-container-low/10 border-b border-surface-border font-bold font-sans text-[10px] uppercase tracking-wider text-outline">
-                  <th className="py-3.5 px-4 w-[25%]">Nama Pengguna</th>
-                  <th className="py-3.5 px-4 w-[25%]">Email Login</th>
+                  <th className="py-3.5 px-4 w-[35%]">Nama Pengguna</th>
+                  <th className="py-3.5 px-4 w-[30%]">Email Login</th>
                   <th className="py-3.5 px-4 text-center w-[15%]">Peran Otorisasi</th>
-                  <th className="py-3.5 px-4 text-center w-[15%]">Akses Wilayah UBP</th>
                   <th className="py-3.5 px-4 text-center w-[10%]">Status</th>
                   <th className="py-3.5 px-4 text-center w-[10%]">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border/40">
                 {filteredUsers.map((user: any) => {
-                  const allowedUbps = user.allowedUbpIds
-                    ? ubps
-                      ? ubps.filter((u: any) => user.allowedUbpIds.split(',').includes(u.id)).map((u: any) => u.name).join(', ')
-                      : user.allowedUbpIds
-                    : null;
-
                   return (
                     <tr 
                       key={user.id} 
@@ -459,9 +452,6 @@ export default function UserManagementPage() {
                       <td className="py-3 px-4 text-on-surface-variant font-medium text-xs truncate" title={user.email}>{user.email}</td>
                       <td className="py-3 px-4 text-center">
                         {getRoleBadge(user.role)}
-                      </td>
-                      <td className="py-3 px-4 text-center text-on-surface-variant font-medium text-xs max-w-[240px] truncate" title={allowedUbps || 'Semua UBP'}>
-                        {allowedUbps ? 'Terbatas' : 'Semua UBP'}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-bold ${
@@ -599,58 +589,6 @@ export default function UserManagementPage() {
                   </label>
                 </div>
               )}
-
-              {/* Akses UBP (Otoritas Khusus Unit Bisnis) */}
-              <div className="border-t border-surface-border/50 pt-3.5">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <label className="block text-[10px] font-bold font-mono uppercase tracking-wider text-on-surface-variant">
-                      Hak Akses Unit Bisnis (UBP)
-                    </label>
-                    <p className="text-[10px] text-on-surface-variant/80 mt-0.5">
-                      Batasi akses data pengguna hanya ke UBP tertentu. Jika kosong, pengguna memiliki akses ke **Semua UBP**.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedUbpIds([])}
-                    className="text-primary font-bold hover:underline"
-                  >
-                    Batal Pilih Semua
-                  </button>
-                </div>
-
-                {isUbpsLoading ? (
-                  <div className="flex items-center justify-center py-5">
-                    <div className="w-5 h-5 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto custom-scrollbar p-1.5 border border-surface-border/80 rounded-lg bg-surface-container-lowest">
-                    {ubps?.map((ubp: any) => {
-                      const isChecked = selectedUbpIds.includes(ubp.id);
-                      return (
-                        <div
-                          key={ubp.id}
-                          onClick={() => handleToggleUbpSelection(ubp.id)}
-                          className={`p-2 rounded-lg border flex items-center gap-2 cursor-pointer select-none transition-all ${
-                            isChecked
-                              ? 'border-primary bg-primary/5 text-primary-text font-semibold'
-                              : 'border-surface-border bg-white hover:bg-surface-container-low text-on-surface'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            readOnly
-                            className="h-3.5 w-3.5 text-primary border-surface-border rounded focus:ring-primary cursor-pointer shrink-0"
-                          />
-                          <span className="truncate leading-none">{ubp.name}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
 
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t border-surface-border">

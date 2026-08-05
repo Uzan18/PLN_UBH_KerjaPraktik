@@ -93,7 +93,7 @@ export function StatusBadge({
       >
         {showIcon && (
           <span
-            className={`material-symbols-outlined ${ICON_SIZES[size]} mr-1`}
+            className={`material-symbols-outlined ${ICON_SIZES[size]} ${iconOnly ? '' : 'mr-1'}`}
             style={{ fontVariationSettings: "'FILL' 1" }}
           >
             {icon}

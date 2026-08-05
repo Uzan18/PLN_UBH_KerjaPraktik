@@ -9,7 +9,7 @@ import { JenisAsset } from '@/entities/JenisAsset';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
 import { aggregateAssetStatus } from '@/lib/scoring/aggregateAssetStatus';
-import { mapQualitativeValueToNumber } from '@/lib/scoring/calculateScore';
+import { mapQualitativeValueToNumber, isQuantitativeThreshold } from '@/lib/scoring/calculateScore';
 import type { JudgementLabel } from '@/types';
 // @ts-ignore
 import XLSXStyle from 'xlsx-js-style';
@@ -137,7 +137,7 @@ function resolveDisplayValue(
       { text: crit.badValue, defaultIdx: 3 },
     ];
     for (const opt of opts) {
-      if (!opt.text) continue;
+      if (!opt.text || isQuantitativeThreshold(opt.text)) continue;
       const mapped = mapQualitativeValueToNumber(opt.text);
       if (mapped !== null && mapped === valNum) { resolvedLabel = opt.text; break; }
       if (mapped === null && valNum === opt.defaultIdx) { resolvedLabel = opt.text; break; }

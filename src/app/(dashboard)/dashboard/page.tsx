@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { KpiCard } from '@/components/dashboard/KpiCard';
@@ -23,12 +23,17 @@ const TEST_TYPE_ABBREVIATIONS: Record<string, string> = {
   'Tan Delta Bushing': 'TD-B',
   'Watt Loss Bushing': 'WL-B',
   'Grounding Resistance': 'GR',
-  'Dirana Moisture': 'DM',
-  'Oil Conductivity': 'OC',
-  'Arrester Grounding': 'Arr-GR',
-  'Arrester Insulation Resistance': 'Arr-IR',
-  'Arrester Leakage Current': 'Arr-LC',
-  'Arrester Watt Loss': 'Arr-WL',
+  'Dirana Moisture': 'DIR-M',
+  'Dirana Oil Conduct': 'DIR-OC',
+  'Arrester Ground': 'ARR-G',
+  'Arrester IR': 'ARR-IR',
+  'Arrester Watt Loss': 'ARR-WL',
+  'Visual Inspection': 'VI',
+  'OTI': 'OTI',
+  'WTI': 'WTI',
+  'DGA': 'DGA',
+  'Oil Analysis': 'OIL',
+  'RLA': 'RLA',
 };
 
 function getAbbreviation(name: string): string {
@@ -72,18 +77,74 @@ async function fetchUbps() {
 export default function DashboardPage() {
   const router = useRouter();
   
-  // State filters
-  const [ubpId, setUbpId] = useState('');
-  const [unitId, setUnitId] = useState('');
-  const [equipmentType, setEquipmentType] = useState('');
-  const [year, setYear] = useState('');
+  // State filters initialized from sessionStorage if available
+  const [ubpId, setUbpId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('dashboard_filter_ubpId') || '';
+    }
+    return '';
+  });
+  const [unitId, setUnitId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('dashboard_filter_unitId') || '';
+    }
+    return '';
+  });
+  const [equipmentType, setEquipmentType] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('dashboard_filter_equipmentType') || '';
+    }
+    return '';
+  });
+  const [year, setYear] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('dashboard_filter_year') || '';
+    }
+    return '';
+  });
   const [matrixPage, setMatrixPage] = useState(1);
   const [showAllDms, setShowAllDms] = useState(false);
 
-  // Reset dependents when parent filters change
+  // Track initial mount to prevent resetting unitId on first load
+  const isFirstUbpMount = useRef(true);
+
+  // Reset dependents when parent filters change (except on initial load)
   useEffect(() => {
+    if (isFirstUbpMount.current) {
+      isFirstUbpMount.current = false;
+      return;
+    }
     setUnitId('');
   }, [ubpId]);
+
+  // Persist filter states to sessionStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (ubpId) sessionStorage.setItem('dashboard_filter_ubpId', ubpId);
+      else sessionStorage.removeItem('dashboard_filter_ubpId');
+    }
+  }, [ubpId]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (unitId) sessionStorage.setItem('dashboard_filter_unitId', unitId);
+      else sessionStorage.removeItem('dashboard_filter_unitId');
+    }
+  }, [unitId]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (equipmentType) sessionStorage.setItem('dashboard_filter_equipmentType', equipmentType);
+      else sessionStorage.removeItem('dashboard_filter_equipmentType');
+    }
+  }, [equipmentType]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (year) sessionStorage.setItem('dashboard_filter_year', year);
+      else sessionStorage.removeItem('dashboard_filter_year');
+    }
+  }, [year]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -122,10 +183,15 @@ export default function DashboardPage() {
     return jenisAssetList.map((ja: any) => ja.name.trim()).sort();
   }, [jenisAssetList]);
 
-  // Sync selected equipment type when list loads (default to first available, no 'Semua Jenis' allowed)
+  // Sync selected equipment type when list loads (default to saved or first available)
   useEffect(() => {
     if (equipmentTypes.length > 0) {
-      if (!equipmentType || !equipmentTypes.includes(equipmentType)) {
+      const savedType = typeof window !== 'undefined' ? sessionStorage.getItem('dashboard_filter_equipmentType') : null;
+      if (savedType && equipmentTypes.includes(savedType)) {
+        if (equipmentType !== savedType) {
+          setEquipmentType(savedType);
+        }
+      } else if (!equipmentType || !equipmentTypes.includes(equipmentType)) {
         setEquipmentType(equipmentTypes[0]);
       }
     }
@@ -310,10 +376,10 @@ export default function DashboardPage() {
           </div>
           <button 
             onClick={handleExport}
-            className="bg-white border border-primary text-primary px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 hover:bg-primary-container/10 transition-all active:scale-95 shadow-xs hover:shadow-sm cursor-pointer"
+            className="border border-primary text-primary hover:bg-primary-container/10 p-2 rounded-lg font-bold text-sm flex items-center justify-center transition-all active:scale-95 shadow-2xs hover:shadow-xs cursor-pointer"
+            title="Export Excel"
           >
             <span className="material-symbols-outlined text-lg">download</span>
-            Export Excel
           </button>
         </div>
 
@@ -329,19 +395,19 @@ export default function DashboardPage() {
           ) : (
             <table className="w-full text-left border-separate border-spacing-0">
               <thead>
-                <tr className="bg-surface-container-low">
-                  <th className="px-4 py-3 font-mono text-xs tracking-wider font-medium text-on-surface-variant uppercase sticky left-0 bg-surface-container-low z-20 border-r border-b border-surface-border min-w-[200px] max-w-[200px] w-[200px]">
+                <tr className="bg-surface-container-low h-14">
+                  <th className="px-4 py-1.5 h-14 font-mono text-xs leading-tight tracking-wider font-medium text-on-surface-variant uppercase sticky left-0 bg-surface-container-low z-20 border-r border-b border-surface-border min-w-[200px] max-w-[200px] w-[200px] align-middle box-border">
                     Unit Pembangkit
                   </th>
                   <th
                     style={{ left: '200px' }}
-                    className="px-4 py-3 font-mono text-xs tracking-wider font-medium text-on-surface-variant uppercase text-center min-w-[150px] max-w-[150px] w-[150px] sticky bg-surface-container-low z-20 border-r border-b border-surface-border"
+                    className="px-4 py-1.5 h-14 font-mono text-xs leading-tight tracking-wider font-medium text-on-surface-variant uppercase text-center min-w-[150px] max-w-[150px] w-[150px] sticky bg-surface-container-low z-20 border-r border-b border-surface-border align-middle box-border"
                   >
                     Nama Asset
                   </th>
                   <th
                     style={{ left: '350px' }}
-                    className="px-4 py-3 font-mono text-xs tracking-wider font-medium text-on-surface-variant uppercase text-center min-w-[80px] max-w-[80px] w-[80px] sticky bg-surface-container-low z-20 border-r border-b border-surface-border"
+                    className="px-4 py-1.5 h-14 font-mono text-xs leading-tight tracking-wider font-medium text-on-surface-variant uppercase text-center min-w-[80px] max-w-[80px] w-[80px] sticky bg-surface-container-low z-20 border-r border-b border-surface-border align-middle box-border"
                   >
                     Tahun Uji
                   </th>
@@ -349,12 +415,12 @@ export default function DashboardPage() {
                     <th
                       key={h}
                       title={h}
-                      className="px-2 py-3 font-mono text-[10px] tracking-tight font-bold text-on-surface-variant uppercase text-center min-w-[100px] max-w-[150px] whitespace-normal break-words cursor-help hover:text-primary transition-colors border-r border-b border-surface-border"
+                      className="px-2 py-1.5 h-14 font-mono text-[10px] leading-[1.15] tracking-tight font-bold text-on-surface-variant uppercase text-center min-w-[120px] max-w-[160px] whitespace-normal break-words cursor-help hover:text-primary transition-colors border-r border-b border-surface-border align-middle box-border"
                     >
                       {h}
                     </th>
                   ))}
-                  <th className="px-2 py-3 font-mono text-xs tracking-wider font-medium text-on-surface-variant uppercase text-center w-[60px] border-b border-surface-border">
+                  <th className="px-2 py-1.5 h-14 font-mono text-xs leading-tight tracking-wider font-medium text-on-surface-variant uppercase text-center w-[60px] border-b border-surface-border align-middle box-border">
                     Action
                   </th>
                 </tr>
@@ -364,25 +430,29 @@ export default function DashboardPage() {
                   <tr
                     key={row.sessionId || row.assetId}
                     onClick={() => handleRowClick(row.assetId, row.sessionId)}
-                    className={`hover:bg-surface-container-low transition-colors group cursor-pointer ${
+                    className={`h-12 hover:bg-surface-container-low transition-colors group cursor-pointer ${
                       idx % 2 === 1 ? 'bg-surface-background' : ''
                     }`}
                   >
                     <td
-                      className={`px-4 py-2 text-[12px] font-bold sticky left-0 z-10 border-r border-b border-surface-border min-w-[200px] max-w-[200px] w-[200px] ${
+                      className={`px-4 py-1 h-12 text-[12px] font-bold sticky left-0 z-10 border-r border-b border-surface-border min-w-[200px] max-w-[200px] w-[200px] align-middle box-border ${
                         idx % 2 === 1
                           ? 'bg-surface-background group-hover:bg-surface-container-low'
                           : 'bg-white group-hover:bg-surface-container-low'
                       }`}
                     >
-                      <div>
-                        <div className="truncate max-w-[160px]">{row.unitName}</div>
-                        <div className="text-[9px] font-mono text-on-surface-variant font-normal uppercase truncate max-w-[160px]">{row.ubpName}</div>
+                      <div className="flex flex-col justify-center leading-tight">
+                        <span className="truncate max-w-[160px] block text-[12px] font-bold text-on-surface" title={row.unitName}>
+                          {row.unitName}
+                        </span>
+                        <span className="truncate max-w-[160px] block text-[9px] font-mono text-on-surface-variant font-normal uppercase mt-0.5" title={row.ubpName || '—'}>
+                          {row.ubpName || '—'}
+                        </span>
                       </div>
                     </td>
                     <td
                       style={{ left: '200px' }}
-                      className={`px-4 py-2 text-center text-[12px] text-on-surface border-r border-b border-surface-border font-medium sticky z-10 min-w-[150px] max-w-[150px] w-[150px] truncate ${
+                      className={`px-4 py-1 h-12 text-center text-[12px] text-on-surface border-r border-b border-surface-border font-medium sticky z-10 min-w-[150px] max-w-[150px] w-[150px] truncate align-middle box-border ${
                         idx % 2 === 1
                           ? 'bg-surface-background group-hover:bg-surface-container-low'
                           : 'bg-white group-hover:bg-surface-container-low'
@@ -392,7 +462,7 @@ export default function DashboardPage() {
                     </td>
                     <td
                       style={{ left: '350px' }}
-                      className={`px-4 py-2 text-center text-[12px] text-on-surface-variant border-r border-b border-surface-border font-mono sticky z-10 min-w-[80px] max-w-[80px] w-[80px] ${
+                      className={`px-4 py-1 h-12 text-center text-[12px] text-on-surface-variant border-r border-b border-surface-border font-mono sticky z-10 min-w-[80px] max-w-[80px] w-[80px] align-middle box-border ${
                         idx % 2 === 1
                           ? 'bg-surface-background group-hover:bg-surface-container-low'
                           : 'bg-white group-hover:bg-surface-container-low'
@@ -403,16 +473,12 @@ export default function DashboardPage() {
                     {matrix.testTypeHeaders.map((header: string) => {
                       const cell = row.cells.find((c) => c.testTypeName === header);
                       return (
-                        <td key={header} className="px-1 py-2 text-center border-r border-b border-surface-border min-w-[100px] max-w-[150px]">
-                          {cell ? (
-                            <StatusBadge judgement={cell.judgement} size="sm" iconOnly />
-                          ) : (
-                            <span className="text-on-surface-variant/20 text-[10px]">—</span>
-                          )}
+                        <td key={header} className="px-1 py-1 h-12 text-center border-r border-b border-surface-border min-w-[120px] max-w-[160px] align-middle box-border">
+                          <StatusBadge judgement={cell?.judgement || 'NA'} size="sm" iconOnly />
                         </td>
                       );
                     })}
-                    <td className="px-2 py-2 text-center border-b border-surface-border">
+                    <td className="px-2 py-1 h-12 text-center border-b border-surface-border align-middle box-border">
                       <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-sm">
                         chevron_right
                       </span>
@@ -484,17 +550,17 @@ export default function DashboardPage() {
               <div className="overflow-x-auto custom-scrollbar">
                 <table className="w-full text-left border-separate border-spacing-0">
                   <thead>
-                    <tr className="bg-surface-container-low">
-                      <th className="px-3 py-2 font-mono text-[10px] tracking-wider font-semibold text-on-surface-variant uppercase border-b border-r border-surface-border w-[50px] text-center">
+                    <tr className="bg-surface-container-low h-10">
+                      <th className="px-3 py-2 font-mono text-[10px] tracking-wider font-semibold text-on-surface-variant uppercase border-b border-r border-surface-border w-[50px] text-center align-middle">
                         No
                       </th>
-                      <th className="px-3 py-2 font-mono text-[10px] tracking-wider font-semibold text-on-surface-variant uppercase border-b border-r border-surface-border min-w-[180px]">
+                      <th className="px-3 py-2 font-mono text-[10px] tracking-wider font-semibold text-on-surface-variant uppercase border-b border-r border-surface-border min-w-[180px] align-middle">
                         Mekanisme Kerusakan
                       </th>
-                      <th className="px-3 py-2 font-mono text-[10px] tracking-wider font-semibold text-on-surface-variant uppercase border-b border-r border-surface-border text-center w-[120px]">
+                      <th className="px-3 py-2 font-mono text-[10px] tracking-wider font-semibold text-on-surface-variant uppercase border-b border-r border-surface-border text-center w-[120px] align-middle">
                         Temuan
                       </th>
-                      <th className="px-3 py-2 font-mono text-[10px] tracking-wider font-semibold text-on-surface-variant uppercase border-b border-surface-border">
+                      <th className="px-3 py-2 font-mono text-[10px] tracking-wider font-semibold text-on-surface-variant uppercase border-b border-surface-border align-middle">
                         Unit dengan Temuan
                       </th>
                     </tr>
@@ -503,17 +569,17 @@ export default function DashboardPage() {
                     {displayedDms.map((dm: any, idx: number) => (
                       <tr 
                         key={dm.name} 
-                        className={`hover:bg-surface-container-low transition-colors ${
+                        className={`h-11 hover:bg-surface-container-low transition-colors ${
                           idx % 2 === 1 ? 'bg-surface-background' : 'bg-white'
                         }`}
                       >
-                        <td className="px-3 py-1.5 text-center font-mono text-[11px] text-on-surface-variant border-b border-r border-surface-border">
+                        <td className="px-3 py-1.5 text-center font-mono text-[11px] text-on-surface-variant border-b border-r border-surface-border align-middle">
                           {idx + 1}
                         </td>
-                        <td className="px-3 py-1.5 text-[11px] font-bold text-on-surface border-b border-r border-surface-border">
+                        <td className="px-3 py-1.5 text-[11px] font-bold text-on-surface border-b border-r border-surface-border align-middle">
                           {dm.name}
                         </td>
-                        <td className="px-3 py-1.5 text-center border-b border-r border-surface-border">
+                        <td className="px-3 py-1.5 text-center border-b border-r border-surface-border align-middle">
                           <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] border inline-block ${
                             dm.count > 0 
                               ? 'bg-red-50 text-red-700 border-red-200' 
@@ -522,24 +588,25 @@ export default function DashboardPage() {
                             {dm.count} Asset
                           </span>
                         </td>
-                        <td className="px-3 py-1.5 text-[11px] border-b border-surface-border">
+                        <td className="px-3 py-1.5 text-[11px] border-b border-surface-border align-middle">
                           {dm.affectedAssets && dm.affectedAssets.length > 0 ? (
-                            <div className="flex flex-wrap gap-1 items-center">
-                              {dm.affectedAssets.slice(0, 5).map((asset: { id: string; name: string }) => (
+                            <div className="flex items-center gap-1 overflow-hidden">
+                              {dm.affectedAssets.slice(0, 4).map((asset: { id: string; name: string }) => (
                                 <button
                                   key={asset.id}
                                   onClick={() => router.push(`/unit/${asset.id}`)}
-                                  className="px-1.5 py-0.5 bg-primary/5 hover:bg-primary/10 text-primary font-semibold text-[10px] rounded transition-all active:scale-95 border border-primary/10 cursor-pointer"
+                                  className="px-1.5 py-0.5 bg-primary/5 hover:bg-primary/10 text-primary font-semibold text-[10px] rounded transition-all active:scale-95 border border-primary/10 cursor-pointer truncate max-w-[110px]"
+                                  title={asset.name}
                                 >
                                   {asset.name}
                                 </button>
                               ))}
-                              {dm.affectedAssets.length > 5 && (
+                              {dm.affectedAssets.length > 4 && (
                                 <span 
-                                  className="px-1.5 py-0.5 bg-surface-container text-on-surface-variant font-bold text-[9px] rounded border border-surface-border/80 cursor-help"
-                                  title={dm.affectedAssets.slice(5).map((a: any) => a.name).join(', ')}
+                                  className="px-1.5 py-0.5 bg-surface-container text-on-surface-variant font-bold text-[9px] rounded border border-surface-border/80 cursor-help shrink-0"
+                                  title={dm.affectedAssets.slice(4).map((a: any) => a.name).join(', ')}
                                 >
-                                  +{dm.affectedAssets.length - 5} Unit Lainnya
+                                  +{dm.affectedAssets.length - 4} Unit
                                 </span>
                               )}
                             </div>

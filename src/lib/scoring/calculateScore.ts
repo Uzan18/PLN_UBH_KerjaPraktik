@@ -76,7 +76,19 @@ function parseSingleBound(valStr: string): SingleThresholdBound | null {
 
 /**
  * Determines if a threshold string represents a numeric mathematical condition 
- * (e.g. "> 100", "0.5 - 0.7", "< 0.5", ">= 100 OR < 0") vs descriptive qualitative text ("Jernih", "Bocor", etc.).
+ * (e.g. "> 100", "0.5 - 0.7", "< 0.5", "<1", ">= 100 OR < 0") vs descriptive qualitative text ("Jernih", "Bocor", etc.).
+ */
+export function isQuantitativeThreshold(valStr: string | null): boolean {
+  if (!valStr) return false;
+  const trimmed = valStr.trim();
+  if (!trimmed || trimmed.toUpperCase() === 'NA') return false;
+  if (/^[<>]=?\s*[\d.-]+/.test(trimmed)) return true;
+  if (/^[\d.-]+\s*-\s*[\d.-]+/.test(trimmed)) return true;
+  if (/^[\d.-]+$/.test(trimmed)) return true;
+  if (/\b(OR|ATAU|AND|DAN)\b/i.test(trimmed) && /[<>]=?\s*[\d.-]+/.test(trimmed)) return true;
+  return false;
+}
+
 /**
  * Parse a threshold string supporting single bounds, ranges, and compound operators (AND / OR).
  * Supported quantitative syntax examples:

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import { FilterSelect } from '@/components/dashboard/FilterSelect';
+import { ParameterTrendCard } from '@/components/dashboard/ParameterTrendCard';
 
 async function fetchUbpAssets() {
   const res = await fetch('/api/master/ubp-asset');
@@ -26,7 +27,7 @@ export default function InformasiAssetPage() {
   const [exportUnitName, setExportUnitName] = useState('ALL');
   const [exportJenisId, setExportJenisId] = useState('ALL');
   const [exportTestYear, setExportTestYear] = useState('ALL');
-  const [trendMode, setTrendMode] = useState<'3-tahun' | '3-pengujian'>('3-tahun');
+  const [trendMode, setTrendMode] = useState<'5-tahun' | '5-pengujian' | '3-tahun' | '3-pengujian'>('5-tahun');
 
   const { data: ubps, isLoading, error } = useQuery({
     queryKey: ['ubp-assets-info-branched'],
@@ -443,112 +444,112 @@ export default function InformasiAssetPage() {
                     </div>
                   ) : assetDetail ? (
                     <>
-                      {/* Top Bento Grid (Matching Pic 2) */}
-                      <div className="grid grid-cols-12 gap-4">
-                        {/* Left Card: Asset Specs */}
-                        <div className="col-span-12 lg:col-span-8 bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
-                          <div>
-                            <div className="flex items-center gap-3 mb-2 flex-wrap">
-                              <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase">
-                                {assetDetail.equipmentType}
-                              </span>
-                              <span className="font-mono text-xs text-on-surface-variant">ID: {assetDetail.id}</span>
-                            </div>
-                            <h2 className="text-3xl font-bold text-on-surface mb-2 leading-tight tracking-tight">
-                              {assetDetail.unitName || ''} - {assetDetail.name}
-                            </h2>
+                      {/* Top: Asset Specs Card (Full Width) */}
+                      <div className="bg-white p-6 rounded-xl border border-surface-border shadow-sm flex flex-col gap-6">
+                        <div>
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase">
+                              {assetDetail.equipmentType}
+                            </span>
+                            <span className="font-mono text-xs text-on-surface-variant">ID: {assetDetail.id}</span>
                           </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 border-t border-surface-border/50">
-                            {(() => {
-                              const activeFields = (() => {
-                                if (!assetDetail.infoFields) return null;
-                                try {
-                                  return JSON.parse(assetDetail.infoFields) as any[];
-                                } catch (e) {
-                                  return null;
-                                }
-                              })();
-
-                              const activeKeys = activeFields
-                                ? activeFields.map((item: any) => typeof item === 'string' ? item : item?.key || '')
-                                : null;
-
-                              const customFieldsDict = (() => {
-                                if (!assetDetail.customMetadata) return {};
-                                try {
-                                  return JSON.parse(assetDetail.customMetadata) as Record<string, string>;
-                                } catch (e) {
-                                  return {};
-                                }
-                              })();
-
-                              const customKeys = activeKeys
-                                ? activeKeys.filter((k: string) => k && !['serialnumber', 'mfgyear', 'manufacture', 'year of manufacturing', 'year of manufacture', 'tahun buat'].includes(k.toLowerCase()))
-                                : Object.keys(customFieldsDict);
-
-                              const customFields = customKeys.map((k: string) => {
-                                const cleanLabel = k
-                                  .split(' ')
-                                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                                  .join(' ');
-                                return {
-                                  key: k,
-                                  label: cleanLabel,
-                                  value: customFieldsDict[k] || (assetDetail as any)[k] || '—'
-                                };
-                              });
-
-                              return [
-                                { key: 'manufacture', label: 'Manufacture', value: assetDetail.manufacture || '—' },
-                                { key: 'serialNumber', label: 'Serial Number', value: assetDetail.serialNumber || '—' },
-                                { key: 'mfgYear', label: 'Year of Manufacturing', value: assetDetail.mfgYear ? String(assetDetail.mfgYear) : '—' },
-                              ]
-                                .filter((item) => !activeFields || activeFields.some((af: any) => {
-                                  const afKey = typeof af === 'string' ? af : af?.key || '';
-                                  return afKey.toLowerCase() === item.key.toLowerCase();
-                                }))
-                                .concat(customFields)
-                                .map((item) => (
-                                  <div 
-                                    key={item.label} 
-                                    className="flex flex-col px-3 py-1.5 rounded-lg border text-xs bg-surface-container-low border-surface-border"
-                                  >
-                                    <span className="text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider mb-0.5">{item.label}</span>
-                                    <span className="font-semibold text-on-surface truncate" title={String(item.value)}>{item.value}</span>
-                                  </div>
-                                ));
-                            })()}
-                          </div>
+                          <h2 className="text-3xl font-bold text-on-surface mb-2 leading-tight tracking-tight">
+                            {assetDetail.unitName || ''} - {assetDetail.name}
+                          </h2>
                         </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-2 pt-4 border-t border-surface-border/50">
+                          {(() => {
+                            const activeFields = (() => {
+                              if (!assetDetail.infoFields) return null;
+                              try {
+                                return JSON.parse(assetDetail.infoFields) as any[];
+                              } catch (e) {
+                                return null;
+                              }
+                            })();
 
-                        {/* Right Card: Trend Chart */}
-                        <div className="col-span-12 lg:col-span-4 bg-white p-5 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between">
-                          <div className="flex flex-col gap-2.5 mb-2">
+                            const activeKeys = activeFields
+                              ? activeFields.map((item: any) => typeof item === 'string' ? item : item?.key || '')
+                              : null;
+
+                            const customFieldsDict = (() => {
+                              if (!assetDetail.customMetadata) return {};
+                              try {
+                                return JSON.parse(assetDetail.customMetadata) as Record<string, string>;
+                              } catch (e) {
+                                return {};
+                              }
+                            })();
+
+                            const customKeys = activeKeys
+                              ? activeKeys.filter((k: string) => k && !['serialnumber', 'mfgyear', 'manufacture', 'year of manufacturing', 'year of manufacture', 'tahun buat'].includes(k.toLowerCase()))
+                              : Object.keys(customFieldsDict);
+
+                            const customFields = customKeys.map((k: string) => {
+                              const cleanLabel = k
+                                .split(' ')
+                                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                                .join(' ');
+                              return {
+                                key: k,
+                                label: cleanLabel,
+                                value: customFieldsDict[k] || (assetDetail as any)[k] || '—'
+                              };
+                            });
+
+                            return [
+                              { key: 'manufacture', label: 'Manufacture', value: assetDetail.manufacture || '—' },
+                              { key: 'serialNumber', label: 'Serial Number', value: assetDetail.serialNumber || '—' },
+                              { key: 'mfgYear', label: 'Year of Manufacturing', value: assetDetail.mfgYear ? String(assetDetail.mfgYear) : '—' },
+                            ]
+                              .filter((item) => !activeFields || activeFields.some((af: any) => {
+                                const afKey = typeof af === 'string' ? af : af?.key || '';
+                                return afKey.toLowerCase() === item.key.toLowerCase();
+                              }))
+                              .concat(customFields)
+                              .map((item) => (
+                                <div 
+                                  key={item.label} 
+                                  className="flex flex-col px-3 py-1.5 rounded-lg border text-xs bg-surface-container-low border-surface-border"
+                                >
+                                  <span className="text-[9px] uppercase font-bold text-on-surface-variant/60 tracking-wider mb-0.5">{item.label}</span>
+                                  <span className="font-semibold text-on-surface truncate" title={String(item.value)}>{item.value}</span>
+                                </div>
+                              ));
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Bottom: 2 Trend Charts (Side by Side) */}
+                      <div className="grid grid-cols-12 gap-4 items-stretch mt-4">
+                        {/* Left Chart: Tren Hasil Pengujian Aset */}
+                        <div className="col-span-12 lg:col-span-6 bg-white p-5 rounded-xl border border-surface-border shadow-sm flex flex-col justify-between h-full space-y-4">
+                          <div className="space-y-3 min-h-[92px] flex flex-col justify-between">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                               <h4 className="font-bold text-on-surface text-sm">Tren Hasil Pengujian Aset</h4>
                               {/* Category Selector Toggle */}
                               <div className="flex items-center bg-surface-container-low p-0.5 rounded-lg border border-surface-border">
                                 <button
                                   type="button"
-                                  onClick={() => setTrendMode('3-tahun')}
+                                  onClick={() => setTrendMode('5-tahun')}
                                   className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
-                                    trendMode === '3-tahun'
+                                    trendMode === '5-tahun' || trendMode === '3-tahun'
                                       ? 'bg-white text-primary shadow-2xs'
                                       : 'text-on-surface-variant hover:text-on-surface'
                                   }`}
                                 >
-                                  3 Tahun
+                                  5 Tahun
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setTrendMode('3-pengujian')}
+                                  onClick={() => setTrendMode('5-pengujian')}
                                   className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
-                                    trendMode === '3-pengujian'
+                                    trendMode === '5-pengujian' || trendMode === '3-pengujian'
                                       ? 'bg-white text-primary shadow-2xs'
                                       : 'text-on-surface-variant hover:text-on-surface'
                                   }`}
                                 >
-                                  3 Pengujian
+                                  5 Pengujian
                                 </button>
                               </div>
                             </div>
@@ -574,104 +575,120 @@ export default function InformasiAssetPage() {
                             </div>
                           </div>
                           
-                          <div className="h-44 flex items-end justify-around relative pt-4 pb-7 px-1 border-b border-surface-border">
+                          <div className="h-44 relative pt-12 pb-4 border-b border-surface-border mt-2 overflow-x-auto custom-scrollbar">
                             {/* Background Grid Lines */}
-                            <div className="absolute inset-x-0 top-4 bottom-7 flex flex-col justify-between pointer-events-none">
-                              <div className="w-full border-t border-surface-border/40" />
-                              <div className="w-full border-t border-surface-border/40" />
-                              <div className="w-full border-t border-surface-border/40" />
+                            <div className="absolute inset-x-0 top-12 bottom-4 flex flex-col justify-between pointer-events-none">
+                              <div className="w-full border-t border-surface-border/30" />
+                              <div className="w-full border-t border-surface-border/30" />
+                              <div className="w-full border-t border-surface-border/30" />
                             </div>
 
                             {/* Trend Columns Group */}
-                            {(() => {
-                              const activeTrendData = trendMode === '3-tahun'
-                                ? (assetDetail?.trend || [])
-                                : (assetDetail?.trendSessions || []);
+                            <div className="flex items-end justify-around h-full min-w-full gap-2 px-1">
+                              {(() => {
+                                const isYearMode = trendMode === '5-tahun' || trendMode === '3-tahun';
+                                const activeTrendData = isYearMode
+                                  ? (assetDetail?.trend || [])
+                                  : (assetDetail?.trendSessions || []);
 
-                              if (!activeTrendData || activeTrendData.length === 0) {
-                                return (
-                                  <div className="w-full text-center py-10 text-on-surface-variant font-medium text-xs">
-                                    Tidak ada data tren pengujian.
-                                  </div>
-                                );
-                              }
-
-                              const maxCount = Math.max(
-                                ...activeTrendData.map((item: any) =>
-                                  Math.max(item.GOOD || 0, item.FAIR || 0, item.POOR || 0, item.BAD || 0)
-                                ),
-                                1
-                              );
-
-                              return activeTrendData.map((t: any, idx: number) => {
-                                const labelText = trendMode === '3-tahun'
-                                  ? t.year
-                                  : (t.label || t.event || `Tahun ${t.year}`);
-
-                                return (
-                                  <div key={t.id || t.year || idx} className="flex flex-col items-center gap-1 w-1/3 z-10 min-w-0">
-                                    {/* Columns container */}
-                                    <div className="flex items-end justify-center gap-1.5 h-26 w-full">
-                                      {/* Good Column */}
-                                      <div 
-                                        style={{ height: `${((t.GOOD || 0) / maxCount) * 100}%` }} 
-                                        className="w-2.5 bg-status-good rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
-                                      >
-                                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
-                                          GOOD: {t.GOOD || 0}
-                                        </div>
-                                      </div>
-
-                                      {/* Fair Column */}
-                                      <div 
-                                        style={{ height: `${((t.FAIR || 0) / maxCount) * 100}%` }} 
-                                        className="w-2.5 bg-status-fair rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
-                                      >
-                                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
-                                          FAIR: {t.FAIR || 0}
-                                        </div>
-                                      </div>
-
-                                      {/* Poor Column */}
-                                      <div 
-                                        style={{ height: `${((t.POOR || 0) / maxCount) * 100}%` }} 
-                                        className="w-2.5 bg-status-poor rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
-                                      >
-                                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
-                                          POOR: {t.POOR || 0}
-                                        </div>
-                                      </div>
-
-                                      {/* Bad Column */}
-                                      <div 
-                                        style={{ height: `${((t.BAD || 0) / maxCount) * 100}%` }} 
-                                        className="w-2.5 bg-status-bad rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
-                                      >
-                                        <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
-                                          BAD: {t.BAD || 0}
-                                        </div>
-                                      </div>
+                                if (!activeTrendData || activeTrendData.length === 0) {
+                                  return (
+                                    <div className="w-full text-center py-10 text-on-surface-variant font-medium text-xs">
+                                      Tidak ada data tren pengujian.
                                     </div>
-                                    
-                                    {/* Label Badge */}
-                                    <div className="w-full text-center px-0.5 mt-1">
+                                  );
+                                }
+
+                                const maxCount = Math.max(
+                                  ...activeTrendData.map((item: any) =>
+                                    Math.max(item.GOOD || 0, item.FAIR || 0, item.POOR || 0, item.BAD || 0)
+                                  ),
+                                  1
+                                );
+
+                                return activeTrendData.map((t: any, idx: number) => {
+                                  const labelText = isYearMode
+                                    ? t.year
+                                    : (t.label || t.event || `Tahun ${t.year}`);
+
+                                  return (
+                                    <div
+                                      key={t.id || t.year || idx}
+                                      className="flex flex-col items-center gap-1 z-10 shrink-0 flex-1 min-w-[50px] max-w-[80px]"
+                                    >
+                                      {/* Columns container */}
+                                      <div className="flex items-end justify-center gap-1.5 h-16 w-full">
+                                        {/* Good Column */}
+                                        <div 
+                                          style={{ height: `${((t.GOOD || 0) / maxCount) * 100}%` }} 
+                                          className="w-2.5 sm:w-3 bg-status-good rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                                        >
+                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/bar:flex bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-30 shadow-md">
+                                            GOOD: {t.GOOD || 0}
+                                          </div>
+                                        </div>
+
+                                        {/* Fair Column */}
+                                        <div 
+                                          style={{ height: `${((t.FAIR || 0) / maxCount) * 100}%` }} 
+                                          className="w-2.5 sm:w-3 bg-status-fair rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                                        >
+                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/bar:flex bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-30 shadow-md">
+                                            FAIR: {t.FAIR || 0}
+                                          </div>
+                                        </div>
+
+                                        {/* Poor Column */}
+                                        <div 
+                                          style={{ height: `${((t.POOR || 0) / maxCount) * 100}%` }} 
+                                          className="w-2.5 sm:w-3 bg-status-poor rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                                        >
+                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/bar:flex bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-30 shadow-md">
+                                            POOR: {t.POOR || 0}
+                                          </div>
+                                        </div>
+
+                                        {/* Bad Column */}
+                                        <div 
+                                          style={{ height: `${((t.BAD || 0) / maxCount) * 100}%` }} 
+                                          className="w-2.5 sm:w-3 bg-status-bad rounded-t-xs transition-all duration-500 hover:brightness-90 relative group/bar cursor-pointer"
+                                        >
+                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/bar:flex bg-on-surface text-white text-[9px] font-bold px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-30 shadow-md">
+                                            BAD: {t.BAD || 0}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Label Badge */}
                                       <span
-                                        className="font-mono text-[9px] font-bold text-on-surface bg-surface-container-low px-1.5 py-0.5 rounded border border-surface-border block max-w-[85px] sm:max-w-[105px] truncate mx-auto"
+                                        className="font-mono text-[9px] font-semibold text-on-surface-variant max-w-full truncate text-center cursor-help mt-0.5"
                                         title={labelText}
                                       >
                                         {labelText}
                                       </span>
                                     </div>
-                                  </div>
-                                );
-                              });
-                            })()}
+                                  );
+                                });
+                              })()}
+                            </div>
                           </div>
-                          <div className="mt-2 text-[9px] text-center text-on-surface-variant/80 italic">
-                            {trendMode === '3-tahun'
-                              ? '*Jumlah jenis pengujian berdasarkan status kondisi per tahun'
-                              : '*Jumlah jenis pengujian berdasarkan status kondisi per event pengujian'}
+
+                          <div className="flex items-center justify-between text-[10px] text-on-surface-variant font-medium min-h-[20px]">
+                            <span>Statistik Status Kondisi</span>
+                            <span className="text-outline">
+                              {trendMode === '5-tahun' || trendMode === '3-tahun'
+                                ? '*Berdasarkan status kondisi per tahun'
+                                : '*Berdasarkan status kondisi per event pengujian'}
+                            </span>
                           </div>
+                        </div>
+
+                        {/* Right Chart: Parameter Trend Card */}
+                        <div className="col-span-12 lg:col-span-6">
+                          <ParameterTrendCard
+                            testTypeStatuses={assetDetail?.testTypeStatuses}
+                            allSessions={assetDetail?.allSessions || assetDetail?.testSessions}
+                          />
                         </div>
                       </div>
 

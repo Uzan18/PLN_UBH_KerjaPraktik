@@ -10,7 +10,7 @@ import { Criteria } from '@/entities/Criteria';
 import { getServerSession } from '@/lib/auth/session';
 import { requirePermission } from '@/lib/auth/rbac';
 import { aggregateAssetStatus } from '@/lib/scoring/aggregateAssetStatus';
-import { mapQualitativeValueToNumber } from '@/lib/scoring/calculateScore';
+import { mapQualitativeValueToNumber, isQuantitativeThreshold } from '@/lib/scoring/calculateScore';
 import type { JudgementLabel } from '@/types';
 
 const TEST_TYPE_ORDER = [
@@ -106,6 +106,7 @@ export async function GET(
       .leftJoinAndSelect('asset.testSessions', 'ts', 'ts.status = :status', { status: 'VALIDATED' })
       .leftJoinAndSelect('ts.testResults', 'tr')
       .leftJoinAndSelect('tr.parameter', 'param')
+      .leftJoinAndSelect('param.damageMechanisms', 'pdm')
       .leftJoinAndSelect('param.testType', 'tt')
       .where('asset.id = :id', { id })
       .orderBy('ts.test_year', 'DESC')
@@ -113,6 +114,36 @@ export async function GET(
 
     if (!asset) {
       return NextResponse.json({ success: false, error: 'Asset not found' }, { status: 404 });
+    }
+
+    // Ensure damageMechanisms on parameters are populated even if TypeORM join is empty
+    try {
+      const pdmMappings = await db.query(
+        `SELECT parameter_id, damage_mechanism_name FROM parameter_damage_mechanism`
+      );
+      const pdmMap: Record<string, Array<{ name: string }>> = {};
+      for (const r of pdmMappings) {
+        const pid: string = r.PARAMETER_ID ?? r.parameter_id;
+        const mname: string = r.DAMAGE_MECHANISM_NAME ?? r.damage_mechanism_name;
+        if (pid && mname) {
+          if (!pdmMap[pid]) pdmMap[pid] = [];
+          pdmMap[pid].push({ name: mname });
+        }
+      }
+
+      for (const s of asset.testSessions || []) {
+        for (const tr of s.testResults || []) {
+          if (tr.parameter) {
+            if (pdmMap[tr.parameter.id] && pdmMap[tr.parameter.id].length > 0) {
+              tr.parameter.damageMechanisms = pdmMap[tr.parameter.id] as any;
+            } else if (!tr.parameter.damageMechanisms) {
+              tr.parameter.damageMechanisms = [];
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load raw parameter_damage_mechanism mappings in asset detail:', e);
     }
 
     // Determine which session to look at (defaults to latest validated session)
@@ -233,14 +264,15 @@ export async function GET(
 
           if (criteria) {
             let matchedOpt = null;
+            const isQualText = (opt: string | null) => opt && !isQuantitativeThreshold(opt);
             
-            if (criteria.goodValue && (mapQualitativeValueToNumber(criteria.goodValue) === valNum || (mapQualitativeValueToNumber(criteria.goodValue) === null && valNum === 0))) {
+            if (criteria.goodValue && (mapQualitativeValueToNumber(criteria.goodValue) === valNum || (isQualText(criteria.goodValue) && mapQualitativeValueToNumber(criteria.goodValue) === null && valNum === 0))) {
               matchedOpt = criteria.goodValue;
-            } else if (criteria.fairValue && (mapQualitativeValueToNumber(criteria.fairValue) === valNum || (mapQualitativeValueToNumber(criteria.fairValue) === null && valNum === 1))) {
+            } else if (criteria.fairValue && (mapQualitativeValueToNumber(criteria.fairValue) === valNum || (isQualText(criteria.fairValue) && mapQualitativeValueToNumber(criteria.fairValue) === null && valNum === 1))) {
               matchedOpt = criteria.fairValue;
-            } else if (criteria.poorValue && (mapQualitativeValueToNumber(criteria.poorValue) === valNum || (mapQualitativeValueToNumber(criteria.poorValue) === null && valNum === 2))) {
+            } else if (criteria.poorValue && (mapQualitativeValueToNumber(criteria.poorValue) === valNum || (isQualText(criteria.poorValue) && mapQualitativeValueToNumber(criteria.poorValue) === null && valNum === 2))) {
               matchedOpt = criteria.poorValue;
-            } else if (criteria.badValue && (mapQualitativeValueToNumber(criteria.badValue) === valNum || (mapQualitativeValueToNumber(criteria.badValue) === null && valNum === 3))) {
+            } else if (criteria.badValue && (mapQualitativeValueToNumber(criteria.badValue) === valNum || (isQualText(criteria.badValue) && mapQualitativeValueToNumber(criteria.badValue) === null && valNum === 3))) {
               matchedOpt = criteria.badValue;
             }
             
@@ -248,7 +280,7 @@ export async function GET(
               displayValue = matchedOpt;
             } else {
               const labelOptions = [criteria.goodValue, criteria.fairValue, criteria.poorValue, criteria.badValue]
-                .filter(Boolean)
+                .filter((v): v is string => Boolean(v && isQualText(v)))
                 .map((v) => String(v).trim());
                 
               for (const opt of labelOptions) {
@@ -319,12 +351,12 @@ export async function GET(
       return posA - posB;
     });
 
-    // 1. Calculate 3-year test types status counts trend
+    // 1. Calculate 5-year test types status counts trend
     const distinctYears = Array.from(new Set((asset.testSessions || []).map((s) => s.testYear)))
       .sort((a, b) => b - a); // Descending order
-    const last3Years = distinctYears.slice(0, 3); // Take latest 3 years
+    const last5Years = distinctYears.slice(0, 5); // Take latest 5 years
 
-    const trendData = last3Years.map((y) => {
+    const trendData = last5Years.map((y) => {
       let good = 0;
       let fair = 0;
       let poor = 0;
@@ -364,10 +396,10 @@ export async function GET(
     });
     trendData.sort((a, b) => a.year.localeCompare(b.year));
 
-    // 2. Calculate 3-latest-sessions test types status counts trend
-    const latest3Sessions = (uniqueSessions || []).slice(0, 3); // Take latest 3 unique sessions
+    // 2. Calculate 5-latest-sessions test types status counts trend
+    const latest5Sessions = (uniqueSessions || []).slice(0, 5); // Take latest 5 unique sessions
 
-    const trendSessionsData = latest3Sessions.map((sess) => {
+    const trendSessionsData = latest5Sessions.map((sess) => {
       let good = 0;
       let fair = 0;
       let poor = 0;
@@ -431,6 +463,25 @@ export async function GET(
           id: s.id,
           year: s.testYear,
           event: s.testEvent || null
+        })),
+        allSessions: (uniqueSessions || []).map((s) => ({
+          id: s.id,
+          testYear: s.testYear,
+          testEvent: s.testEvent || null,
+          createdAt: s.createdAt,
+          testResults: (s.testResults || []).map((r) => ({
+            parameterId: r.parameter?.id || r.parameterId,
+            value: r.value,
+            displayValue: (r as any).displayValue,
+            isNotApplicable: r.isNotApplicable,
+            judgement: r.judgement,
+            parameter: {
+              id: r.parameter?.id,
+              name: r.parameter?.name,
+              unit: r.parameter?.unit,
+              testTypeId: r.parameter?.testTypeId,
+            },
+          })),
         })),
         trend: trendData,
         trendSessions: trendSessionsData,

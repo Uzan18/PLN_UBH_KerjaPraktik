@@ -71,6 +71,35 @@ export async function GET() {
       .addOrderBy('p.orderIndex', 'ASC')
       .getMany();
 
+    // Fetch raw mappings directly from parameter_damage_mechanism junction table for 100% reliability
+    try {
+      const pdmMappings = await db.query(
+        `SELECT parameter_id, damage_mechanism_name FROM parameter_damage_mechanism`
+      );
+
+      const pdmMap: Record<string, Array<{ name: string }>> = {};
+      for (const r of pdmMappings) {
+        const pid: string = r.PARAMETER_ID ?? r.parameter_id;
+        const mname: string = r.DAMAGE_MECHANISM_NAME ?? r.damage_mechanism_name;
+        if (pid && mname) {
+          if (!pdmMap[pid]) pdmMap[pid] = [];
+          pdmMap[pid].push({ name: mname });
+        }
+      }
+
+      for (const tt of testTypes) {
+        for (const p of tt.parameters || []) {
+          if (pdmMap[p.id] && pdmMap[p.id].length > 0) {
+            p.damageMechanisms = pdmMap[p.id] as any;
+          } else if (!p.damageMechanisms) {
+            p.damageMechanisms = [];
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load raw parameter_damage_mechanism mappings:', e);
+    }
+
     return NextResponse.json({ success: true, data: { mechanisms, testTypes } });
   } catch (error) {
     return handleApiError(error);
